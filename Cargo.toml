@@ -3,10 +3,10 @@ name = "fel-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Formspec Expression Language — parser, evaluator, and dependency analysis (zero dependencies)"
+description = "Formspec Expression Language — parser, evaluator, and dependency analysis"
 
 [dependencies]
-# None — pure Rust std library only
+rust_decimal = "1"
 
 [dev-dependencies]
 # None

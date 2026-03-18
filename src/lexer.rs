@@ -1,9 +1,11 @@
 /// FEL lexer — hand-rolled tokenizer.
+use rust_decimal::prelude::*;
+use rust_decimal::Decimal;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
     // Literals
-    Number(f64),
+    Number(Decimal),
     StringLit(String),
     True,
     False,
@@ -328,9 +330,14 @@ impl<'a> Lexer<'a> {
             }
         }
         let s: String = self.chars[start..self.pos].iter().collect();
-        let n: f64 = s
-            .parse()
-            .map_err(|_| format!("invalid number '{s}' at position {start}"))?;
+        // Decimal doesn't parse scientific notation (e.g. 1e3) directly.
+        // Try Decimal first; fall back through f64 for E notation.
+        let n: Decimal = s.parse().or_else(|_| {
+            s.parse::<f64>()
+                .ok()
+                .and_then(Decimal::from_f64)
+                .ok_or(())
+        }).map_err(|_| format!("invalid number '{s}' at position {start}"))?;
         Ok(Token::Number(n))
     }
 

@@ -1,11 +1,13 @@
 /// FEL (Formspec Expression Language) — parser, evaluator, and dependency analysis.
 ///
-/// Zero external dependencies — pure Rust std library only.
+/// Uses rust_decimal for base-10 arithmetic per spec S3.4.1 (minimum 18 significant digits).
 
 pub mod ast;
 pub mod dependencies;
+pub mod environment;
 pub mod error;
 pub mod evaluator;
+pub mod extensions;
 pub mod lexer;
 pub mod parser;
 pub mod types;
@@ -13,9 +15,12 @@ pub mod types;
 // Re-export key types
 pub use ast::Expr;
 pub use dependencies::{extract_dependencies, Dependencies};
+pub use environment::{FormspecEnvironment, MipState, RepeatContext};
 pub use error::{Diagnostic, FelError, Severity};
 pub use evaluator::{evaluate, Environment, EvalResult, Evaluator, MapEnvironment};
+pub use extensions::{ExtensionError, ExtensionRegistry};
 pub use parser::parse;
+pub use rust_decimal::Decimal;
 pub use types::{FelDate, FelMoney, FelValue};
 
 /// Parse and evaluate a FEL expression with a flat field map.

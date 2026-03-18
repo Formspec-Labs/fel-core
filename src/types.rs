@@ -1,4 +1,5 @@
-/// FEL runtime value types — zero external dependencies.
+/// FEL runtime value types — base-10 decimal arithmetic per spec S3.4.1.
+use rust_decimal::Decimal;
 use std::fmt;
 
 /// A FEL runtime value.
@@ -6,7 +7,7 @@ use std::fmt;
 pub enum FelValue {
     Null,
     Boolean(bool),
-    Number(f64),
+    Number(Decimal),
     String(String),
     Date(FelDate),
     Array(Vec<FelValue>),
@@ -31,7 +32,7 @@ pub enum FelDate {
 /// A monetary value with currency.
 #[derive(Debug, Clone)]
 pub struct FelMoney {
-    pub amount: f64,
+    pub amount: Decimal,
     pub currency: String,
 }
 
@@ -40,13 +41,11 @@ impl PartialEq for FelValue {
         match (self, other) {
             (FelValue::Null, FelValue::Null) => true,
             (FelValue::Boolean(a), FelValue::Boolean(b)) => a == b,
-            (FelValue::Number(a), FelValue::Number(b)) => float_eq(*a, *b),
+            (FelValue::Number(a), FelValue::Number(b)) => a == b,
             (FelValue::String(a), FelValue::String(b)) => a == b,
             (FelValue::Date(a), FelValue::Date(b)) => a == b,
             (FelValue::Array(a), FelValue::Array(b)) => a == b,
-            (FelValue::Money(a), FelValue::Money(b)) => {
-                a.currency == b.currency && float_eq(a.amount, b.amount)
-            }
+            (FelValue::Money(a), FelValue::Money(b)) => a == b,
             (FelValue::Object(a), FelValue::Object(b)) => a == b,
             _ => false,
         }
@@ -55,18 +54,8 @@ impl PartialEq for FelValue {
 
 impl PartialEq for FelMoney {
     fn eq(&self, other: &Self) -> bool {
-        self.currency == other.currency && float_eq(self.amount, other.amount)
+        self.currency == other.currency && self.amount == other.amount
     }
-}
-
-/// Compare f64 with tolerance for decimal arithmetic.
-fn float_eq(a: f64, b: f64) -> bool {
-    if a == b {
-        return true;
-    }
-    let diff = (a - b).abs();
-    let max = a.abs().max(b.abs()).max(1e-15);
-    diff / max < 1e-10
 }
 
 impl FelValue {
@@ -91,14 +80,14 @@ impl FelValue {
         match self {
             FelValue::Null => false,
             FelValue::Boolean(b) => *b,
-            FelValue::Number(n) => *n != 0.0,
+            FelValue::Number(n) => !n.is_zero(),
             FelValue::String(s) => !s.is_empty(),
             FelValue::Array(a) => !a.is_empty(),
             _ => true,
         }
     }
 
-    pub fn as_number(&self) -> Option<f64> {
+    pub fn as_number(&self) -> Option<Decimal> {
         match self {
             FelValue::Number(n) => Some(*n),
             _ => None,
@@ -290,16 +279,13 @@ fn civil_from_days(z: i64) -> FelDate {
     }
 }
 
-/// Format a number: strip trailing zeros.
-pub fn format_number(n: f64) -> String {
-    if n == n.floor() && n.abs() < 1e15 {
-        format!("{}", n as i64)
+/// Format a Decimal: strip trailing zeros, show as integer when possible.
+pub fn format_number(n: Decimal) -> String {
+    let normalized = n.normalize();
+    if normalized.scale() == 0 {
+        normalized.to_string()
     } else {
-        // Use enough precision but strip trailing zeros
-        let s = format!("{:.10}", n);
-        let s = s.trim_end_matches('0');
-        let s = s.trim_end_matches('.');
-        s.to_string()
+        normalized.to_string()
     }
 }
 

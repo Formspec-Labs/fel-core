@@ -1,5 +1,7 @@
 /// Comprehensive FEL evaluator tests.
 use fel_core::*;
+use rust_decimal::prelude::*;
+use rust_decimal::Decimal;
 
 // ── Helpers ─────────────────────────────────────────────────────
 
@@ -17,8 +19,12 @@ fn eval_fields(input: &str, fields: Vec<(&str, FelValue)>) -> FelValue {
     evaluate(&expr, &env).value
 }
 
-fn num(n: f64) -> FelValue {
-    FelValue::Number(n)
+fn num(n: impl Into<Decimal>) -> FelValue {
+    FelValue::Number(n.into())
+}
+
+fn dec(v: &str) -> FelValue {
+    FelValue::Number(Decimal::from_str(v).unwrap())
 }
 
 fn s(v: &str) -> FelValue {
@@ -33,10 +39,10 @@ fn arr(vals: Vec<FelValue>) -> FelValue {
 
 #[test]
 fn test_number_literals() {
-    assert_eq!(eval("0"), num(0.0));
-    assert_eq!(eval("42"), num(42.0));
-    assert_eq!(eval("3.14"), num(3.14));
-    assert_eq!(eval("1e3"), num(1000.0));
+    assert_eq!(eval("0"), num(0));
+    assert_eq!(eval("42"), num(42));
+    assert_eq!(eval("3.14"), dec("3.14"));
+    assert_eq!(eval("1e3"), num(1000));
 }
 
 #[test]
@@ -73,18 +79,18 @@ fn test_datetime_literal() {
 
 #[test]
 fn test_basic_arithmetic() {
-    assert_eq!(eval("1 + 2"), num(3.0));
-    assert_eq!(eval("10 - 3"), num(7.0));
-    assert_eq!(eval("4 * 5"), num(20.0));
-    assert_eq!(eval("15 / 3"), num(5.0));
-    assert_eq!(eval("17 % 5"), num(2.0));
+    assert_eq!(eval("1 + 2"), num(3));
+    assert_eq!(eval("10 - 3"), num(7));
+    assert_eq!(eval("4 * 5"), num(20));
+    assert_eq!(eval("15 / 3"), num(5));
+    assert_eq!(eval("17 % 5"), num(2));
 }
 
 #[test]
 fn test_arithmetic_precedence() {
-    assert_eq!(eval("2 + 3 * 4"), num(14.0));
-    assert_eq!(eval("(2 + 3) * 4"), num(20.0));
-    assert_eq!(eval("10 - 2 * 3"), num(4.0));
+    assert_eq!(eval("2 + 3 * 4"), num(14));
+    assert_eq!(eval("(2 + 3) * 4"), num(20));
+    assert_eq!(eval("10 - 2 * 3"), num(4));
 }
 
 #[test]
@@ -95,8 +101,8 @@ fn test_division_by_zero() {
 
 #[test]
 fn test_unary_negation() {
-    assert_eq!(eval("-5"), num(-5.0));
-    assert_eq!(eval("-(3 + 2)"), num(-5.0));
+    assert_eq!(eval("-5"), num(-5));
+    assert_eq!(eval("-(3 + 2)"), num(-5));
 }
 
 // ── Comparison ──────────────────────────────────────────────────
@@ -133,13 +139,11 @@ fn test_logical_and_or() {
 
 #[test]
 fn test_short_circuit_and() {
-    // false and X → false (X not evaluated)
     assert_eq!(eval("false and (1/0 = 1)"), FelValue::Boolean(false));
 }
 
 #[test]
 fn test_short_circuit_or() {
-    // true or X → true (X not evaluated)
     assert_eq!(eval("true or (1/0 = 1)"), FelValue::Boolean(true));
 }
 
@@ -167,9 +171,9 @@ fn test_string_concat() {
 
 #[test]
 fn test_null_coalesce() {
-    assert_eq!(eval("null ?? 42"), num(42.0));
-    assert_eq!(eval("5 ?? 42"), num(5.0));
-    assert_eq!(eval("null ?? null ?? 3"), num(3.0));
+    assert_eq!(eval("null ?? 42"), num(42));
+    assert_eq!(eval("5 ?? 42"), num(5));
+    assert_eq!(eval("null ?? null ?? 3"), num(3));
 }
 
 // ── Membership ──────────────────────────────────────────────────
@@ -205,8 +209,8 @@ fn test_if_function() {
 
 #[test]
 fn test_let_binding() {
-    assert_eq!(eval("let x = 5 in x + 1"), num(6.0));
-    assert_eq!(eval("let x = 10 in let y = 20 in x + y"), num(30.0));
+    assert_eq!(eval("let x = 5 in x + 1"), num(6));
+    assert_eq!(eval("let x = 10 in let y = 20 in x + y"), num(30));
 }
 
 // ── Field references ────────────────────────────────────────────
@@ -227,57 +231,57 @@ fn test_nested_field_ref() {
 #[test]
 fn test_wildcard_projection() {
     let items = arr(vec![
-        FelValue::Object(vec![("qty".to_string(), num(2.0))]),
-        FelValue::Object(vec![("qty".to_string(), num(5.0))]),
-        FelValue::Object(vec![("qty".to_string(), num(3.0))]),
+        FelValue::Object(vec![("qty".to_string(), num(2))]),
+        FelValue::Object(vec![("qty".to_string(), num(5))]),
+        FelValue::Object(vec![("qty".to_string(), num(3))]),
     ]);
     let result = eval_fields("$items[*].qty", vec![("items", items)]);
-    assert_eq!(result, arr(vec![num(2.0), num(5.0), num(3.0)]));
+    assert_eq!(result, arr(vec![num(2), num(5), num(3)]));
 }
 
 #[test]
 fn test_indexed_access() {
-    let items = arr(vec![num(10.0), num(20.0), num(30.0)]);
+    let items = arr(vec![num(10), num(20), num(30)]);
     // 1-based indexing
     let result = eval_fields("$items[1]", vec![("items", items)]);
-    assert_eq!(result, num(10.0));
+    assert_eq!(result, num(10));
 }
 
 // ── Array broadcasting ──────────────────────────────────────────
 
 #[test]
 fn test_array_scalar_broadcast() {
-    assert_eq!(eval("[1, 2, 3] + 10"), arr(vec![num(11.0), num(12.0), num(13.0)]));
-    assert_eq!(eval("5 * [1, 2, 3]"), arr(vec![num(5.0), num(10.0), num(15.0)]));
+    assert_eq!(eval("[1, 2, 3] + 10"), arr(vec![num(11), num(12), num(13)]));
+    assert_eq!(eval("5 * [1, 2, 3]"), arr(vec![num(5), num(10), num(15)]));
 }
 
 #[test]
 fn test_array_array_zip() {
-    assert_eq!(eval("[1, 2, 3] + [10, 20, 30]"), arr(vec![num(11.0), num(22.0), num(33.0)]));
+    assert_eq!(eval("[1, 2, 3] + [10, 20, 30]"), arr(vec![num(11), num(22), num(33)]));
 }
 
 // ── Aggregate functions ─────────────────────────────────────────
 
 #[test]
 fn test_sum() {
-    assert_eq!(eval("sum([1, 2, 3])"), num(6.0));
-    assert_eq!(eval("sum([1, null, 3])"), num(4.0)); // nulls skipped
+    assert_eq!(eval("sum([1, 2, 3])"), num(6));
+    assert_eq!(eval("sum([1, null, 3])"), num(4)); // nulls skipped
 }
 
 #[test]
 fn test_count() {
-    assert_eq!(eval("count([1, 2, null, 4])"), num(3.0)); // non-null count
+    assert_eq!(eval("count([1, 2, null, 4])"), num(3)); // non-null count
 }
 
 #[test]
 fn test_avg() {
-    assert_eq!(eval("avg([2, 4, 6])"), num(4.0));
+    assert_eq!(eval("avg([2, 4, 6])"), num(4));
 }
 
 #[test]
 fn test_min_max() {
-    assert_eq!(eval("min([3, 1, 2])"), num(1.0));
-    assert_eq!(eval("max([3, 1, 2])"), num(3.0));
+    assert_eq!(eval("min([3, 1, 2])"), num(1));
+    assert_eq!(eval("max([3, 1, 2])"), num(3));
     assert_eq!(eval("min(['b', 'a', 'c'])"), s("a"));
     assert_eq!(eval("max(['b', 'a', 'c'])"), s("c"));
 }
@@ -286,7 +290,7 @@ fn test_min_max() {
 
 #[test]
 fn test_string_functions() {
-    assert_eq!(eval("length('hello')"), num(5.0));
+    assert_eq!(eval("length('hello')"), num(5));
     assert_eq!(eval("contains('hello world', 'world')"), FelValue::Boolean(true));
     assert_eq!(eval("startsWith('hello', 'hel')"), FelValue::Boolean(true));
     assert_eq!(eval("endsWith('hello', 'llo')"), FelValue::Boolean(true));
@@ -301,28 +305,28 @@ fn test_string_functions() {
 
 #[test]
 fn test_numeric_functions() {
-    assert_eq!(eval("round(3.5)"), num(4.0));     // banker's rounding
-    assert_eq!(eval("round(2.5)"), num(2.0));     // banker's rounding: .5 → even
-    assert_eq!(eval("round(3.14159, 2)"), num(3.14));
-    assert_eq!(eval("floor(3.7)"), num(3.0));
-    assert_eq!(eval("ceil(3.2)"), num(4.0));
-    assert_eq!(eval("abs(-5)"), num(5.0));
-    assert_eq!(eval("power(2, 10)"), num(1024.0));
+    assert_eq!(eval("round(3.5)"), num(4));     // banker's rounding
+    assert_eq!(eval("round(2.5)"), num(2));     // banker's rounding: .5 → even
+    assert_eq!(eval("round(3.14159, 2)"), dec("3.14"));
+    assert_eq!(eval("floor(3.7)"), num(3));
+    assert_eq!(eval("ceil(3.2)"), num(4));
+    assert_eq!(eval("abs(-5)"), num(5));
+    assert_eq!(eval("power(2, 10)"), num(1024));
 }
 
 // ── Date functions ──────────────────────────────────────────────
 
 #[test]
 fn test_date_functions() {
-    assert_eq!(eval("year(@2024-06-15)"), num(2024.0));
-    assert_eq!(eval("month(@2024-06-15)"), num(6.0));
-    assert_eq!(eval("day(@2024-06-15)"), num(15.0));
+    assert_eq!(eval("year(@2024-06-15)"), num(2024));
+    assert_eq!(eval("month(@2024-06-15)"), num(6));
+    assert_eq!(eval("day(@2024-06-15)"), num(15));
 }
 
 #[test]
 fn test_date_diff() {
-    assert_eq!(eval("dateDiff(@2024-03-01, @2024-01-01, 'days')"), num(60.0));
-    assert_eq!(eval("dateDiff(@2024-06-01, @2024-01-01, 'months')"), num(5.0));
+    assert_eq!(eval("dateDiff(@2024-03-01, @2024-01-01, 'days')"), num(60));
+    assert_eq!(eval("dateDiff(@2024-06-01, @2024-01-01, 'months')"), num(5));
 }
 
 #[test]
@@ -336,19 +340,19 @@ fn test_date_add() {
 
 #[test]
 fn test_time_functions() {
-    assert_eq!(eval("hours('10:30:45')"), num(10.0));
-    assert_eq!(eval("minutes('10:30:45')"), num(30.0));
-    assert_eq!(eval("seconds('10:30:45')"), num(45.0));
+    assert_eq!(eval("hours('10:30:45')"), num(10));
+    assert_eq!(eval("minutes('10:30:45')"), num(30));
+    assert_eq!(eval("seconds('10:30:45')"), num(45));
     assert_eq!(eval("time(10, 30, 45)"), s("10:30:45"));
-    assert_eq!(eval("timeDiff('10:30:00', '08:15:00')"), num(8100.0));
+    assert_eq!(eval("timeDiff('10:30:00', '08:15:00')"), num(8100));
 }
 
 // ── Logical functions ───────────────────────────────────────────
 
 #[test]
 fn test_coalesce() {
-    assert_eq!(eval("coalesce(null, null, 42)"), num(42.0));
-    assert_eq!(eval("coalesce(1, 2, 3)"), num(1.0));
+    assert_eq!(eval("coalesce(null, null, 42)"), num(42));
+    assert_eq!(eval("coalesce(1, 2, 3)"), num(1));
 }
 
 #[test]
@@ -385,8 +389,8 @@ fn test_type_functions() {
 
 #[test]
 fn test_casting() {
-    assert_eq!(eval("number('42')"), num(42.0));
-    assert_eq!(eval("number(true)"), num(1.0));
+    assert_eq!(eval("number('42')"), num(42));
+    assert_eq!(eval("number(true)"), num(1));
     assert_eq!(eval("string(42)"), s("42"));
     assert_eq!(eval("string(null)"), s(""));
     assert_eq!(eval("boolean('true')"), FelValue::Boolean(true));
@@ -401,7 +405,7 @@ fn test_money() {
     let result = eval("money(100.50, 'USD')");
     assert!(matches!(result, FelValue::Money(FelMoney { .. })));
 
-    assert_eq!(eval("moneyAmount(money(100.50, 'USD'))"), num(100.50));
+    assert_eq!(eval("moneyAmount(money(100.50, 'USD'))"), dec("100.50"));
     assert_eq!(eval("moneyCurrency(money(100.50, 'USD'))"), s("USD"));
 }
 
@@ -410,7 +414,7 @@ fn test_money_add() {
     let result = eval("moneyAdd(money(100, 'USD'), money(50, 'USD'))");
     match result {
         FelValue::Money(m) => {
-            assert_eq!(m.amount, 150.0);
+            assert_eq!(m.amount, Decimal::from(150));
             assert_eq!(m.currency, "USD");
         }
         _ => panic!("expected money"),
@@ -453,19 +457,19 @@ fn test_format() {
 #[test]
 fn test_complex_expression() {
     let items = arr(vec![
-        FelValue::Object(vec![("qty".to_string(), num(3.0)), ("price".to_string(), num(10.0))]),
-        FelValue::Object(vec![("qty".to_string(), num(2.0)), ("price".to_string(), num(25.0))]),
+        FelValue::Object(vec![("qty".to_string(), num(3)), ("price".to_string(), num(10))]),
+        FelValue::Object(vec![("qty".to_string(), num(2)), ("price".to_string(), num(25))]),
     ]);
     // sum of qty * price: 30 + 50 = 80
     let result = eval_fields("sum($items[*].qty * $items[*].price)", vec![("items", items)]);
-    assert_eq!(result, num(80.0));
+    assert_eq!(result, num(80));
 }
 
 #[test]
 fn test_conditional_with_fields() {
     let result = eval_fields(
         "if $age >= 18 then 'adult' else 'minor'",
-        vec![("age", num(21.0))],
+        vec![("age", num(21))],
     );
     assert_eq!(result, s("adult"));
 }
@@ -495,6 +499,34 @@ fn test_mip_defaults() {
 
 #[test]
 fn test_count_where() {
-    assert_eq!(eval("countWhere([1, 2, 3, 4, 5], $ > 3)"), num(2.0));
-    assert_eq!(eval("countWhere([1, 2, 3], $ = 2)"), num(1.0));
+    assert_eq!(eval("countWhere([1, 2, 3, 4, 5], $ > 3)"), num(2));
+    assert_eq!(eval("countWhere([1, 2, 3], $ = 2)"), num(1));
+}
+
+// ── Decimal precision (spec S3.4.1) ─────────────────────────────
+
+#[test]
+fn test_decimal_precision_18_digits() {
+    // Spec requires minimum 18 significant decimal digits.
+    // f64 fails this (15-17 digits); rust_decimal gives 28-29.
+    assert_eq!(eval("123456789012345678 + 1"), dec("123456789012345679"));
+    assert_eq!(eval("0.123456789012345678 + 0"), dec("0.123456789012345678"));
+}
+
+#[test]
+fn test_decimal_exact_money_arithmetic() {
+    // Classic floating point failure: 0.1 + 0.2 != 0.3 in f64
+    // With Decimal: exact
+    assert_eq!(eval("0.1 + 0.2"), dec("0.3"));
+    assert_eq!(eval("0.1 + 0.2 = 0.3"), FelValue::Boolean(true));
+}
+
+#[test]
+fn test_bankers_rounding_decimal() {
+    // Banker's rounding uses rust_decimal native MidpointNearestEven
+    assert_eq!(eval("round(0.5)"), num(0));    // 0.5 → 0 (even)
+    assert_eq!(eval("round(1.5)"), num(2));    // 1.5 → 2 (even)
+    assert_eq!(eval("round(2.5)"), num(2));    // 2.5 → 2 (even)
+    assert_eq!(eval("round(3.5)"), num(4));    // 3.5 → 4 (even)
+    assert_eq!(eval("round(4.5)"), num(4));    // 4.5 → 4 (even)
 }

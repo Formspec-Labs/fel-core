@@ -1,4 +1,5 @@
 /// FEL abstract syntax tree nodes.
+use rust_decimal::Decimal;
 
 /// A path segment for field references and postfix access.
 #[derive(Debug, Clone, PartialEq)]
@@ -14,7 +15,7 @@ pub enum Expr {
     // Literals
     Null,
     Boolean(bool),
-    Number(f64),
+    Number(Decimal),
     String(String),
     DateLiteral(String),
     DateTimeLiteral(String),

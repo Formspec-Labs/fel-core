@@ -13,6 +13,8 @@
 /// 9: * / %
 /// 10: unary not, unary -
 /// 11: postfix . []
+use rust_decimal::prelude::*;
+
 use crate::ast::*;
 use crate::error::FelError;
 use crate::lexer::{Lexer, SpannedToken, Token};
@@ -418,7 +420,7 @@ impl Parser {
                         PathSegment::Wildcard
                     } else if let Token::Number(n) = self.peek().clone() {
                         self.advance();
-                        PathSegment::Index(n as usize)
+                        PathSegment::Index(n.to_u64().unwrap_or(0) as usize)
                     } else {
                         return Err(FelError::Parse(format!(
                             "expected number or * in brackets, got {:?}",
@@ -545,7 +547,7 @@ impl Parser {
                         PathSegment::Wildcard
                     } else if let Token::Number(n) = self.peek().clone() {
                         self.advance();
-                        PathSegment::Index(n as usize)
+                        PathSegment::Index(n.to_u64().unwrap_or(0) as usize)
                     } else {
                         return Err(FelError::Parse(format!(
                             "expected number or * in field ref brackets, got {:?}",
@@ -662,7 +664,7 @@ mod tests {
     #[test]
     fn test_parse_number() {
         let expr = parse("42").unwrap();
-        assert_eq!(expr, Expr::Number(42.0));
+        assert_eq!(expr, Expr::Number(rust_decimal::Decimal::from(42)));
     }
 
     #[test]
