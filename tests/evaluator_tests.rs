@@ -530,3 +530,90 @@ fn test_bankers_rounding_decimal() {
     assert_eq!(eval("round(3.5)"), num(4));    // 3.5 → 4 (even)
     assert_eq!(eval("round(4.5)"), num(4));    // 4.5 → 4 (even)
 }
+
+// ── matches() — regex via regex crate ──────────────────────────
+
+#[test]
+fn test_matches_literal_substring() {
+    assert_eq!(eval("matches('hello world', 'world')"), FelValue::Boolean(true));
+    assert_eq!(eval("matches('hello world', 'xyz')"), FelValue::Boolean(false));
+}
+
+#[test]
+fn test_matches_anchored() {
+    assert_eq!(eval("matches('hello', '^hello$')"), FelValue::Boolean(true));
+    assert_eq!(eval("matches('hello world', '^hello$')"), FelValue::Boolean(false));
+    assert_eq!(eval("matches('hello world', '^hello')"), FelValue::Boolean(true));
+    assert_eq!(eval("matches('hello world', 'world$')"), FelValue::Boolean(true));
+}
+
+#[test]
+fn test_matches_character_classes_with_quantifiers() {
+    // These were broken by the off-by-two bug in the hand-rolled engine
+    assert_eq!(eval(r"matches('abc123', '\\d+')"), FelValue::Boolean(true));
+    assert_eq!(eval(r"matches('abc', '\\d+')"), FelValue::Boolean(false));
+    assert_eq!(eval(r"matches('hello_world', '\\w+')"), FelValue::Boolean(true));
+    assert_eq!(eval(r"matches('hello world', '\\s+')"), FelValue::Boolean(true));
+    assert_eq!(eval(r"matches('abc', '\\s+')"), FelValue::Boolean(false));
+}
+
+#[test]
+fn test_matches_character_class_star() {
+    assert_eq!(eval(r"matches('', '\\d*')"), FelValue::Boolean(true));
+    assert_eq!(eval(r"matches('123', '\\d*')"), FelValue::Boolean(true));
+    assert_eq!(eval(r"matches('abc', '\\w*')"), FelValue::Boolean(true));
+}
+
+#[test]
+fn test_matches_character_class_question() {
+    assert_eq!(eval(r"matches('a', '\\d?a')"), FelValue::Boolean(true));
+    assert_eq!(eval(r"matches('1a', '\\d?a')"), FelValue::Boolean(true));
+}
+
+#[test]
+fn test_matches_full_anchored_digit_pattern() {
+    // Full string must be digits only
+    assert_eq!(eval(r"matches('12345', '^\\d+$')"), FelValue::Boolean(true));
+    assert_eq!(eval(r"matches('123abc', '^\\d+$')"), FelValue::Boolean(false));
+}
+
+#[test]
+fn test_matches_alternation() {
+    assert_eq!(eval("matches('cat', 'cat|dog')"), FelValue::Boolean(true));
+    assert_eq!(eval("matches('dog', 'cat|dog')"), FelValue::Boolean(true));
+    assert_eq!(eval("matches('fish', 'cat|dog')"), FelValue::Boolean(false));
+}
+
+#[test]
+fn test_matches_grouping() {
+    assert_eq!(eval("matches('abcabc', '(abc)+')"), FelValue::Boolean(true));
+}
+
+#[test]
+fn test_matches_character_set() {
+    assert_eq!(eval("matches('a', '[abc]')"), FelValue::Boolean(true));
+    assert_eq!(eval("matches('d', '[abc]')"), FelValue::Boolean(false));
+}
+
+#[test]
+fn test_matches_dot_wildcard() {
+    assert_eq!(eval("matches('abc', 'a.c')"), FelValue::Boolean(true));
+    assert_eq!(eval("matches('aXc', 'a.c')"), FelValue::Boolean(true));
+    assert_eq!(eval("matches('ac', 'a.c')"), FelValue::Boolean(false));
+}
+
+#[test]
+fn test_matches_null_propagation() {
+    assert_eq!(eval("matches(null, 'abc')"), FelValue::Null);
+    assert_eq!(eval("matches('abc', null)"), FelValue::Null);
+}
+
+#[test]
+fn test_matches_invalid_regex_returns_null_with_diagnostic() {
+    let expr = parse("matches('abc', '[invalid')").unwrap();
+    let env = MapEnvironment::new();
+    let result = evaluate(&expr, &env);
+    assert_eq!(result.value, FelValue::Null);
+    assert!(!result.diagnostics.is_empty());
+    assert!(result.diagnostics[0].message.contains("invalid regex"));
+}

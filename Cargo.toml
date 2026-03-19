@@ -6,6 +6,7 @@ license.workspace = true
 description = "Formspec Expression Language — parser, evaluator, and dependency analysis"
 
 [dependencies]
+regex = "1"
 rust_decimal = "1"
 
 [dev-dependencies]
