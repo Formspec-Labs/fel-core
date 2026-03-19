@@ -2,6 +2,7 @@
 ///
 /// Non-fatal errors produce a Diagnostic + FelNull (never panic).
 /// Null propagation follows spec §3: most ops propagate, equality does NOT.
+use regex::Regex;
 use rust_decimal::prelude::*;
 use rust_decimal::Decimal;
 use std::collections::HashMap;
@@ -744,7 +745,13 @@ impl<'a> Evaluator<'a> {
     fn fn_matches(&mut self, args: &[Expr]) -> FelValue {
         let s = match self.eval_arg(args, 0) { FelValue::String(s) => s, FelValue::Null => return FelValue::Null, _ => return FelValue::Null };
         let pattern = match self.eval_arg(args, 1) { FelValue::String(s) => s, FelValue::Null => return FelValue::Null, _ => return FelValue::Null };
-        FelValue::Boolean(simple_match(&pattern, &s))
+        match Regex::new(&pattern) {
+            Ok(re) => FelValue::Boolean(re.is_match(&s)),
+            Err(e) => {
+                self.diag(format!("matches: invalid regex pattern '{}': {}", pattern, e));
+                FelValue::Null
+            }
+        }
     }
 
     fn fn_format(&mut self, args: &[Expr]) -> FelValue {
@@ -1068,127 +1075,3 @@ fn parse_time_str(s: &str) -> Option<(i64, i64, i64)> {
     Some((parts[0].parse().ok()?, parts[1].parse().ok()?, parts[2].parse().ok()?))
 }
 
-/// Simple pattern matching (subset of regex).
-/// Supports: . (any char), * (zero or more of preceding), ^ $ anchors.
-/// For full regex, would need a crate.
-fn simple_match(pattern: &str, text: &str) -> bool {
-    // Try basic exact substring match first
-    if !pattern.contains(|c: char| matches!(c, '.' | '*' | '+' | '?' | '[' | ']' | '(' | ')' | '{' | '}' | '\\' | '^' | '$' | '|')) {
-        return text.contains(pattern);
-    }
-    match_regex(pattern, text)
-}
-
-/// Minimal NFA regex matcher supporting: . * + ? | () [] ^ $
-fn match_regex(pattern: &str, text: &str) -> bool {
-    let anchored_start = pattern.starts_with('^');
-    let anchored_end = pattern.ends_with('$') && !pattern.ends_with("\\$");
-
-    let pat = pattern.trim_start_matches('^');
-    let pat = if anchored_end { &pat[..pat.len()-1] } else { pat };
-
-    if anchored_start && anchored_end {
-        match_at(pat, text, 0) == Some(text.len())
-    } else if anchored_start {
-        match_at(pat, text, 0).is_some()
-    } else if anchored_end {
-        for i in 0..=text.len() {
-            if let Some(end) = match_at(pat, text, i) {
-                if end == text.len() { return true; }
-            }
-        }
-        false
-    } else {
-        for i in 0..=text.len() {
-            if match_at(pat, text, i).is_some() { return true; }
-        }
-        false
-    }
-}
-
-fn match_at(pattern: &str, text: &str, start: usize) -> Option<usize> {
-    let pat_chars: Vec<char> = pattern.chars().collect();
-    let text_chars: Vec<char> = text.chars().collect();
-    match_recursive(&pat_chars, 0, &text_chars, start)
-}
-
-fn match_recursive(pat: &[char], pi: usize, text: &[char], ti: usize) -> Option<usize> {
-    if pi >= pat.len() {
-        return Some(ti);
-    }
-
-    let has_star = pi + 1 < pat.len() && pat[pi + 1] == '*';
-    let has_plus = pi + 1 < pat.len() && pat[pi + 1] == '+';
-    let has_question = pi + 1 < pat.len() && pat[pi + 1] == '?';
-
-    if has_star {
-        let mut positions = vec![ti];
-        let mut cur = ti;
-        while cur < text.len() && char_matches(pat[pi], text[cur]) {
-            cur += 1;
-            positions.push(cur);
-        }
-        for &pos in positions.iter().rev() {
-            if let Some(end) = match_recursive(pat, pi + 2, text, pos) {
-                return Some(end);
-            }
-        }
-        return None;
-    }
-
-    if has_plus {
-        if ti >= text.len() || !char_matches(pat[pi], text[ti]) { return None; }
-        let mut cur = ti + 1;
-        let mut positions = vec![cur];
-        while cur < text.len() && char_matches(pat[pi], text[cur]) {
-            cur += 1;
-            positions.push(cur);
-        }
-        for &pos in positions.iter().rev() {
-            if let Some(end) = match_recursive(pat, pi + 2, text, pos) {
-                return Some(end);
-            }
-        }
-        return None;
-    }
-
-    if has_question {
-        if ti < text.len() && char_matches(pat[pi], text[ti]) {
-            if let Some(end) = match_recursive(pat, pi + 2, text, ti + 1) {
-                return Some(end);
-            }
-        }
-        return match_recursive(pat, pi + 2, text, ti);
-    }
-
-    // Escape sequence
-    if pat[pi] == '\\' && pi + 1 < pat.len() {
-        if ti < text.len() && escaped_matches(pat[pi + 1], text[ti]) {
-            return match_recursive(pat, pi + 2, text, ti + 1);
-        }
-        return None;
-    }
-
-    // Single character match
-    if ti < text.len() && char_matches(pat[pi], text[ti]) {
-        return match_recursive(pat, pi + 1, text, ti + 1);
-    }
-
-    None
-}
-
-fn char_matches(pat_char: char, text_char: char) -> bool {
-    pat_char == '.' || pat_char == text_char
-}
-
-fn escaped_matches(escape_char: char, text_char: char) -> bool {
-    match escape_char {
-        'd' => text_char.is_ascii_digit(),
-        'w' => text_char.is_ascii_alphanumeric() || text_char == '_',
-        's' => text_char.is_whitespace(),
-        'D' => !text_char.is_ascii_digit(),
-        'W' => !(text_char.is_ascii_alphanumeric() || text_char == '_'),
-        'S' => !text_char.is_whitespace(),
-        c => c == text_char,
-    }
-}
