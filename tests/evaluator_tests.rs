@@ -1,7 +1,7 @@
 /// Comprehensive FEL evaluator tests.
 use fel_core::*;
-use rust_decimal::prelude::*;
 use rust_decimal::Decimal;
+use rust_decimal::prelude::*;
 
 // ── Helpers ─────────────────────────────────────────────────────
 
@@ -14,7 +14,10 @@ fn eval(input: &str) -> FelValue {
 fn eval_fields(input: &str, fields: Vec<(&str, FelValue)>) -> FelValue {
     let expr = parse(input).unwrap();
     let env = MapEnvironment::with_fields(
-        fields.into_iter().map(|(k, v)| (k.to_string(), v)).collect(),
+        fields
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v))
+            .collect(),
     );
     evaluate(&expr, &env).value
 }
@@ -66,13 +69,30 @@ fn test_null_literal() {
 #[test]
 fn test_date_literal() {
     let result = eval("@2024-01-15");
-    assert!(matches!(result, FelValue::Date(FelDate::Date { year: 2024, month: 1, day: 15 })));
+    assert!(matches!(
+        result,
+        FelValue::Date(FelDate::Date {
+            year: 2024,
+            month: 1,
+            day: 15
+        })
+    ));
 }
 
 #[test]
 fn test_datetime_literal() {
     let result = eval("@2024-01-15T10:30:00");
-    assert!(matches!(result, FelValue::Date(FelDate::DateTime { year: 2024, month: 1, day: 15, hour: 10, minute: 30, second: 0 })));
+    assert!(matches!(
+        result,
+        FelValue::Date(FelDate::DateTime {
+            year: 2024,
+            month: 1,
+            day: 15,
+            hour: 10,
+            minute: 30,
+            second: 0
+        })
+    ));
 }
 
 // ── Arithmetic ──────────────────────────────────────────────────
@@ -257,7 +277,10 @@ fn test_array_scalar_broadcast() {
 
 #[test]
 fn test_array_array_zip() {
-    assert_eq!(eval("[1, 2, 3] + [10, 20, 30]"), arr(vec![num(11), num(22), num(33)]));
+    assert_eq!(
+        eval("[1, 2, 3] + [10, 20, 30]"),
+        arr(vec![num(11), num(22), num(33)])
+    );
 }
 
 // ── Aggregate functions ─────────────────────────────────────────
@@ -291,7 +314,10 @@ fn test_min_max() {
 #[test]
 fn test_string_functions() {
     assert_eq!(eval("length('hello')"), num(5));
-    assert_eq!(eval("contains('hello world', 'world')"), FelValue::Boolean(true));
+    assert_eq!(
+        eval("contains('hello world', 'world')"),
+        FelValue::Boolean(true)
+    );
     assert_eq!(eval("startsWith('hello', 'hel')"), FelValue::Boolean(true));
     assert_eq!(eval("endsWith('hello', 'llo')"), FelValue::Boolean(true));
     assert_eq!(eval("upper('hello')"), s("HELLO"));
@@ -305,8 +331,8 @@ fn test_string_functions() {
 
 #[test]
 fn test_numeric_functions() {
-    assert_eq!(eval("round(3.5)"), num(4));     // banker's rounding
-    assert_eq!(eval("round(2.5)"), num(2));     // banker's rounding: .5 → even
+    assert_eq!(eval("round(3.5)"), num(4)); // banker's rounding
+    assert_eq!(eval("round(2.5)"), num(2)); // banker's rounding: .5 → even
     assert_eq!(eval("round(3.14159, 2)"), dec("3.14"));
     assert_eq!(eval("floor(3.7)"), num(3));
     assert_eq!(eval("ceil(3.2)"), num(4));
@@ -333,7 +359,14 @@ fn test_date_diff() {
 fn test_date_add() {
     let result = eval("dateAdd(@2024-01-31, 1, 'months')");
     // Jan 31 + 1 month → Feb 29 (2024 is leap year, day clamped)
-    assert!(matches!(result, FelValue::Date(FelDate::Date { year: 2024, month: 2, day: 29 })));
+    assert!(matches!(
+        result,
+        FelValue::Date(FelDate::Date {
+            year: 2024,
+            month: 2,
+            day: 29
+        })
+    ));
 }
 
 // ── Time functions ──────────────────────────────────────────────
@@ -367,8 +400,14 @@ fn test_empty_present() {
 
 #[test]
 fn test_selected() {
-    assert_eq!(eval("selected(['a', 'b', 'c'], 'b')"), FelValue::Boolean(true));
-    assert_eq!(eval("selected(['a', 'b', 'c'], 'd')"), FelValue::Boolean(false));
+    assert_eq!(
+        eval("selected(['a', 'b', 'c'], 'b')"),
+        FelValue::Boolean(true)
+    );
+    assert_eq!(
+        eval("selected(['a', 'b', 'c'], 'd')"),
+        FelValue::Boolean(false)
+    );
 }
 
 // ── Type checking ───────────────────────────────────────────────
@@ -423,7 +462,10 @@ fn test_money_add() {
 
 #[test]
 fn test_money_currency_mismatch() {
-    assert_eq!(eval("moneyAdd(money(100, 'USD'), money(50, 'EUR'))"), FelValue::Null);
+    assert_eq!(
+        eval("moneyAdd(money(100, 'USD'), money(50, 'EUR'))"),
+        FelValue::Null
+    );
 }
 
 // ── Null propagation ────────────────────────────────────────────
@@ -449,7 +491,10 @@ fn test_equality_no_propagation() {
 
 #[test]
 fn test_format() {
-    assert_eq!(eval("format('{0} is {1}', 'sky', 'blue')"), s("sky is blue"));
+    assert_eq!(
+        eval("format('{0} is {1}', 'sky', 'blue')"),
+        s("sky is blue")
+    );
 }
 
 // ── Nested/complex expressions ──────────────────────────────────
@@ -457,11 +502,20 @@ fn test_format() {
 #[test]
 fn test_complex_expression() {
     let items = arr(vec![
-        FelValue::Object(vec![("qty".to_string(), num(3)), ("price".to_string(), num(10))]),
-        FelValue::Object(vec![("qty".to_string(), num(2)), ("price".to_string(), num(25))]),
+        FelValue::Object(vec![
+            ("qty".to_string(), num(3)),
+            ("price".to_string(), num(10)),
+        ]),
+        FelValue::Object(vec![
+            ("qty".to_string(), num(2)),
+            ("price".to_string(), num(25)),
+        ]),
     ]);
     // sum of qty * price: 30 + 50 = 80
-    let result = eval_fields("sum($items[*].qty * $items[*].price)", vec![("items", items)]);
+    let result = eval_fields(
+        "sum($items[*].qty * $items[*].price)",
+        vec![("items", items)],
+    );
     assert_eq!(result, num(80));
 }
 
@@ -524,7 +578,10 @@ fn test_avg_empty_array() {
     let env = MapEnvironment::new();
     let result = evaluate(&expr, &env);
     assert_eq!(result.value, FelValue::Null, "avg([]) must return null");
-    assert!(!result.diagnostics.is_empty(), "avg([]) must produce a diagnostic");
+    assert!(
+        !result.diagnostics.is_empty(),
+        "avg([]) must produce a diagnostic"
+    );
 }
 
 /// Spec: core/spec.md §3.5.1 — min([]) must return null.
@@ -558,8 +615,15 @@ fn test_count_where_wrong_arity() {
     let expr = parse("countWhere([1, 2, 3])").unwrap();
     let env = MapEnvironment::new();
     let result = evaluate(&expr, &env);
-    assert_eq!(result.value, FelValue::Null, "countWhere with 1 arg must fail");
-    assert!(!result.diagnostics.is_empty(), "countWhere arity mismatch must produce diagnostic");
+    assert_eq!(
+        result.value,
+        FelValue::Null,
+        "countWhere with 1 arg must fail"
+    );
+    assert!(
+        !result.diagnostics.is_empty(),
+        "countWhere arity mismatch must produce diagnostic"
+    );
 }
 
 // ── Type mismatch in casting (spec §3.4.3) ──────────────────────
@@ -570,8 +634,15 @@ fn test_number_cast_invalid_string() {
     let expr = parse("number('abc')").unwrap();
     let env = MapEnvironment::new();
     let result = evaluate(&expr, &env);
-    assert_eq!(result.value, FelValue::Null, "number('abc') must return null");
-    assert!(!result.diagnostics.is_empty(), "number('abc') must produce a diagnostic");
+    assert_eq!(
+        result.value,
+        FelValue::Null,
+        "number('abc') must return null"
+    );
+    assert!(
+        !result.diagnostics.is_empty(),
+        "number('abc') must produce a diagnostic"
+    );
 }
 
 /// Spec: core/spec.md §3.4.3 (line 1193) — date("not-a-date") must signal error.
@@ -580,8 +651,15 @@ fn test_date_cast_invalid_string() {
     let expr = parse("date('not-a-date')").unwrap();
     let env = MapEnvironment::new();
     let result = evaluate(&expr, &env);
-    assert_eq!(result.value, FelValue::Null, "date('not-a-date') must return null");
-    assert!(!result.diagnostics.is_empty(), "date('not-a-date') must produce a diagnostic");
+    assert_eq!(
+        result.value,
+        FelValue::Null,
+        "date('not-a-date') must return null"
+    );
+    assert!(
+        !result.diagnostics.is_empty(),
+        "date('not-a-date') must produce a diagnostic"
+    );
 }
 
 // ── Decimal precision (spec S3.4.1) ─────────────────────────────
@@ -591,7 +669,10 @@ fn test_decimal_precision_18_digits() {
     // Spec requires minimum 18 significant decimal digits.
     // f64 fails this (15-17 digits); rust_decimal gives 28-29.
     assert_eq!(eval("123456789012345678 + 1"), dec("123456789012345679"));
-    assert_eq!(eval("0.123456789012345678 + 0"), dec("0.123456789012345678"));
+    assert_eq!(
+        eval("0.123456789012345678 + 0"),
+        dec("0.123456789012345678")
+    );
 }
 
 #[test]
@@ -605,27 +686,42 @@ fn test_decimal_exact_money_arithmetic() {
 #[test]
 fn test_bankers_rounding_decimal() {
     // Banker's rounding uses rust_decimal native MidpointNearestEven
-    assert_eq!(eval("round(0.5)"), num(0));    // 0.5 → 0 (even)
-    assert_eq!(eval("round(1.5)"), num(2));    // 1.5 → 2 (even)
-    assert_eq!(eval("round(2.5)"), num(2));    // 2.5 → 2 (even)
-    assert_eq!(eval("round(3.5)"), num(4));    // 3.5 → 4 (even)
-    assert_eq!(eval("round(4.5)"), num(4));    // 4.5 → 4 (even)
+    assert_eq!(eval("round(0.5)"), num(0)); // 0.5 → 0 (even)
+    assert_eq!(eval("round(1.5)"), num(2)); // 1.5 → 2 (even)
+    assert_eq!(eval("round(2.5)"), num(2)); // 2.5 → 2 (even)
+    assert_eq!(eval("round(3.5)"), num(4)); // 3.5 → 4 (even)
+    assert_eq!(eval("round(4.5)"), num(4)); // 4.5 → 4 (even)
 }
 
 // ── matches() — regex via regex crate ──────────────────────────
 
 #[test]
 fn test_matches_literal_substring() {
-    assert_eq!(eval("matches('hello world', 'world')"), FelValue::Boolean(true));
-    assert_eq!(eval("matches('hello world', 'xyz')"), FelValue::Boolean(false));
+    assert_eq!(
+        eval("matches('hello world', 'world')"),
+        FelValue::Boolean(true)
+    );
+    assert_eq!(
+        eval("matches('hello world', 'xyz')"),
+        FelValue::Boolean(false)
+    );
 }
 
 #[test]
 fn test_matches_anchored() {
     assert_eq!(eval("matches('hello', '^hello$')"), FelValue::Boolean(true));
-    assert_eq!(eval("matches('hello world', '^hello$')"), FelValue::Boolean(false));
-    assert_eq!(eval("matches('hello world', '^hello')"), FelValue::Boolean(true));
-    assert_eq!(eval("matches('hello world', 'world$')"), FelValue::Boolean(true));
+    assert_eq!(
+        eval("matches('hello world', '^hello$')"),
+        FelValue::Boolean(false)
+    );
+    assert_eq!(
+        eval("matches('hello world', '^hello')"),
+        FelValue::Boolean(true)
+    );
+    assert_eq!(
+        eval("matches('hello world', 'world$')"),
+        FelValue::Boolean(true)
+    );
 }
 
 #[test]
@@ -633,8 +729,14 @@ fn test_matches_character_classes_with_quantifiers() {
     // These were broken by the off-by-two bug in the hand-rolled engine
     assert_eq!(eval(r"matches('abc123', '\\d+')"), FelValue::Boolean(true));
     assert_eq!(eval(r"matches('abc', '\\d+')"), FelValue::Boolean(false));
-    assert_eq!(eval(r"matches('hello_world', '\\w+')"), FelValue::Boolean(true));
-    assert_eq!(eval(r"matches('hello world', '\\s+')"), FelValue::Boolean(true));
+    assert_eq!(
+        eval(r"matches('hello_world', '\\w+')"),
+        FelValue::Boolean(true)
+    );
+    assert_eq!(
+        eval(r"matches('hello world', '\\s+')"),
+        FelValue::Boolean(true)
+    );
     assert_eq!(eval(r"matches('abc', '\\s+')"), FelValue::Boolean(false));
 }
 
@@ -655,7 +757,10 @@ fn test_matches_character_class_question() {
 fn test_matches_full_anchored_digit_pattern() {
     // Full string must be digits only
     assert_eq!(eval(r"matches('12345', '^\\d+$')"), FelValue::Boolean(true));
-    assert_eq!(eval(r"matches('123abc', '^\\d+$')"), FelValue::Boolean(false));
+    assert_eq!(
+        eval(r"matches('123abc', '^\\d+$')"),
+        FelValue::Boolean(false)
+    );
 }
 
 #[test]

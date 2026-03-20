@@ -110,6 +110,17 @@ fn walk(expr: &Expr, deps: &mut Dependencies, let_vars: &mut Vec<String>) {
                 "prev" | "next" => {
                     deps.uses_prev_next = true;
                 }
+                "parent" => {
+                    deps.uses_prev_next = true;
+                }
+                "instance" => {
+                    if let Some(Expr::String(name)) = args.first() {
+                        deps.instance_refs.insert(name.clone());
+                    }
+                    for arg in args {
+                        walk(arg, deps, let_vars);
+                    }
+                }
                 "countWhere" => {
                     // First arg: normal walk
                     if let Some(first) = args.first() {
@@ -175,7 +186,11 @@ fn walk(expr: &Expr, deps: &mut Dependencies, let_vars: &mut Vec<String>) {
         }
 
         Expr::PostfixAccess { expr, path } => {
-            walk(expr, deps, let_vars);
+            if let Some(field_path) = extend_field_path(expr, path) {
+                deps.fields.insert(field_path);
+            } else {
+                walk(expr, deps, let_vars);
+            }
             for seg in path {
                 if matches!(seg, PathSegment::Wildcard) {
                     deps.has_wildcard = true;
@@ -224,6 +239,33 @@ fn extract_field_path_str(expr: &Expr) -> String {
             result
         }
         _ => String::new(),
+    }
+}
+
+fn extend_field_path(expr: &Expr, extra_path: &[PathSegment]) -> Option<String> {
+    match expr {
+        Expr::FieldRef { .. } => {
+            let mut path = extract_field_path_str(expr);
+            for seg in extra_path {
+                match seg {
+                    PathSegment::Dot(name) => {
+                        if !path.is_empty() {
+                            path.push('.');
+                        }
+                        path.push_str(name);
+                    }
+                    PathSegment::Index(i) => path.push_str(&format!("[{i}]")),
+                    PathSegment::Wildcard => path.push_str("[*]"),
+                }
+            }
+            if path.is_empty() { None } else { Some(path) }
+        }
+        Expr::PostfixAccess { expr, path } => {
+            let mut combined = path.clone();
+            combined.extend_from_slice(extra_path);
+            extend_field_path(expr, &combined)
+        }
+        _ => None,
     }
 }
 
@@ -308,8 +350,14 @@ mod tests {
     #[test]
     fn null_coalesce_extracts_deps_from_both_sides() {
         let d = deps("$fieldA ?? $fieldB");
-        assert!(d.fields.contains("fieldA"), "left side of ?? must produce a dep");
-        assert!(d.fields.contains("fieldB"), "right side of ?? must produce a dep");
+        assert!(
+            d.fields.contains("fieldA"),
+            "left side of ?? must produce a dep"
+        );
+        assert!(
+            d.fields.contains("fieldB"),
+            "right side of ?? must produce a dep"
+        );
         assert_eq!(d.fields.len(), 2);
     }
 
@@ -329,7 +377,10 @@ mod tests {
     #[test]
     fn object_and_array_literal_dep_extraction() {
         let d = deps("{total: $price, items: [$qty, $tax]}");
-        assert!(d.fields.contains("price"), "object value must produce a dep");
+        assert!(
+            d.fields.contains("price"),
+            "object value must produce a dep"
+        );
         assert!(d.fields.contains("qty"), "array element must produce a dep");
         assert!(d.fields.contains("tax"), "array element must produce a dep");
         assert_eq!(d.fields.len(), 3);
@@ -340,8 +391,14 @@ mod tests {
     #[test]
     fn count_where_rebinds_bare_dollar() {
         let d = deps("countWhere($items, $ > 3)");
-        assert!(d.fields.contains("items"), "first arg field ref must be found");
-        assert!(!d.has_self_ref, "bare $ in countWhere predicate is rebound, not a self-ref");
+        assert!(
+            d.fields.contains("items"),
+            "first arg field ref must be found"
+        );
+        assert!(
+            !d.has_self_ref,
+            "bare $ in countWhere predicate is rebound, not a self-ref"
+        );
         // The predicate's `$` should NOT appear in fields
         assert_eq!(d.fields.len(), 1);
     }

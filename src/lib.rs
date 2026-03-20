@@ -1,7 +1,6 @@
 //! FEL parser, evaluator, and dependency analysis with base-10 decimal arithmetic.
 ///
 /// Uses rust_decimal for base-10 arithmetic per spec S3.4.1 (minimum 18 significant digits).
-
 pub mod ast;
 pub mod dependencies;
 pub mod environment;
@@ -15,15 +14,17 @@ pub mod types;
 
 // Re-export key types
 pub use ast::Expr;
-pub use dependencies::{extract_dependencies, Dependencies};
+pub use dependencies::{Dependencies, extract_dependencies};
 pub use environment::{FormspecEnvironment, MipState, RepeatContext};
 pub use error::{Diagnostic, FelError, Severity};
-pub use evaluator::{evaluate, Environment, EvalResult, Evaluator, MapEnvironment};
-pub use extensions::{ExtensionError, ExtensionRegistry};
+pub use evaluator::{Environment, EvalResult, Evaluator, MapEnvironment, evaluate};
+pub use extensions::{
+    BuiltinFunctionCatalogEntry, ExtensionError, ExtensionRegistry, builtin_function_catalog,
+};
 pub use parser::parse;
 pub use printer::print_expr;
 pub use rust_decimal::Decimal;
-pub use types::{FelDate, FelMoney, FelValue};
+pub use types::{FelDate, FelMoney, FelValue, parse_date_literal, parse_datetime_literal};
 
 /// Parse and evaluate a FEL expression with a flat field map.
 pub fn eval_with_fields(

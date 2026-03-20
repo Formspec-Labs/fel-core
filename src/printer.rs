@@ -2,7 +2,6 @@
 ///
 /// Used by the assembler to rewrite FEL expressions after AST transformations
 /// (e.g., field path prefixing during $ref resolution).
-
 use crate::ast::*;
 use crate::types::format_number;
 
@@ -26,7 +25,9 @@ fn write_expr(buf: &mut String, expr: &Expr, needs_parens: bool) {
         Expr::Array(elems) => {
             buf.push('[');
             for (i, e) in elems.iter().enumerate() {
-                if i > 0 { buf.push_str(", "); }
+                if i > 0 {
+                    buf.push_str(", ");
+                }
                 write_expr(buf, e, false);
             }
             buf.push(']');
@@ -34,7 +35,9 @@ fn write_expr(buf: &mut String, expr: &Expr, needs_parens: bool) {
         Expr::Object(entries) => {
             buf.push('{');
             for (i, (k, v)) in entries.iter().enumerate() {
-                if i > 0 { buf.push_str(", "); }
+                if i > 0 {
+                    buf.push_str(", ");
+                }
                 write_string_literal(buf, k);
                 buf.push_str(": ");
                 write_expr(buf, v, false);
@@ -63,52 +66,76 @@ fn write_expr(buf: &mut String, expr: &Expr, needs_parens: bool) {
             }
         }
 
-        Expr::UnaryOp { op, operand } => {
-            match op {
-                UnaryOp::Not => {
-                    buf.push_str("not ");
-                    write_expr(buf, operand, true);
-                }
-                UnaryOp::Neg => {
-                    buf.push('-');
-                    write_expr(buf, operand, true);
-                }
+        Expr::UnaryOp { op, operand } => match op {
+            UnaryOp::Not => {
+                buf.push_str("not ");
+                write_expr(buf, operand, true);
             }
-        }
+            UnaryOp::Neg => {
+                buf.push('-');
+                write_expr(buf, operand, true);
+            }
+        },
 
         Expr::BinaryOp { op, left, right } => {
-            if needs_parens { buf.push('('); }
+            if needs_parens {
+                buf.push('(');
+            }
             write_expr(buf, left, true);
             buf.push(' ');
             buf.push_str(binary_op_str(*op));
             buf.push(' ');
             write_expr(buf, right, true);
-            if needs_parens { buf.push(')'); }
+            if needs_parens {
+                buf.push(')');
+            }
         }
 
-        Expr::Ternary { condition, then_branch, else_branch } => {
-            if needs_parens { buf.push('('); }
+        Expr::Ternary {
+            condition,
+            then_branch,
+            else_branch,
+        } => {
+            if needs_parens {
+                buf.push('(');
+            }
             write_expr(buf, condition, true);
             buf.push_str(" ? ");
             write_expr(buf, then_branch, false);
             buf.push_str(" : ");
             write_expr(buf, else_branch, false);
-            if needs_parens { buf.push(')'); }
+            if needs_parens {
+                buf.push(')');
+            }
         }
 
-        Expr::IfThenElse { condition, then_branch, else_branch } => {
-            if needs_parens { buf.push('('); }
+        Expr::IfThenElse {
+            condition,
+            then_branch,
+            else_branch,
+        } => {
+            if needs_parens {
+                buf.push('(');
+            }
             buf.push_str("if ");
             write_expr(buf, condition, false);
             buf.push_str(" then ");
             write_expr(buf, then_branch, false);
             buf.push_str(" else ");
             write_expr(buf, else_branch, false);
-            if needs_parens { buf.push(')'); }
+            if needs_parens {
+                buf.push(')');
+            }
         }
 
-        Expr::Membership { value, container, negated } => {
-            if needs_parens { buf.push('('); }
+        Expr::Membership {
+            value,
+            container,
+            negated,
+        } => {
+            if needs_parens {
+                buf.push('(');
+            }
             write_expr(buf, value, true);
             if *negated {
                 buf.push_str(" not in ");
@@ -116,33 +143,45 @@ fn write_expr(buf: &mut String, expr: &Expr, needs_parens: bool) {
                 buf.push_str(" in ");
             }
             write_expr(buf, container, true);
-            if needs_parens { buf.push(')'); }
+            if needs_parens {
+                buf.push(')');
+            }
         }
 
         Expr::NullCoalesce { left, right } => {
-            if needs_parens { buf.push('('); }
+            if needs_parens {
+                buf.push('(');
+            }
             write_expr(buf, left, true);
             buf.push_str(" ?? ");
             write_expr(buf, right, true);
-            if needs_parens { buf.push(')'); }
+            if needs_parens {
+                buf.push(')');
+            }
         }
 
         Expr::LetBinding { name, value, body } => {
-            if needs_parens { buf.push('('); }
+            if needs_parens {
+                buf.push('(');
+            }
             buf.push_str("let ");
             buf.push_str(name);
             buf.push_str(" = ");
             write_expr(buf, value, false);
             buf.push_str(" in ");
             write_expr(buf, body, false);
-            if needs_parens { buf.push(')'); }
+            if needs_parens {
+                buf.push(')');
+            }
         }
 
         Expr::FunctionCall { name, args } => {
             buf.push_str(name);
             buf.push('(');
             for (i, arg) in args.iter().enumerate() {
-                if i > 0 { buf.push_str(", "); }
+                if i > 0 {
+                    buf.push_str(", ");
+                }
                 write_expr(buf, arg, false);
             }
             buf.push(')');
@@ -220,7 +259,10 @@ mod tests {
         let reparsed = parse(&printed).unwrap_or_else(|e| {
             panic!("Failed to reparse printed output '{printed}' (from '{input}'): {e}");
         });
-        assert_eq!(ast, reparsed, "Round-trip failed for '{input}' → '{printed}'");
+        assert_eq!(
+            ast, reparsed,
+            "Round-trip failed for '{input}' → '{printed}'"
+        );
     }
 
     #[test]

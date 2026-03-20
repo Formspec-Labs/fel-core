@@ -5,8 +5,8 @@
 /// Covers: eval_with_fields, money arithmetic, date arithmetic edge cases,
 /// object equality, today()/now(), and other gaps.
 use fel_core::*;
-use rust_decimal::prelude::*;
 use rust_decimal::Decimal;
+use rust_decimal::prelude::*;
 use std::collections::HashMap;
 
 fn eval(input: &str) -> FelValue {
@@ -212,7 +212,14 @@ fn money_sum_empty_array() {
 fn date_add_negative_months() {
     let result = eval("dateAdd(@2024-03-15, -1, 'months')");
     assert!(
-        matches!(result, FelValue::Date(FelDate::Date { year: 2024, month: 2, day: 15 })),
+        matches!(
+            result,
+            FelValue::Date(FelDate::Date {
+                year: 2024,
+                month: 2,
+                day: 15
+            })
+        ),
         "got: {result:?}"
     );
 }
@@ -222,7 +229,14 @@ fn date_add_negative_months() {
 fn date_add_negative_days() {
     let result = eval("dateAdd(@2024-03-01, -1, 'days')");
     assert!(
-        matches!(result, FelValue::Date(FelDate::Date { year: 2024, month: 2, day: 29 })),
+        matches!(
+            result,
+            FelValue::Date(FelDate::Date {
+                year: 2024,
+                month: 2,
+                day: 29
+            })
+        ),
         "Feb 29 (leap year), got: {result:?}"
     );
 }
@@ -232,7 +246,14 @@ fn date_add_negative_days() {
 fn date_add_leap_year_feb29_plus_one_year() {
     let result = eval("dateAdd(@2024-02-29, 1, 'years')");
     assert!(
-        matches!(result, FelValue::Date(FelDate::Date { year: 2025, month: 2, day: 28 })),
+        matches!(
+            result,
+            FelValue::Date(FelDate::Date {
+                year: 2025,
+                month: 2,
+                day: 28
+            })
+        ),
         "should clamp to Feb 28 in non-leap year, got: {result:?}"
     );
 }
@@ -242,7 +263,14 @@ fn date_add_leap_year_feb29_plus_one_year() {
 fn date_add_leap_year_feb29_plus_four_years() {
     let result = eval("dateAdd(@2024-02-29, 4, 'years')");
     assert!(
-        matches!(result, FelValue::Date(FelDate::Date { year: 2028, month: 2, day: 29 })),
+        matches!(
+            result,
+            FelValue::Date(FelDate::Date {
+                year: 2028,
+                month: 2,
+                day: 29
+            })
+        ),
         "2028 is a leap year, got: {result:?}"
     );
 }
@@ -250,19 +278,13 @@ fn date_add_leap_year_feb29_plus_four_years() {
 /// Correctness: dateDiff with 'years' unit
 #[test]
 fn date_diff_years() {
-    assert_eq!(
-        eval("dateDiff(@2024-06-15, @2020-06-15, 'years')"),
-        num(4)
-    );
+    assert_eq!(eval("dateDiff(@2024-06-15, @2020-06-15, 'years')"), num(4));
 }
 
 /// Correctness: dateDiff negative result
 #[test]
 fn date_diff_negative() {
-    assert_eq!(
-        eval("dateDiff(@2024-01-01, @2024-03-01, 'days')"),
-        num(-60)
-    );
+    assert_eq!(eval("dateDiff(@2024-01-01, @2024-03-01, 'days')"), num(-60));
 }
 
 /// Correctness: dateAdd large months (wraps year)
@@ -270,7 +292,14 @@ fn date_diff_negative() {
 fn date_add_wraps_year() {
     let result = eval("dateAdd(@2024-11-15, 3, 'months')");
     assert!(
-        matches!(result, FelValue::Date(FelDate::Date { year: 2025, month: 2, day: 15 })),
+        matches!(
+            result,
+            FelValue::Date(FelDate::Date {
+                year: 2025,
+                month: 2,
+                day: 15
+            })
+        ),
         "Nov + 3 months = Feb next year, got: {result:?}"
     );
 }
@@ -280,7 +309,14 @@ fn date_add_wraps_year() {
 fn date_add_month_day_clamping() {
     let result = eval("dateAdd(@2024-01-31, 1, 'months')");
     assert!(
-        matches!(result, FelValue::Date(FelDate::Date { year: 2024, month: 2, day: 29 })),
+        matches!(
+            result,
+            FelValue::Date(FelDate::Date {
+                year: 2024,
+                month: 2,
+                day: 29
+            })
+        ),
         "got: {result:?}"
     );
 }
@@ -290,7 +326,14 @@ fn date_add_month_day_clamping() {
 fn date_add_month_to_non_leap_feb() {
     let result = eval("dateAdd(@2023-01-31, 1, 'months')");
     assert!(
-        matches!(result, FelValue::Date(FelDate::Date { year: 2023, month: 2, day: 28 })),
+        matches!(
+            result,
+            FelValue::Date(FelDate::Date {
+                year: 2023,
+                month: 2,
+                day: 28
+            })
+        ),
         "got: {result:?}"
     );
 }
@@ -417,10 +460,7 @@ fn cross_type_comparison_returns_null() {
 /// Correctness: deeply nested expressions
 #[test]
 fn deeply_nested_ternary() {
-    assert_eq!(
-        eval("true ? (false ? 1 : (true ? 42 : 3)) : 0"),
-        num(42)
-    );
+    assert_eq!(eval("true ? (false ? 1 : (true ? 42 : 3)) : 0"), num(42));
 }
 
 /// Correctness: chained null coalesce
@@ -441,10 +481,7 @@ fn let_binding_with_ternary() {
 /// Correctness: nested let bindings with shadowing
 #[test]
 fn let_binding_shadowing() {
-    assert_eq!(
-        eval("let x = 1 in let x = 2 in x"),
-        num(2)
-    );
+    assert_eq!(eval("let x = 1 in let x = 2 in x"), num(2));
 }
 
 /// Correctness: undefined function produces null + diagnostic
@@ -453,7 +490,9 @@ fn undefined_function_diagnostic() {
     let r = eval_result("fooBar(1, 2)");
     assert_eq!(r.value, FelValue::Null);
     assert!(
-        r.diagnostics.iter().any(|d| d.message.contains("undefined function")),
+        r.diagnostics
+            .iter()
+            .any(|d| d.message.contains("undefined function")),
         "expected 'undefined function' diagnostic, got: {:?}",
         r.diagnostics
     );
@@ -488,18 +527,9 @@ fn empty_edge_cases() {
 /// Correctness: date comparison
 #[test]
 fn date_comparison() {
-    assert_eq!(
-        eval("@2024-01-15 < @2024-06-15"),
-        FelValue::Boolean(true)
-    );
-    assert_eq!(
-        eval("@2024-06-15 > @2024-01-15"),
-        FelValue::Boolean(true)
-    );
-    assert_eq!(
-        eval("@2024-01-15 = @2024-01-15"),
-        FelValue::Boolean(true)
-    );
+    assert_eq!(eval("@2024-01-15 < @2024-06-15"), FelValue::Boolean(true));
+    assert_eq!(eval("@2024-06-15 > @2024-01-15"), FelValue::Boolean(true));
+    assert_eq!(eval("@2024-01-15 = @2024-01-15"), FelValue::Boolean(true));
 }
 
 /// Correctness: date casting from string
@@ -507,7 +537,14 @@ fn date_comparison() {
 fn date_cast_from_string() {
     let result = eval("date('2024-06-15')");
     assert!(
-        matches!(result, FelValue::Date(FelDate::Date { year: 2024, month: 6, day: 15 })),
+        matches!(
+            result,
+            FelValue::Date(FelDate::Date {
+                year: 2024,
+                month: 6,
+                day: 15
+            })
+        ),
         "got: {result:?}"
     );
 }

@@ -237,5 +237,8 @@ fn empty_object_is_valid() {
 #[test]
 fn trailing_comma_in_object_is_valid() {
     let result = parse("{a: 1, b: 2,}");
-    assert!(result.is_ok(), "trailing comma in object should be accepted");
+    assert!(
+        result.is_ok(),
+        "trailing comma in object should be accepted"
+    );
 }

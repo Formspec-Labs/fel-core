@@ -2,8 +2,8 @@
 ///
 /// Addresses audit finding: "Lexer has almost no tests (7 tests, all string escapes)"
 use fel_core::lexer::{Lexer, Token};
-use rust_decimal::prelude::*;
 use rust_decimal::Decimal;
+use rust_decimal::prelude::*;
 
 // ── Helper ──────────────────────────────────────────────────────
 
@@ -61,19 +61,13 @@ fn decimal_number() {
 /// Spec: fel-grammar.md §3.5 L129 — "Exponent ← ('e' / 'E') ('+' / '-')? [0-9]+"
 #[test]
 fn scientific_notation_lowercase_e() {
-    assert_eq!(
-        tokens("1e3"),
-        vec![Token::Number(Decimal::from(1000))]
-    );
+    assert_eq!(tokens("1e3"), vec![Token::Number(Decimal::from(1000))]);
 }
 
 /// Spec: fel-grammar.md §3.5 L129 — "Exponent ← ('e' / 'E') ('+' / '-')? [0-9]+"
 #[test]
 fn scientific_notation_uppercase_e() {
-    assert_eq!(
-        tokens("2E4"),
-        vec![Token::Number(Decimal::from(20000))]
-    );
+    assert_eq!(tokens("2E4"), vec![Token::Number(Decimal::from(20000))]);
 }
 
 /// Spec: fel-grammar.md §3.5 L129 — negative exponent
@@ -97,20 +91,14 @@ fn scientific_notation_negative_exponent() {
 /// Spec: fel-grammar.md §3.5 L129 — positive exponent sign
 #[test]
 fn scientific_notation_positive_sign() {
-    assert_eq!(
-        tokens("5e+2"),
-        vec![Token::Number(Decimal::from(500))]
-    );
+    assert_eq!(tokens("5e+2"), vec![Token::Number(Decimal::from(500))]);
 }
 
 /// Spec: fel-grammar.md §3.5 L127 — decimal with exponent
 #[test]
 fn decimal_with_exponent() {
     // 1.5e2 = 150
-    assert_eq!(
-        tokens("1.5e2"),
-        vec![Token::Number(Decimal::from(150))]
-    );
+    assert_eq!(tokens("1.5e2"), vec![Token::Number(Decimal::from(150))]);
 }
 
 /// Spec: fel-grammar.md §3.5 L128 — leading zeros: "IntegerPart ← '0' / [1-9] [0-9]*"
@@ -233,7 +221,10 @@ fn block_comments_do_not_nest() {
 #[test]
 fn unterminated_block_comment_is_error() {
     let result = Lexer::new("42 /* unterminated").tokenize();
-    assert!(result.is_err(), "unterminated block comment should produce an error");
+    assert!(
+        result.is_err(),
+        "unterminated block comment should produce an error"
+    );
 }
 
 // ── Operator tokenization ───────────────────────────────────────
@@ -357,7 +348,10 @@ fn keyword_prefixes_are_identifiers() {
     assert_eq!(tokens("elapsed"), vec![Token::Identifier("elapsed".into())]);
     assert_eq!(tokens("thence"), vec![Token::Identifier("thence".into())]);
     assert_eq!(tokens("false0"), vec![Token::Identifier("false0".into())]);
-    assert_eq!(tokens("null_val"), vec![Token::Identifier("null_val".into())]);
+    assert_eq!(
+        tokens("null_val"),
+        vec![Token::Identifier("null_val".into())]
+    );
 }
 
 // ── Error cases ─────────────────────────────────────────────────

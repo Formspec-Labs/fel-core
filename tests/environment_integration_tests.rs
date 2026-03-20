@@ -5,8 +5,8 @@
 /// These tests use FormspecEnvironment (not just MapEnvironment) to verify
 /// MIP state queries, repeat context, and variables work through the evaluator.
 use fel_core::*;
-use rust_decimal::prelude::*;
 use rust_decimal::Decimal;
+use rust_decimal::prelude::*;
 
 fn num(n: i64) -> FelValue {
     FelValue::Number(Decimal::from(n))
@@ -99,10 +99,7 @@ fn mip_required_returns_configured_state() {
         },
     );
 
-    assert_eq!(
-        eval_value("required($name)", &env),
-        FelValue::Boolean(true)
-    );
+    assert_eq!(eval_value("required($name)", &env), FelValue::Boolean(true));
 }
 
 /// Correctness: MIP defaults for unknown fields
@@ -110,10 +107,7 @@ fn mip_required_returns_configured_state() {
 fn mip_defaults_for_unknown_field() {
     let env = FormspecEnvironment::new();
 
-    assert_eq!(
-        eval_value("valid($unknown)", &env),
-        FelValue::Boolean(true)
-    );
+    assert_eq!(eval_value("valid($unknown)", &env), FelValue::Boolean(true));
     assert_eq!(
         eval_value("relevant($unknown)", &env),
         FelValue::Boolean(true)
@@ -243,7 +237,10 @@ fn repeat_current_in_arithmetic() {
 #[test]
 fn variable_resolution() {
     let mut env = FormspecEnvironment::new();
-    env.set_variable("taxRate", FelValue::Number(Decimal::from_str("0.08").unwrap()));
+    env.set_variable(
+        "taxRate",
+        FelValue::Number(Decimal::from_str("0.08").unwrap()),
+    );
     env.set_field("subtotal", num(100));
 
     assert_eq!(
@@ -295,10 +292,7 @@ fn named_instance_resolution() {
 #[test]
 fn unknown_instance_returns_null() {
     let env = FormspecEnvironment::new();
-    assert_eq!(
-        eval_value("@instance('missing')", &env),
-        FelValue::Null
-    );
+    assert_eq!(eval_value("@instance('missing')", &env), FelValue::Null);
 }
 
 // ── Field resolution with FormspecEnvironment ────────────────────

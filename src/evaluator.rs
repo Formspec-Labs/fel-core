@@ -3,8 +3,8 @@
 /// Non-fatal errors produce a Diagnostic + FelNull (never panic).
 /// Null propagation follows spec §3: most ops propagate, equality does NOT.
 use regex::Regex;
-use rust_decimal::prelude::*;
 use rust_decimal::Decimal;
+use rust_decimal::prelude::*;
 use std::collections::HashMap;
 
 use crate::ast::*;
@@ -39,6 +39,12 @@ pub trait Environment {
     }
     fn repeat_parent(&self) -> FelValue {
         FelValue::Null
+    }
+    fn current_date(&self) -> Option<FelDate> {
+        None
+    }
+    fn current_datetime(&self) -> Option<FelDate> {
+        None
     }
 }
 
@@ -81,12 +87,10 @@ impl Environment for MapEnvironment {
         };
         for seg in &segments[1..] {
             match &current {
-                FelValue::Object(entries) => {
-                    match entries.iter().find(|(k, _)| k == seg) {
-                        Some((_, v)) => current = v.clone(),
-                        None => return FelValue::Null,
-                    }
-                }
+                FelValue::Object(entries) => match entries.iter().find(|(k, _)| k == seg) {
+                    Some((_, v)) => current = v.clone(),
+                    None => return FelValue::Null,
+                },
                 _ => return FelValue::Null,
             }
         }
@@ -95,6 +99,25 @@ impl Environment for MapEnvironment {
 
     fn resolve_context(&self, _name: &str, _arg: Option<&str>, _tail: &[String]) -> FelValue {
         FelValue::Null
+    }
+
+    fn current_date(&self) -> Option<FelDate> {
+        Some(FelDate::Date {
+            year: 2026,
+            month: 3,
+            day: 20,
+        })
+    }
+
+    fn current_datetime(&self) -> Option<FelDate> {
+        Some(FelDate::DateTime {
+            year: 2026,
+            month: 3,
+            day: 20,
+            hour: 0,
+            minute: 0,
+            second: 0,
+        })
     }
 }
 
@@ -156,11 +179,12 @@ impl<'a> Evaluator<'a> {
                     FelValue::Null
                 }
             },
-            Expr::Array(elems) => {
-                FelValue::Array(elems.iter().map(|e| self.eval(e)).collect())
-            }
+            Expr::Array(elems) => FelValue::Array(elems.iter().map(|e| self.eval(e)).collect()),
             Expr::Object(entries) => FelValue::Object(
-                entries.iter().map(|(k, v)| (k.clone(), self.eval(v))).collect(),
+                entries
+                    .iter()
+                    .map(|(k, v)| (k.clone(), self.eval(v)))
+                    .collect(),
             ),
             Expr::FieldRef { name, path } => self.eval_field_ref(name, path),
             Expr::ContextRef { name, arg, tail } => {
@@ -171,15 +195,38 @@ impl<'a> Evaluator<'a> {
                 self.eval_unary(*op, val)
             }
             Expr::BinaryOp { op, left, right } => self.eval_binary(*op, left, right),
-            Expr::Ternary { condition, then_branch, else_branch }
-            | Expr::IfThenElse { condition, then_branch, else_branch } => {
-                let cond = self.eval(condition);
-                if cond.is_null() {
-                    return FelValue::Null;
-                }
-                if cond.is_truthy() { self.eval(then_branch) } else { self.eval(else_branch) }
+            Expr::Ternary {
+                condition,
+                then_branch,
+                else_branch,
             }
-            Expr::Membership { value, container, negated } => {
+            | Expr::IfThenElse {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
+                let cond = self.eval(condition);
+                match cond {
+                    FelValue::Null => {
+                        self.diag("if: condition evaluated to null");
+                        FelValue::Null
+                    }
+                    FelValue::Boolean(true) => self.eval(then_branch),
+                    FelValue::Boolean(false) => self.eval(else_branch),
+                    _ => {
+                        self.diag(format!(
+                            "if: condition must be boolean, got {}",
+                            cond.type_name()
+                        ));
+                        FelValue::Null
+                    }
+                }
+            }
+            Expr::Membership {
+                value,
+                container,
+                negated,
+            } => {
                 let val = self.eval(value);
                 let cont = self.eval(container);
                 self.eval_membership(val, cont, *negated)
@@ -219,7 +266,11 @@ impl<'a> Evaluator<'a> {
                     }
                 }
                 let base = self.env.resolve_field(&[]);
-                if path.is_empty() { base } else { self.access_path(base, path) }
+                if path.is_empty() {
+                    base
+                } else {
+                    self.access_path(base, path)
+                }
             }
             Some(n) => {
                 // Check let-scopes first
@@ -250,7 +301,35 @@ impl<'a> Evaluator<'a> {
                     }
                 }
                 let base = self.env.resolve_field(&segments);
-                if remaining_path.is_empty() { base } else { self.access_path(base, &remaining_path) }
+                if matches!(base, FelValue::Null)
+                    && path.iter().any(|seg| matches!(seg, PathSegment::Index(_)))
+                {
+                    let mut flat_segments = vec![n.clone()];
+                    for seg in path {
+                        match seg {
+                            PathSegment::Dot(name) => flat_segments.push(name.clone()),
+                            PathSegment::Index(idx) => {
+                                if let Some(last) = flat_segments.last_mut() {
+                                    last.push_str(&format!("[{idx}]"));
+                                }
+                            }
+                            PathSegment::Wildcard => {
+                                if let Some(last) = flat_segments.last_mut() {
+                                    last.push_str("[*]");
+                                }
+                            }
+                        }
+                    }
+                    let flat = self.env.resolve_field(&flat_segments);
+                    if !matches!(flat, FelValue::Null) {
+                        return flat;
+                    }
+                }
+                if remaining_path.is_empty() {
+                    base
+                } else {
+                    self.access_path(base, &remaining_path)
+                }
             }
         }
     }
@@ -260,8 +339,11 @@ impl<'a> Evaluator<'a> {
             match seg {
                 PathSegment::Dot(name) => match &current {
                     FelValue::Object(entries) => {
-                        current = entries.iter().find(|(k, _)| k == name)
-                            .map(|(_, v)| v.clone()).unwrap_or(FelValue::Null);
+                        current = entries
+                            .iter()
+                            .find(|(k, _)| k == name)
+                            .map(|(_, v)| v.clone())
+                            .unwrap_or(FelValue::Null);
                     }
                     FelValue::Null => return FelValue::Null,
                     _ => {
@@ -283,22 +365,24 @@ impl<'a> Evaluator<'a> {
                         return FelValue::Null;
                     }
                 },
-                PathSegment::Wildcard => {
-                    match &current {
-                        FelValue::Array(arr) => {
-                            let remaining = &path[i + 1..];
-                            if remaining.is_empty() { return current; }
-                            return FelValue::Array(
-                                arr.iter().map(|e| self.access_path(e.clone(), remaining)).collect(),
-                            );
+                PathSegment::Wildcard => match &current {
+                    FelValue::Array(arr) => {
+                        let remaining = &path[i + 1..];
+                        if remaining.is_empty() {
+                            return current;
                         }
-                        FelValue::Null => return FelValue::Null,
-                        _ => {
-                            self.diag(format!("cannot wildcard on {}", current.type_name()));
-                            return FelValue::Null;
-                        }
+                        return FelValue::Array(
+                            arr.iter()
+                                .map(|e| self.access_path(e.clone(), remaining))
+                                .collect(),
+                        );
                     }
-                }
+                    FelValue::Null => return FelValue::Null,
+                    _ => {
+                        self.diag(format!("cannot wildcard on {}", current.type_name()));
+                        return FelValue::Null;
+                    }
+                },
             }
         }
         current
@@ -308,16 +392,20 @@ impl<'a> Evaluator<'a> {
 
     fn eval_unary(&mut self, op: UnaryOp, val: FelValue) -> FelValue {
         match op {
-            UnaryOp::Not => {
-                if val.is_null() { return FelValue::Null; }
-                FelValue::Boolean(!val.is_truthy())
-            }
+            UnaryOp::Not => match val {
+                FelValue::Null => FelValue::Null,
+                FelValue::Boolean(b) => FelValue::Boolean(!b),
+                _ => {
+                    self.diag(format!("cannot apply 'not' to {}", val.type_name()));
+                    FelValue::Null
+                }
+            },
             UnaryOp::Neg => match &val {
                 FelValue::Null => FelValue::Null,
                 FelValue::Number(n) => FelValue::Number(-n),
-                FelValue::Array(arr) => FelValue::Array(
-                    arr.iter().map(|v| self.eval_unary(op, v.clone())).collect(),
-                ),
+                FelValue::Array(arr) => {
+                    FelValue::Array(arr.iter().map(|v| self.eval_unary(op, v.clone())).collect())
+                }
                 _ => {
                     self.diag(format!("cannot negate {}", val.type_name()));
                     FelValue::Null
@@ -333,19 +421,57 @@ impl<'a> Evaluator<'a> {
         match op {
             BinaryOp::And => {
                 let left = self.eval(left_expr);
-                if left.is_null() { return FelValue::Null; }
-                if !left.is_truthy() { return FelValue::Boolean(false); }
+                if left.is_null() {
+                    return FelValue::Null;
+                }
+                let left_bool = match left {
+                    FelValue::Boolean(b) => b,
+                    other => {
+                        self.diag(format!("cannot apply 'and' to {}", other.type_name()));
+                        return FelValue::Null;
+                    }
+                };
+                if !left_bool {
+                    return FelValue::Boolean(false);
+                }
                 let right = self.eval(right_expr);
-                if right.is_null() { return FelValue::Null; }
-                return FelValue::Boolean(right.is_truthy());
+                if right.is_null() {
+                    return FelValue::Null;
+                }
+                return match right {
+                    FelValue::Boolean(b) => FelValue::Boolean(b),
+                    other => {
+                        self.diag(format!("cannot apply 'and' to {}", other.type_name()));
+                        FelValue::Null
+                    }
+                };
             }
             BinaryOp::Or => {
                 let left = self.eval(left_expr);
-                if left.is_null() { return FelValue::Null; }
-                if left.is_truthy() { return FelValue::Boolean(true); }
+                if left.is_null() {
+                    return FelValue::Null;
+                }
+                let left_bool = match left {
+                    FelValue::Boolean(b) => b,
+                    other => {
+                        self.diag(format!("cannot apply 'or' to {}", other.type_name()));
+                        return FelValue::Null;
+                    }
+                };
+                if left_bool {
+                    return FelValue::Boolean(true);
+                }
                 let right = self.eval(right_expr);
-                if right.is_null() { return FelValue::Null; }
-                return FelValue::Boolean(right.is_truthy());
+                if right.is_null() {
+                    return FelValue::Null;
+                }
+                return match right {
+                    FelValue::Boolean(b) => FelValue::Boolean(b),
+                    other => {
+                        self.diag(format!("cannot apply 'or' to {}", other.type_name()));
+                        FelValue::Null
+                    }
+                };
             }
             _ => {}
         }
@@ -369,18 +495,31 @@ impl<'a> Evaluator<'a> {
         match (&left, &right) {
             (FelValue::Array(la), FelValue::Array(ra)) => {
                 if la.len() != ra.len() {
-                    self.diag(format!("array length mismatch: {} vs {}", la.len(), ra.len()));
+                    self.diag(format!(
+                        "array length mismatch: {} vs {}",
+                        la.len(),
+                        ra.len()
+                    ));
                     return FelValue::Null;
                 }
                 return FelValue::Array(
-                    la.iter().zip(ra.iter()).map(|(l, r)| self.apply_binary(op, l, r)).collect(),
+                    la.iter()
+                        .zip(ra.iter())
+                        .map(|(l, r)| self.apply_binary(op, l, r))
+                        .collect(),
                 );
             }
             (FelValue::Array(la), _) => {
-                return FelValue::Array(la.iter().map(|l| self.apply_binary(op, l, &right)).collect());
+                return FelValue::Array(
+                    la.iter()
+                        .map(|l| self.apply_binary(op, l, &right))
+                        .collect(),
+                );
             }
             (_, FelValue::Array(ra)) => {
-                return FelValue::Array(ra.iter().map(|r| self.apply_binary(op, &left, r)).collect());
+                return FelValue::Array(
+                    ra.iter().map(|r| self.apply_binary(op, &left, r)).collect(),
+                );
             }
             _ => {}
         }
@@ -389,7 +528,9 @@ impl<'a> Evaluator<'a> {
     }
 
     fn apply_binary(&mut self, op: BinaryOp, left: &FelValue, right: &FelValue) -> FelValue {
-        if left.is_null() || right.is_null() { return FelValue::Null; }
+        if left.is_null() || right.is_null() {
+            return FelValue::Null;
+        }
 
         match op {
             BinaryOp::Add => self.num_op(left, right, "+", |a, b| a + b),
@@ -408,11 +549,17 @@ impl<'a> Evaluator<'a> {
                         self.diag("division by zero");
                         FelValue::Null
                     } else {
-                        FelValue::Money(FelMoney { amount: m.amount / n, currency: m.currency.clone() })
+                        FelValue::Money(FelMoney {
+                            amount: m.amount / n,
+                            currency: m.currency.clone(),
+                        })
                     }
                 } else if let (FelValue::Money(a), FelValue::Money(b)) = (left, right) {
                     if a.currency != b.currency {
-                        self.diag(format!("currency mismatch: {} vs {}", a.currency, b.currency));
+                        self.diag(format!(
+                            "currency mismatch: {} vs {}",
+                            a.currency, b.currency
+                        ));
                         FelValue::Null
                     } else if b.amount.is_zero() {
                         self.diag("division by zero");
@@ -421,16 +568,38 @@ impl<'a> Evaluator<'a> {
                         FelValue::Number(a.amount / b.amount)
                     }
                 } else {
-                    self.diag(format!("cannot divide {} by {}", left.type_name(), right.type_name()));
+                    self.diag(format!(
+                        "cannot divide {} by {}",
+                        left.type_name(),
+                        right.type_name()
+                    ));
                     FelValue::Null
                 }
             }
             BinaryOp::Mod => {
                 if let (FelValue::Number(a), FelValue::Number(b)) = (left, right) {
-                    if b.is_zero() { self.diag("modulo by zero"); FelValue::Null }
-                    else { FelValue::Number(a % b) }
+                    if b.is_zero() {
+                        self.diag("modulo by zero");
+                        FelValue::Null
+                    } else {
+                        FelValue::Number(a % b)
+                    }
+                } else if let (FelValue::Money(m), FelValue::Number(n)) = (left, right) {
+                    if n.is_zero() {
+                        self.diag("modulo by zero");
+                        FelValue::Null
+                    } else {
+                        FelValue::Money(FelMoney {
+                            amount: m.amount % n,
+                            currency: m.currency.clone(),
+                        })
+                    }
                 } else {
-                    self.diag(format!("cannot modulo {} by {}", left.type_name(), right.type_name()));
+                    self.diag(format!(
+                        "cannot modulo {} by {}",
+                        left.type_name(),
+                        right.type_name()
+                    ));
                     FelValue::Null
                 }
             }
@@ -438,7 +607,11 @@ impl<'a> Evaluator<'a> {
                 if let (FelValue::String(a), FelValue::String(b)) = (left, right) {
                     FelValue::String(format!("{a}{b}"))
                 } else {
-                    self.diag(format!("cannot concat {} and {}", left.type_name(), right.type_name()));
+                    self.diag(format!(
+                        "cannot concat {} and {}",
+                        left.type_name(),
+                        right.type_name()
+                    ));
                     FelValue::Null
                 }
             }
@@ -452,25 +625,49 @@ impl<'a> Evaluator<'a> {
         }
     }
 
-    fn num_op(&mut self, left: &FelValue, right: &FelValue, sym: &str, f: fn(Decimal, Decimal) -> Decimal) -> FelValue {
+    fn num_op(
+        &mut self,
+        left: &FelValue,
+        right: &FelValue,
+        sym: &str,
+        f: fn(Decimal, Decimal) -> Decimal,
+    ) -> FelValue {
         match (left, right) {
             (FelValue::Number(a), FelValue::Number(b)) => FelValue::Number(f(*a, *b)),
             (FelValue::Money(a), FelValue::Money(b)) if sym == "+" || sym == "-" => {
                 if a.currency != b.currency {
-                    self.diag(format!("currency mismatch: {} vs {}", a.currency, b.currency));
+                    self.diag(format!(
+                        "currency mismatch: {} vs {}",
+                        a.currency, b.currency
+                    ));
                     FelValue::Null
                 } else {
-                    FelValue::Money(FelMoney { amount: f(a.amount, b.amount), currency: a.currency.clone() })
+                    FelValue::Money(FelMoney {
+                        amount: f(a.amount, b.amount),
+                        currency: a.currency.clone(),
+                    })
                 }
             }
-            (FelValue::Money(m), FelValue::Number(n)) if sym == "*" => {
-                FelValue::Money(FelMoney { amount: m.amount * n, currency: m.currency.clone() })
+            (FelValue::Money(m), FelValue::Number(n)) if sym == "+" || sym == "-" => {
+                FelValue::Money(FelMoney {
+                    amount: f(m.amount, *n),
+                    currency: m.currency.clone(),
+                })
             }
-            (FelValue::Number(n), FelValue::Money(m)) if sym == "*" => {
-                FelValue::Money(FelMoney { amount: *n * m.amount, currency: m.currency.clone() })
-            }
+            (FelValue::Money(m), FelValue::Number(n)) if sym == "*" => FelValue::Money(FelMoney {
+                amount: m.amount * n,
+                currency: m.currency.clone(),
+            }),
+            (FelValue::Number(n), FelValue::Money(m)) if sym == "*" => FelValue::Money(FelMoney {
+                amount: *n * m.amount,
+                currency: m.currency.clone(),
+            }),
             _ => {
-                self.diag(format!("cannot apply '{sym}' to {} and {}", left.type_name(), right.type_name()));
+                self.diag(format!(
+                    "cannot apply '{sym}' to {} and {}",
+                    left.type_name(),
+                    right.type_name()
+                ));
                 FelValue::Null
             }
         }
@@ -488,7 +685,9 @@ impl<'a> Evaluator<'a> {
                 FelValue::Boolean(a.currency == b.currency && a.amount == b.amount)
             }
             (FelValue::Array(a), FelValue::Array(b)) => {
-                if a.len() != b.len() { return FelValue::Boolean(false); }
+                if a.len() != b.len() {
+                    return FelValue::Boolean(false);
+                }
                 for (av, bv) in a.iter().zip(b.iter()) {
                     if !matches!(self.eval_equality(av, bv), FelValue::Boolean(true)) {
                         return FelValue::Boolean(false);
@@ -496,23 +695,34 @@ impl<'a> Evaluator<'a> {
                 }
                 FelValue::Boolean(true)
             }
-            (FelValue::Object(a), FelValue::Object(b)) => {
-                FelValue::Boolean(a == b)
-            }
+            (FelValue::Object(a), FelValue::Object(b)) => FelValue::Boolean(a == b),
             _ => {
-                self.diag(format!("cannot compare {} with {}", left.type_name(), right.type_name()));
+                self.diag(format!(
+                    "cannot compare {} with {}",
+                    left.type_name(),
+                    right.type_name()
+                ));
                 FelValue::Null
             }
         }
     }
 
-    fn compare(&mut self, left: &FelValue, right: &FelValue, check: fn(std::cmp::Ordering) -> bool) -> FelValue {
+    fn compare(
+        &mut self,
+        left: &FelValue,
+        right: &FelValue,
+        check: fn(std::cmp::Ordering) -> bool,
+    ) -> FelValue {
         let ord = match (left, right) {
             (FelValue::Number(a), FelValue::Number(b)) => a.cmp(b),
             (FelValue::String(a), FelValue::String(b)) => a.cmp(b),
             (FelValue::Date(a), FelValue::Date(b)) => a.ordinal().cmp(&b.ordinal()),
             _ => {
-                self.diag(format!("cannot compare {} with {}", left.type_name(), right.type_name()));
+                self.diag(format!(
+                    "cannot compare {} with {}",
+                    left.type_name(),
+                    right.type_name()
+                ));
                 return FelValue::Null;
             }
         };
@@ -522,12 +732,17 @@ impl<'a> Evaluator<'a> {
     fn eval_membership(&mut self, value: FelValue, container: FelValue, negated: bool) -> FelValue {
         match &container {
             FelValue::Array(arr) => {
-                let found = arr.iter().any(|e| matches!(self.eval_equality(&value, e), FelValue::Boolean(true)));
+                let found = arr
+                    .iter()
+                    .any(|e| matches!(self.eval_equality(&value, e), FelValue::Boolean(true)));
                 FelValue::Boolean(if negated { !found } else { found })
             }
             FelValue::Null => FelValue::Null,
             _ => {
-                self.diag(format!("membership requires array, got {}", container.type_name()));
+                self.diag(format!(
+                    "membership requires array, got {}",
+                    container.type_name()
+                ));
                 FelValue::Null
             }
         }
@@ -539,9 +754,16 @@ impl<'a> Evaluator<'a> {
         match name {
             // Aggregates
             "sum" => self.fn_aggregate(args, "sum", |nums| nums.iter().copied().sum()),
-            "count" => { let v = self.eval_arg(args, 0); self.fn_count(&v) }
+            "count" => {
+                let v = self.eval_arg(args, 0);
+                self.fn_count(&v)
+            }
             "avg" => self.fn_aggregate(args, "avg", |nums| {
-                if nums.is_empty() { Decimal::ZERO } else { nums.iter().copied().sum::<Decimal>() / Decimal::from(nums.len() as i64) }
+                if nums.is_empty() {
+                    Decimal::ZERO
+                } else {
+                    nums.iter().copied().sum::<Decimal>() / Decimal::from(nums.len() as i64)
+                }
             }),
             "min" => self.fn_min_max(args, true),
             "max" => self.fn_min_max(args, false),
@@ -549,9 +771,15 @@ impl<'a> Evaluator<'a> {
 
             // String
             "length" => self.fn_length(args),
-            "contains" => self.fn_str2(args, "contains", |s, sub| FelValue::Boolean(s.contains(&*sub))),
-            "startsWith" => self.fn_str2(args, "startsWith", |s, p| FelValue::Boolean(s.starts_with(&*p))),
-            "endsWith" => self.fn_str2(args, "endsWith", |s, p| FelValue::Boolean(s.ends_with(&*p))),
+            "contains" => self.fn_str2(args, "contains", |s, sub| {
+                FelValue::Boolean(s.contains(&*sub))
+            }),
+            "startsWith" => self.fn_str2(args, "startsWith", |s, p| {
+                FelValue::Boolean(s.starts_with(&*p))
+            }),
+            "endsWith" => {
+                self.fn_str2(args, "endsWith", |s, p| FelValue::Boolean(s.ends_with(&*p)))
+            }
             "substring" => self.fn_substring(args),
             "replace" => self.fn_replace(args),
             "upper" => self.fn_str1(args, |s| FelValue::String(s.to_uppercase())),
@@ -587,7 +815,10 @@ impl<'a> Evaluator<'a> {
             "empty" => self.fn_empty(args),
             "present" => {
                 let e = self.fn_empty(args);
-                match e { FelValue::Boolean(b) => FelValue::Boolean(!b), o => o }
+                match e {
+                    FelValue::Boolean(b) => FelValue::Boolean(!b),
+                    o => o,
+                }
             }
             "selected" => self.fn_selected(args),
 
@@ -595,8 +826,14 @@ impl<'a> Evaluator<'a> {
             "isNumber" => self.fn_is_type(args, "number"),
             "isString" => self.fn_is_type(args, "string"),
             "isDate" => self.fn_is_type(args, "date"),
-            "isNull" => { let v = self.eval_arg(args, 0); FelValue::Boolean(v.is_null()) }
-            "typeOf" => { let v = self.eval_arg(args, 0); FelValue::String(v.type_name().to_string()) }
+            "isNull" => {
+                let v = self.eval_arg(args, 0);
+                FelValue::Boolean(v.is_null())
+            }
+            "typeOf" => {
+                let v = self.eval_arg(args, 0);
+                FelValue::String(v.type_name().to_string())
+            }
 
             // Casting
             "number" => self.fn_cast_number(args),
@@ -606,8 +843,20 @@ impl<'a> Evaluator<'a> {
 
             // Money
             "money" => self.fn_money(args),
-            "moneyAmount" => { let v = self.eval_arg(args, 0); match v { FelValue::Money(m) => FelValue::Number(m.amount), _ => FelValue::Null } }
-            "moneyCurrency" => { let v = self.eval_arg(args, 0); match v { FelValue::Money(m) => FelValue::String(m.currency), _ => FelValue::Null } }
+            "moneyAmount" => {
+                let v = self.eval_arg(args, 0);
+                match v {
+                    FelValue::Money(m) => FelValue::Number(m.amount),
+                    _ => FelValue::Null,
+                }
+            }
+            "moneyCurrency" => {
+                let v = self.eval_arg(args, 0);
+                match v {
+                    FelValue::Money(m) => FelValue::String(m.currency),
+                    _ => FelValue::Null,
+                }
+            }
             "moneyAdd" => self.fn_money_add(args),
             "moneySum" => self.fn_money_sum(args),
 
@@ -621,28 +870,62 @@ impl<'a> Evaluator<'a> {
             "prev" => self.env.repeat_prev(),
             "next" => self.env.repeat_next(),
             "parent" => self.env.repeat_parent(),
+            "instance" => self.fn_instance(args),
 
-            _ => { self.diag(format!("undefined function: {name}")); FelValue::Null }
+            _ => {
+                self.diag(format!("undefined function: {name}"));
+                FelValue::Null
+            }
         }
     }
 
     fn eval_arg(&mut self, args: &[Expr], idx: usize) -> FelValue {
-        if idx < args.len() { self.eval(&args[idx]) } else { FelValue::Null }
+        if idx < args.len() {
+            self.eval(&args[idx])
+        } else {
+            FelValue::Null
+        }
     }
 
     fn get_array(&mut self, val: &FelValue, fn_name: &str) -> Option<Vec<FelValue>> {
         match val {
             FelValue::Array(a) => Some(a.clone()),
             FelValue::Null => None,
-            _ => { self.diag(format!("{fn_name}: expected array, got {}", val.type_name())); None }
+            _ => {
+                self.diag(format!(
+                    "{fn_name}: expected array, got {}",
+                    val.type_name()
+                ));
+                None
+            }
         }
     }
 
     // ── Aggregate helpers ───────────────────────────────────────
 
-    fn fn_aggregate(&mut self, args: &[Expr], name: &str, f: fn(&[Decimal]) -> Decimal) -> FelValue {
+    fn fn_aggregate(
+        &mut self,
+        args: &[Expr],
+        name: &str,
+        f: fn(&[Decimal]) -> Decimal,
+    ) -> FelValue {
         let val = self.eval_arg(args, 0);
-        let arr = match self.get_array(&val, name) { Some(a) => a, None => return FelValue::Null };
+        let arr = match self.get_array(&val, name) {
+            Some(a) => a,
+            None => return FelValue::Null,
+        };
+        if name == "sum" {
+            let non_null: Vec<&FelValue> = arr.iter().filter(|v| !v.is_null()).collect();
+            if !non_null.is_empty() && non_null.iter().all(|v| matches!(v, FelValue::Money(_))) {
+                let total = non_null.iter().fold(Decimal::ZERO, |acc, value| {
+                    acc + match value {
+                        FelValue::Money(m) => m.amount,
+                        _ => Decimal::ZERO,
+                    }
+                });
+                return FelValue::Number(total);
+            }
+        }
         let nums: Vec<Decimal> = arr.iter().filter_map(|v| v.as_number()).collect();
         if nums.is_empty() && name == "avg" {
             self.diag(format!("{name}: no numeric elements"));
@@ -653,7 +936,9 @@ impl<'a> Evaluator<'a> {
 
     fn fn_count(&mut self, val: &FelValue) -> FelValue {
         match val {
-            FelValue::Array(a) => FelValue::Number(dec(a.iter().filter(|v| !v.is_null()).count() as i64)),
+            FelValue::Array(a) => {
+                FelValue::Number(dec(a.iter().filter(|v| !v.is_null()).count() as i64))
+            }
             FelValue::Null => FelValue::Null,
             _ => FelValue::Null,
         }
@@ -662,16 +947,24 @@ impl<'a> Evaluator<'a> {
     fn fn_min_max(&mut self, args: &[Expr], is_min: bool) -> FelValue {
         let val = self.eval_arg(args, 0);
         let name = if is_min { "min" } else { "max" };
-        let arr = match self.get_array(&val, name) { Some(a) => a, None => return FelValue::Null };
+        let arr = match self.get_array(&val, name) {
+            Some(a) => a,
+            None => return FelValue::Null,
+        };
         let non_null: Vec<&FelValue> = arr.iter().filter(|v| !v.is_null()).collect();
-        if non_null.is_empty() { return FelValue::Null; }
+        if non_null.is_empty() {
+            return FelValue::Null;
+        }
         let mut best = non_null[0].clone();
         for elem in &non_null[1..] {
             let cmp = match (&best, *elem) {
                 (FelValue::Number(a), FelValue::Number(b)) => Some(a.cmp(b)),
                 (FelValue::String(a), FelValue::String(b)) => Some(a.cmp(b)),
                 (FelValue::Date(a), FelValue::Date(b)) => Some(a.ordinal().cmp(&b.ordinal())),
-                _ => { self.diag(format!("{name}: mixed types")); return FelValue::Null; }
+                _ => {
+                    self.diag(format!("{name}: mixed types"));
+                    return FelValue::Null;
+                }
             };
             if let Some(ord) = cmp {
                 if (is_min && ord.is_gt()) || (!is_min && ord.is_lt()) {
@@ -683,15 +976,24 @@ impl<'a> Evaluator<'a> {
     }
 
     fn fn_count_where(&mut self, args: &[Expr]) -> FelValue {
-        if args.len() < 2 { self.diag("countWhere: requires 2 arguments"); return FelValue::Null; }
+        if args.len() < 2 {
+            self.diag("countWhere: requires 2 arguments");
+            return FelValue::Null;
+        }
         let arr_val = self.eval(&args[0]);
-        let arr = match self.get_array(&arr_val, "countWhere") { Some(a) => a, None => return FelValue::Null };
+        let arr = match self.get_array(&arr_val, "countWhere") {
+            Some(a) => a,
+            None => return FelValue::Null,
+        };
         let mut count = 0i64;
         for elem in &arr {
-            self.let_scopes.push(HashMap::from([("$".to_string(), elem.clone())]));
+            self.let_scopes
+                .push(HashMap::from([("$".to_string(), elem.clone())]));
             let pred = self.eval(&args[1]);
             self.let_scopes.pop();
-            if pred.is_truthy() { count += 1; }
+            if pred.is_truthy() {
+                count += 1;
+            }
         }
         FelValue::Number(dec(count))
     }
@@ -707,8 +1009,16 @@ impl<'a> Evaluator<'a> {
     }
 
     fn fn_str2(&mut self, args: &[Expr], _name: &str, f: fn(&str, &str) -> FelValue) -> FelValue {
-        let s = match self.eval_arg(args, 0) { FelValue::String(s) => s, FelValue::Null => return FelValue::Null, _ => return FelValue::Null };
-        let s2 = match self.eval_arg(args, 1) { FelValue::String(s) => s, FelValue::Null => return FelValue::Null, _ => return FelValue::Null };
+        let s = match self.eval_arg(args, 0) {
+            FelValue::String(s) => s,
+            FelValue::Null => return FelValue::Null,
+            _ => return FelValue::Null,
+        };
+        let s2 = match self.eval_arg(args, 1) {
+            FelValue::String(s) => s,
+            FelValue::Null => return FelValue::Null,
+            _ => return FelValue::Null,
+        };
         f(&s, &s2)
     }
 
@@ -722,12 +1032,22 @@ impl<'a> Evaluator<'a> {
     }
 
     fn fn_substring(&mut self, args: &[Expr]) -> FelValue {
-        let s = match self.eval_arg(args, 0) { FelValue::String(s) => s, FelValue::Null => return FelValue::Null, _ => return FelValue::Null };
-        let start = match self.eval_arg(args, 1) { FelValue::Number(n) => n.to_i64().unwrap_or(1).max(1) as usize, _ => return FelValue::Null };
+        let s = match self.eval_arg(args, 0) {
+            FelValue::String(s) => s,
+            FelValue::Null => return FelValue::Null,
+            _ => return FelValue::Null,
+        };
+        let start = match self.eval_arg(args, 1) {
+            FelValue::Number(n) => n.to_i64().unwrap_or(1).max(1) as usize,
+            _ => return FelValue::Null,
+        };
         let chars: Vec<char> = s.chars().collect();
         let start_idx = start.saturating_sub(1);
         if args.len() > 2 {
-            let len = match self.eval_arg(args, 2) { FelValue::Number(n) => n.to_i64().unwrap_or(0).max(0) as usize, _ => return FelValue::Null };
+            let len = match self.eval_arg(args, 2) {
+                FelValue::Number(n) => n.to_i64().unwrap_or(0).max(0) as usize,
+                _ => return FelValue::Null,
+            };
             let end = (start_idx + len).min(chars.len());
             FelValue::String(chars[start_idx.min(chars.len())..end].iter().collect())
         } else {
@@ -736,31 +1056,80 @@ impl<'a> Evaluator<'a> {
     }
 
     fn fn_replace(&mut self, args: &[Expr]) -> FelValue {
-        let s = match self.eval_arg(args, 0) { FelValue::String(s) => s, FelValue::Null => return FelValue::Null, _ => return FelValue::Null };
-        let old = match self.eval_arg(args, 1) { FelValue::String(s) => s, FelValue::Null => return FelValue::Null, _ => return FelValue::Null };
-        let new = match self.eval_arg(args, 2) { FelValue::String(s) => s, FelValue::Null => return FelValue::Null, _ => return FelValue::Null };
+        let s = match self.eval_arg(args, 0) {
+            FelValue::String(s) => s,
+            FelValue::Null => return FelValue::Null,
+            _ => return FelValue::Null,
+        };
+        let old = match self.eval_arg(args, 1) {
+            FelValue::String(s) => s,
+            FelValue::Null => return FelValue::Null,
+            _ => return FelValue::Null,
+        };
+        let new = match self.eval_arg(args, 2) {
+            FelValue::String(s) => s,
+            FelValue::Null => return FelValue::Null,
+            _ => return FelValue::Null,
+        };
         FelValue::String(s.replace(&old, &new))
     }
 
     fn fn_matches(&mut self, args: &[Expr]) -> FelValue {
-        let s = match self.eval_arg(args, 0) { FelValue::String(s) => s, FelValue::Null => return FelValue::Null, _ => return FelValue::Null };
-        let pattern = match self.eval_arg(args, 1) { FelValue::String(s) => s, FelValue::Null => return FelValue::Null, _ => return FelValue::Null };
+        let s = match self.eval_arg(args, 0) {
+            FelValue::String(s) => s,
+            FelValue::Null => return FelValue::Null,
+            _ => return FelValue::Null,
+        };
+        let pattern = match self.eval_arg(args, 1) {
+            FelValue::String(s) => s,
+            FelValue::Null => return FelValue::Null,
+            _ => return FelValue::Null,
+        };
         match Regex::new(&pattern) {
             Ok(re) => FelValue::Boolean(re.is_match(&s)),
             Err(e) => {
-                self.diag(format!("matches: invalid regex pattern '{}': {}", pattern, e));
+                self.diag(format!(
+                    "matches: invalid regex pattern '{}': {}",
+                    pattern, e
+                ));
                 FelValue::Null
             }
         }
     }
 
     fn fn_format(&mut self, args: &[Expr]) -> FelValue {
-        if args.is_empty() { return FelValue::Null; }
-        let template = match self.eval(&args[0]) { FelValue::String(s) => s, FelValue::Null => return FelValue::Null, _ => return FelValue::Null };
+        if args.is_empty() {
+            return FelValue::Null;
+        }
+        let template = match self.eval(&args[0]) {
+            FelValue::String(s) => s,
+            FelValue::Null => return FelValue::Null,
+            _ => return FelValue::Null,
+        };
+        let values: Vec<String> = args[1..]
+            .iter()
+            .map(|arg| self.eval(arg).to_string())
+            .collect();
         let mut result = template;
-        for (i, arg) in args[1..].iter().enumerate() {
-            let val = self.eval(arg);
-            result = result.replace(&format!("{{{i}}}"), &val.to_string());
+        for (i, value) in values.iter().enumerate() {
+            result = result.replace(&format!("{{{i}}}"), value);
+        }
+        if result.contains("%s") {
+            let mut sequential = String::with_capacity(result.len());
+            let mut rest = result.as_str();
+            let mut value_index = 0usize;
+            while let Some(pos) = rest.find("%s") {
+                sequential.push_str(&rest[..pos]);
+                if let Some(value) = values.get(value_index) {
+                    sequential.push_str(value);
+                    value_index += 1;
+                } else {
+                    sequential.push_str("%s");
+                }
+                rest = &rest[pos + 2..];
+            }
+            sequential.push_str(rest);
+            result = sequential;
         }
         FelValue::String(result)
     }
@@ -776,10 +1145,19 @@ impl<'a> Evaluator<'a> {
     }
 
     fn fn_round(&mut self, args: &[Expr]) -> FelValue {
-        let n = match self.eval_arg(args, 0) { FelValue::Number(n) => n, FelValue::Null => return FelValue::Null, _ => return FelValue::Null };
+        let n = match self.eval_arg(args, 0) {
+            FelValue::Number(n) => n,
+            FelValue::Null => return FelValue::Null,
+            _ => return FelValue::Null,
+        };
         let precision = if args.len() > 1 {
-            match self.eval_arg(args, 1) { FelValue::Number(p) => p.to_i32().unwrap_or(0), _ => 0 }
-        } else { 0 };
+            match self.eval_arg(args, 1) {
+                FelValue::Number(p) => p.to_i32().unwrap_or(0),
+                _ => 0,
+            }
+        } else {
+            0
+        };
         // Banker's rounding (round half to even) — native in rust_decimal
         let rounded = n.round_dp_with_strategy(
             precision.max(0) as u32,
@@ -789,15 +1167,26 @@ impl<'a> Evaluator<'a> {
     }
 
     fn fn_power(&mut self, args: &[Expr]) -> FelValue {
-        let base = match self.eval_arg(args, 0) { FelValue::Number(n) => n, FelValue::Null => return FelValue::Null, _ => return FelValue::Null };
-        let exp = match self.eval_arg(args, 1) { FelValue::Number(n) => n, FelValue::Null => return FelValue::Null, _ => return FelValue::Null };
+        let base = match self.eval_arg(args, 0) {
+            FelValue::Number(n) => n,
+            FelValue::Null => return FelValue::Null,
+            _ => return FelValue::Null,
+        };
+        let exp = match self.eval_arg(args, 1) {
+            FelValue::Number(n) => n,
+            FelValue::Null => return FelValue::Null,
+            _ => return FelValue::Null,
+        };
         // For non-negative integer exponents, use repeated multiplication
         if let Some(exp_u64) = exp.to_u64() {
             let mut result = Decimal::ONE;
             for _ in 0..exp_u64 {
                 result = match result.checked_mul(base) {
                     Some(r) => r,
-                    None => { self.diag("power: overflow"); return FelValue::Null; }
+                    None => {
+                        self.diag("power: overflow");
+                        return FelValue::Null;
+                    }
                 };
             }
             return FelValue::Number(result);
@@ -809,7 +1198,10 @@ impl<'a> Evaluator<'a> {
         if result.is_finite() {
             match Decimal::from_f64(result) {
                 Some(d) => FelValue::Number(d),
-                None => { self.diag("power: overflow"); FelValue::Null }
+                None => {
+                    self.diag("power: overflow");
+                    FelValue::Null
+                }
             }
         } else {
             self.diag("power: overflow");
@@ -820,13 +1212,17 @@ impl<'a> Evaluator<'a> {
     // ── Date helpers ────────────────────────────────────────────
 
     fn fn_today(&self) -> FelValue {
-        // Cannot get real date without std::time or chrono — return a placeholder
-        // In WASM/Python bindings, the host can provide this via Environment
-        FelValue::Date(FelDate::Date { year: 2026, month: 3, day: 17 })
+        self.env
+            .current_date()
+            .map(FelValue::Date)
+            .unwrap_or(FelValue::Null)
     }
 
     fn fn_now(&self) -> FelValue {
-        FelValue::Date(FelDate::DateTime { year: 2026, month: 3, day: 17, hour: 0, minute: 0, second: 0 })
+        self.env
+            .current_datetime()
+            .map(FelValue::Date)
+            .unwrap_or(FelValue::Null)
     }
 
     fn fn_date_part(&mut self, args: &[Expr], f: fn(&FelDate) -> Decimal) -> FelValue {
@@ -838,9 +1234,16 @@ impl<'a> Evaluator<'a> {
     }
 
     fn fn_time_part(&mut self, args: &[Expr], idx: usize) -> FelValue {
-        let s = match self.eval_arg(args, 0) { FelValue::String(s) => s, FelValue::Null => return FelValue::Null, _ => return FelValue::Null };
+        let s = match self.eval_arg(args, 0) {
+            FelValue::String(s) => s,
+            FelValue::Null => return FelValue::Null,
+            _ => return FelValue::Null,
+        };
         let parts: Vec<&str> = s.split(':').collect();
-        if parts.len() != 3 { self.diag("invalid time string"); return FelValue::Null; }
+        if parts.len() != 3 {
+            self.diag("invalid time string");
+            return FelValue::Null;
+        }
         match parts.get(idx).and_then(|p| p.parse::<Decimal>().ok()) {
             Some(n) => FelValue::Number(n),
             None => FelValue::Null,
@@ -848,40 +1251,82 @@ impl<'a> Evaluator<'a> {
     }
 
     fn fn_time(&mut self, args: &[Expr]) -> FelValue {
-        let h = match self.eval_arg(args, 0) { FelValue::Number(n) => n.to_i64().unwrap_or(0), _ => return FelValue::Null };
-        let m = match self.eval_arg(args, 1) { FelValue::Number(n) => n.to_i64().unwrap_or(0), _ => return FelValue::Null };
-        let s = match self.eval_arg(args, 2) { FelValue::Number(n) => n.to_i64().unwrap_or(0), _ => return FelValue::Null };
+        let h = match self.eval_arg(args, 0) {
+            FelValue::Number(n) => n.to_i64().unwrap_or(0),
+            _ => return FelValue::Null,
+        };
+        let m = match self.eval_arg(args, 1) {
+            FelValue::Number(n) => n.to_i64().unwrap_or(0),
+            _ => return FelValue::Null,
+        };
+        let s = match self.eval_arg(args, 2) {
+            FelValue::Number(n) => n.to_i64().unwrap_or(0),
+            _ => return FelValue::Null,
+        };
         FelValue::String(format!("{h:02}:{m:02}:{s:02}"))
     }
 
     fn fn_time_diff(&mut self, args: &[Expr]) -> FelValue {
-        let t1 = match self.eval_arg(args, 0) { FelValue::String(s) => s, _ => return FelValue::Null };
-        let t2 = match self.eval_arg(args, 1) { FelValue::String(s) => s, _ => return FelValue::Null };
+        let t1 = match self.eval_arg(args, 0) {
+            FelValue::String(s) => s,
+            _ => return FelValue::Null,
+        };
+        let t2 = match self.eval_arg(args, 1) {
+            FelValue::String(s) => s,
+            _ => return FelValue::Null,
+        };
         match (parse_time_str(&t1), parse_time_str(&t2)) {
             (Some((h1, m1, s1)), Some((h2, m2, s2))) => {
-                FelValue::Number(dec((h1*3600 + m1*60 + s1) - (h2*3600 + m2*60 + s2)))
+                FelValue::Number(dec((h1 * 3600 + m1 * 60 + s1) - (h2 * 3600 + m2 * 60 + s2)))
             }
-            _ => { self.diag("timeDiff: invalid time strings"); FelValue::Null }
+            _ => {
+                self.diag("timeDiff: invalid time strings");
+                FelValue::Null
+            }
         }
     }
 
     fn fn_date_diff(&mut self, args: &[Expr]) -> FelValue {
-        let d1 = match self.eval_arg(args, 0) { FelValue::Date(d) => d, _ => return FelValue::Null };
-        let d2 = match self.eval_arg(args, 1) { FelValue::Date(d) => d, _ => return FelValue::Null };
-        let unit = match self.eval_arg(args, 2) { FelValue::String(s) => s, _ => return FelValue::Null };
+        let d1 = match self.eval_arg(args, 0) {
+            FelValue::Date(d) => d,
+            _ => return FelValue::Null,
+        };
+        let d2 = match self.eval_arg(args, 1) {
+            FelValue::Date(d) => d,
+            _ => return FelValue::Null,
+        };
+        let unit = match self.eval_arg(args, 2) {
+            FelValue::String(s) => s,
+            _ => return FelValue::Null,
+        };
         let result = match unit.as_str() {
             "days" => d1.ordinal_days() - d2.ordinal_days(),
-            "months" => (d1.year() as i64 * 12 + d1.month() as i64) - (d2.year() as i64 * 12 + d2.month() as i64),
+            "months" => {
+                (d1.year() as i64 * 12 + d1.month() as i64)
+                    - (d2.year() as i64 * 12 + d2.month() as i64)
+            }
             "years" => d1.year() as i64 - d2.year() as i64,
-            _ => { self.diag(format!("dateDiff: unknown unit '{unit}'")); return FelValue::Null; }
+            _ => {
+                self.diag(format!("dateDiff: unknown unit '{unit}'"));
+                return FelValue::Null;
+            }
         };
         FelValue::Number(dec(result))
     }
 
     fn fn_date_add(&mut self, args: &[Expr]) -> FelValue {
-        let d = match self.eval_arg(args, 0) { FelValue::Date(d) => d, _ => return FelValue::Null };
-        let n = match self.eval_arg(args, 1) { FelValue::Number(n) => n.to_i64().unwrap_or(0), _ => return FelValue::Null };
-        let unit = match self.eval_arg(args, 2) { FelValue::String(s) => s, _ => return FelValue::Null };
+        let d = match self.eval_arg(args, 0) {
+            FelValue::Date(d) => d,
+            _ => return FelValue::Null,
+        };
+        let n = match self.eval_arg(args, 1) {
+            FelValue::Number(n) => n.to_i64().unwrap_or(0),
+            _ => return FelValue::Null,
+        };
+        let unit = match self.eval_arg(args, 2) {
+            FelValue::String(s) => s,
+            _ => return FelValue::Null,
+        };
         match unit.as_str() {
             "days" => FelValue::Date(date_add_days(&d, n)),
             "months" => {
@@ -890,31 +1335,60 @@ impl<'a> Evaluator<'a> {
                 let new_month = (total.rem_euclid(12) + 1) as u32;
                 let max_day = days_in_month(new_year, new_month);
                 let new_day = d.day().min(max_day);
-                FelValue::Date(FelDate::Date { year: new_year, month: new_month, day: new_day })
+                FelValue::Date(FelDate::Date {
+                    year: new_year,
+                    month: new_month,
+                    day: new_day,
+                })
             }
             "years" => {
                 let new_year = d.year() + n as i32;
                 let max_day = days_in_month(new_year, d.month());
                 let new_day = d.day().min(max_day);
-                FelValue::Date(FelDate::Date { year: new_year, month: d.month(), day: new_day })
+                FelValue::Date(FelDate::Date {
+                    year: new_year,
+                    month: d.month(),
+                    day: new_day,
+                })
             }
-            _ => { self.diag(format!("dateAdd: unknown unit '{unit}'")); FelValue::Null }
+            _ => {
+                self.diag(format!("dateAdd: unknown unit '{unit}'"));
+                FelValue::Null
+            }
         }
     }
 
     // ── Logical helpers ─────────────────────────────────────────
 
     fn fn_if(&mut self, args: &[Expr]) -> FelValue {
-        if args.len() < 3 { self.diag("if: requires 3 arguments"); return FelValue::Null; }
+        if args.len() < 3 {
+            self.diag("if: requires 3 arguments");
+            return FelValue::Null;
+        }
         let cond = self.eval(&args[0]);
-        if cond.is_null() { return FelValue::Null; }
-        if cond.is_truthy() { self.eval(&args[1]) } else { self.eval(&args[2]) }
+        match cond {
+            FelValue::Null => {
+                self.diag("if: condition evaluated to null");
+                FelValue::Null
+            }
+            FelValue::Boolean(true) => self.eval(&args[1]),
+            FelValue::Boolean(false) => self.eval(&args[2]),
+            _ => {
+                self.diag(format!(
+                    "if: condition must be boolean, got {}",
+                    cond.type_name()
+                ));
+                FelValue::Null
+            }
+        }
     }
 
     fn fn_coalesce(&mut self, args: &[Expr]) -> FelValue {
         for arg in args {
             let val = self.eval(arg);
-            if !val.is_null() { return val; }
+            if !val.is_null() {
+                return val;
+            }
         }
         FelValue::Null
     }
@@ -930,9 +1404,14 @@ impl<'a> Evaluator<'a> {
     }
 
     fn fn_selected(&mut self, args: &[Expr]) -> FelValue {
-        let arr = match self.eval_arg(args, 0) { FelValue::Array(a) => a, _ => return FelValue::Boolean(false) };
+        let arr = match self.eval_arg(args, 0) {
+            FelValue::Array(a) => a,
+            _ => return FelValue::Boolean(false),
+        };
         let val = self.eval_arg(args, 1);
-        let found = arr.iter().any(|e| matches!(self.eval_equality(e, &val), FelValue::Boolean(true)));
+        let found = arr
+            .iter()
+            .any(|e| matches!(self.eval_equality(e, &val), FelValue::Boolean(true)));
         FelValue::Boolean(found)
     }
 
@@ -948,13 +1427,19 @@ impl<'a> Evaluator<'a> {
     fn fn_cast_number(&mut self, args: &[Expr]) -> FelValue {
         match self.eval_arg(args, 0) {
             FelValue::Number(n) => FelValue::Number(n),
-            FelValue::String(s) => match s.parse::<Decimal>() {
+            FelValue::String(s) => match s.trim().parse::<Decimal>() {
                 Ok(n) => FelValue::Number(n),
-                Err(_) => { self.diag(format!("number: cannot parse '{s}'")); FelValue::Null }
+                Err(_) => {
+                    self.diag(format!("number: cannot parse '{s}'"));
+                    FelValue::Null
+                }
             },
             FelValue::Boolean(b) => FelValue::Number(if b { Decimal::ONE } else { Decimal::ZERO }),
             FelValue::Null => FelValue::Null,
-            v => { self.diag(format!("number: cannot convert {}", v.type_name())); FelValue::Null }
+            v => {
+                self.diag(format!("number: cannot convert {}", v.type_name()));
+                FelValue::Null
+            }
         }
     }
 
@@ -977,14 +1462,25 @@ impl<'a> Evaluator<'a> {
             FelValue::String(s) => match s.as_str() {
                 "true" => FelValue::Boolean(true),
                 "false" => FelValue::Boolean(false),
-                _ => { self.diag(format!("boolean: cannot convert '{s}'")); FelValue::Null }
+                _ => {
+                    self.diag(format!("boolean: cannot convert '{s}'"));
+                    FelValue::Null
+                }
             },
             FelValue::Number(n) => {
-                if n == Decimal::ZERO { FelValue::Boolean(false) }
-                else if n == Decimal::ONE { FelValue::Boolean(true) }
-                else { self.diag(format!("boolean: cannot convert {n}")); FelValue::Null }
+                if n == Decimal::ZERO {
+                    FelValue::Boolean(false)
+                } else if n == Decimal::ONE {
+                    FelValue::Boolean(true)
+                } else {
+                    self.diag(format!("boolean: cannot convert {n}"));
+                    FelValue::Null
+                }
             }
-            v => { self.diag(format!("boolean: cannot convert {}", v.type_name())); FelValue::Null }
+            v => {
+                self.diag(format!("boolean: cannot convert {}", v.type_name()));
+                FelValue::Null
+            }
         }
     }
 
@@ -997,53 +1493,130 @@ impl<'a> Evaluator<'a> {
                 } else if let Some(d) = parse_datetime_literal(&format!("@{s}")) {
                     FelValue::Date(d)
                 } else {
-                    self.diag(format!("date: cannot parse '{s}'")); FelValue::Null
+                    self.diag(format!("date: cannot parse '{s}'"));
+                    FelValue::Null
                 }
             }
             FelValue::Null => FelValue::Null,
-            v => { self.diag(format!("date: cannot convert {}", v.type_name())); FelValue::Null }
+            v => {
+                self.diag(format!("date: cannot convert {}", v.type_name()));
+                FelValue::Null
+            }
         }
     }
 
     // ── Money helpers ───────────────────────────────────────────
 
     fn fn_money(&mut self, args: &[Expr]) -> FelValue {
-        let amount = match self.eval_arg(args, 0) { FelValue::Number(n) => n, _ => return FelValue::Null };
-        let currency = match self.eval_arg(args, 1) { FelValue::String(s) => s, _ => return FelValue::Null };
+        let amount = match self.eval_arg(args, 0) {
+            FelValue::Number(n) => n,
+            _ => return FelValue::Null,
+        };
+        let currency = match self.eval_arg(args, 1) {
+            FelValue::String(s) => s,
+            _ => return FelValue::Null,
+        };
         FelValue::Money(FelMoney { amount, currency })
     }
 
     fn fn_money_add(&mut self, args: &[Expr]) -> FelValue {
-        let a = match self.eval_arg(args, 0) { FelValue::Money(m) => m, _ => return FelValue::Null };
-        let b = match self.eval_arg(args, 1) { FelValue::Money(m) => m, _ => return FelValue::Null };
-        if a.currency != b.currency { self.diag("moneyAdd: currency mismatch"); return FelValue::Null; }
-        FelValue::Money(FelMoney { amount: a.amount + b.amount, currency: a.currency })
+        let a = match self.eval_arg(args, 0) {
+            FelValue::Money(m) => m,
+            _ => return FelValue::Null,
+        };
+        let b = match self.eval_arg(args, 1) {
+            FelValue::Money(m) => m,
+            _ => return FelValue::Null,
+        };
+        if a.currency != b.currency {
+            self.diag("moneyAdd: currency mismatch");
+            return FelValue::Null;
+        }
+        FelValue::Money(FelMoney {
+            amount: a.amount + b.amount,
+            currency: a.currency,
+        })
     }
 
     fn fn_money_sum(&mut self, args: &[Expr]) -> FelValue {
         let val = self.eval_arg(args, 0);
-        let arr = match self.get_array(&val, "moneySum") { Some(a) => a, None => return FelValue::Null };
+        let arr = match self.get_array(&val, "moneySum") {
+            Some(a) => a,
+            None => return FelValue::Null,
+        };
         let mut total: Option<FelMoney> = None;
         for elem in &arr {
             match elem {
                 FelValue::Money(m) => match &total {
                     None => total = Some(m.clone()),
                     Some(t) => {
-                        if t.currency != m.currency { self.diag("moneySum: mixed currencies"); return FelValue::Null; }
-                        total = Some(FelMoney { amount: t.amount + m.amount, currency: t.currency.clone() });
+                        if t.currency != m.currency {
+                            self.diag("moneySum: mixed currencies");
+                            return FelValue::Null;
+                        }
+                        total = Some(FelMoney {
+                            amount: t.amount + m.amount,
+                            currency: t.currency.clone(),
+                        });
                     }
                 },
                 FelValue::Null => {}
-                _ => { self.diag("moneySum: non-money element"); return FelValue::Null; }
+                _ => {
+                    self.diag("moneySum: non-money element");
+                    return FelValue::Null;
+                }
             }
         }
-        match total { Some(t) => FelValue::Money(t), None => FelValue::Null }
+        match total {
+            Some(t) => FelValue::Money(t),
+            None => FelValue::Null,
+        }
+    }
+
+    fn fn_instance(&mut self, args: &[Expr]) -> FelValue {
+        let name = match self.eval_arg(args, 0) {
+            FelValue::String(s) => s,
+            FelValue::Null => return FelValue::Null,
+            other => {
+                self.diag(format!(
+                    "instance: first argument must be string, got {}",
+                    other.type_name()
+                ));
+                return FelValue::Null;
+            }
+        };
+
+        let tail = match args.get(1) {
+            None => Vec::new(),
+            Some(expr) => match self.eval(expr) {
+                FelValue::String(path) => {
+                    if path.is_empty() {
+                        Vec::new()
+                    } else {
+                        path.split('.').map(|segment| segment.to_string()).collect()
+                    }
+                }
+                FelValue::Null => return FelValue::Null,
+                other => {
+                    self.diag(format!(
+                        "instance: path argument must be string, got {}",
+                        other.type_name()
+                    ));
+                    return FelValue::Null;
+                }
+            },
+        };
+
+        self.env.resolve_context("instance", Some(&name), &tail)
     }
 
     // ── MIP state queries ───────────────────────────────────────
 
     fn fn_mip(&mut self, args: &[Expr], kind: &str) -> FelValue {
-        if args.is_empty() { self.diag(format!("{kind}: requires 1 argument")); return FelValue::Null; }
+        if args.is_empty() {
+            self.diag(format!("{kind}: requires 1 argument"));
+            return FelValue::Null;
+        }
         let path = extract_field_path(&args[0]);
         match kind {
             "valid" => self.env.mip_valid(&path),
@@ -1061,8 +1634,24 @@ fn extract_field_path(expr: &Expr) -> Vec<String> {
     match expr {
         Expr::FieldRef { name, path } => {
             let mut segs = Vec::new();
-            if let Some(n) = name { segs.push(n.clone()); }
-            for seg in path { if let PathSegment::Dot(n) = seg { segs.push(n.clone()); } }
+            if let Some(n) = name {
+                segs.push(n.clone());
+            }
+            for seg in path {
+                match seg {
+                    PathSegment::Dot(n) => segs.push(n.clone()),
+                    PathSegment::Index(idx) => {
+                        if let Some(last) = segs.last_mut() {
+                            last.push_str(&format!("[{idx}]"));
+                        }
+                    }
+                    PathSegment::Wildcard => {
+                        if let Some(last) = segs.last_mut() {
+                            last.push_str("[*]");
+                        }
+                    }
+                }
+            }
             segs
         }
         _ => Vec::new(),
@@ -1071,7 +1660,12 @@ fn extract_field_path(expr: &Expr) -> Vec<String> {
 
 fn parse_time_str(s: &str) -> Option<(i64, i64, i64)> {
     let parts: Vec<&str> = s.split(':').collect();
-    if parts.len() != 3 { return None; }
-    Some((parts[0].parse().ok()?, parts[1].parse().ok()?, parts[2].parse().ok()?))
+    if parts.len() != 3 {
+        return None;
+    }
+    Some((
+        parts[0].parse().ok()?,
+        parts[1].parse().ok()?,
+        parts[2].parse().ok()?,
+    ))
 }
-

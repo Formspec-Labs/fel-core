@@ -1,6 +1,6 @@
 //! FEL hand-rolled lexer — tokenization with spans and decimal numbers.
-use rust_decimal::prelude::*;
 use rust_decimal::Decimal;
+use rust_decimal::prelude::*;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
@@ -31,8 +31,8 @@ pub enum Token {
     Slash,
     Percent,
     Ampersand,
-    Eq,       // = or ==
-    NotEq,    // !=
+    Eq,    // = or ==
+    NotEq, // !=
     Lt,
     Gt,
     LtEq,
@@ -137,9 +137,7 @@ impl<'a> Lexer<'a> {
                 self.pos += 1;
             }
             // Skip line comments
-            if self.pos + 1 < len
-                && self.chars[self.pos] == '/'
-                && self.chars[self.pos + 1] == '/'
+            if self.pos + 1 < len && self.chars[self.pos] == '/' && self.chars[self.pos + 1] == '/'
             {
                 while self.pos < len && self.chars[self.pos] != '\n' {
                     self.pos += 1;
@@ -147,9 +145,7 @@ impl<'a> Lexer<'a> {
                 continue;
             }
             // Skip block comments
-            if self.pos + 1 < len
-                && self.chars[self.pos] == '/'
-                && self.chars[self.pos + 1] == '*'
+            if self.pos + 1 < len && self.chars[self.pos] == '/' && self.chars[self.pos + 1] == '*'
             {
                 let start = self.pos;
                 self.pos += 2;
@@ -234,7 +230,10 @@ impl<'a> Lexer<'a> {
                     self.advance();
                     Ok(Token::NotEq)
                 } else {
-                    Err(format!("unexpected character '!' at position {}", self.pos - 1))
+                    Err(format!(
+                        "unexpected character '!' at position {}",
+                        self.pos - 1
+                    ))
                 }
             }
             '<' => {
@@ -261,10 +260,16 @@ impl<'a> Lexer<'a> {
                         self.pos - 2
                     ))
                 } else {
-                    Err(format!("unexpected character '|' at position {}", self.pos - 1))
+                    Err(format!(
+                        "unexpected character '|' at position {}",
+                        self.pos - 1
+                    ))
                 }
             }
-            _ => Err(format!("unexpected character '{c}' at position {}", self.pos - 1)),
+            _ => Err(format!(
+                "unexpected character '{c}' at position {}",
+                self.pos - 1
+            )),
         }
     }
 
@@ -351,12 +356,10 @@ impl<'a> Lexer<'a> {
         let s: String = self.chars[start..self.pos].iter().collect();
         // Decimal doesn't parse scientific notation (e.g. 1e3) directly.
         // Try Decimal first; fall back through f64 for E notation.
-        let n: Decimal = s.parse().or_else(|_| {
-            s.parse::<f64>()
-                .ok()
-                .and_then(Decimal::from_f64)
-                .ok_or(())
-        }).map_err(|_| format!("invalid number '{s}' at position {start}"))?;
+        let n: Decimal = s
+            .parse()
+            .or_else(|_| s.parse::<f64>().ok().and_then(Decimal::from_f64).ok_or(()))
+            .map_err(|_| format!("invalid number '{s}' at position {start}"))?;
         Ok(Token::Number(n))
     }
 
@@ -416,7 +419,10 @@ impl<'a> Lexer<'a> {
 
     fn read_identifier(&mut self) -> Result<Token, String> {
         let start = self.pos;
-        while self.peek().is_some_and(|c| c.is_ascii_alphanumeric() || c == '_') {
+        while self
+            .peek()
+            .is_some_and(|c| c.is_ascii_alphanumeric() || c == '_')
+        {
             self.advance();
         }
         let word: String = self.chars[start..self.pos].iter().collect();
@@ -443,7 +449,9 @@ mod tests {
 
     fn lex_string(input: &str) -> Result<Vec<Token>, String> {
         let mut lexer = Lexer::new(input);
-        lexer.tokenize().map(|tokens| tokens.into_iter().map(|st| st.token).collect())
+        lexer
+            .tokenize()
+            .map(|tokens| tokens.into_iter().map(|st| st.token).collect())
     }
 
     #[test]
@@ -474,7 +482,10 @@ mod tests {
     #[test]
     fn test_unrecognized_escape_error() {
         let err = lex_string(r#""\q""#).unwrap_err();
-        assert!(err.contains("unrecognized escape sequence '\\q'"), "got: {err}");
+        assert!(
+            err.contains("unrecognized escape sequence '\\q'"),
+            "got: {err}"
+        );
     }
 
     #[test]

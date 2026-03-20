@@ -182,13 +182,19 @@ fn backslash_s_matches_single_whitespace() {
 /// \\d+ matches one or more digits
 #[test]
 fn backslash_d_plus() {
-    assert_eq!(eval(r#"matches('abc123', '\\d+')"#), FelValue::Boolean(true));
+    assert_eq!(
+        eval(r#"matches('abc123', '\\d+')"#),
+        FelValue::Boolean(true)
+    );
 }
 
 /// \\w+ matches one or more word characters
 #[test]
 fn backslash_w_plus() {
-    assert_eq!(eval(r#"matches('hello_123', '^\\w+$')"#), FelValue::Boolean(true));
+    assert_eq!(
+        eval(r#"matches('hello_123', '^\\w+$')"#),
+        FelValue::Boolean(true)
+    );
 }
 
 /// \\D+ matches non-digits
@@ -218,13 +224,19 @@ fn backslash_d_star() {
 /// Email-like pattern with \\w+
 #[test]
 fn email_like_pattern() {
-    assert_eq!(eval(r#"matches('user@example.com', '\\w+@\\w+')"#), FelValue::Boolean(true));
+    assert_eq!(
+        eval(r#"matches('user@example.com', '\\w+@\\w+')"#),
+        FelValue::Boolean(true)
+    );
 }
 
 /// Anchored \\d+ pattern
 #[test]
 fn anchored_digit_pattern() {
-    assert_eq!(eval(r#"matches('12345', '^\\d+$')"#), FelValue::Boolean(true));
+    assert_eq!(
+        eval(r#"matches('12345', '^\\d+$')"#),
+        FelValue::Boolean(true)
+    );
 }
 
 // ── Escape sequences in patterns (literal escapes, no quantifier) ──
@@ -305,7 +317,7 @@ fn question_mark_in_pattern() {
 /// Correctness: dot with quantifiers
 #[test]
 fn dot_with_various_quantifiers() {
-    matches_true("a", "^.?$");   // zero or one char
-    matches_true("", "^.?$");    // zero chars
+    matches_true("a", "^.?$"); // zero or one char
+    matches_true("", "^.?$"); // zero chars
     matches_false("ab", "^.?$"); // two chars — doesn't match .?
 }

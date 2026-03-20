@@ -6,7 +6,7 @@ use rust_decimal::Decimal;
 use std::collections::HashMap;
 
 use crate::evaluator::Environment;
-use crate::types::FelValue;
+use crate::types::{FelDate, FelValue, parse_datetime_literal};
 
 // ── Data structures ─────────────────────────────────────────────
 
@@ -67,6 +67,8 @@ pub struct FormspecEnvironment {
     pub variables: HashMap<String, FelValue>,
     /// Current repeat context (if inside a repeat iteration).
     pub repeat_context: Option<RepeatContext>,
+    /// Current runtime date for today()/now().
+    pub current_datetime: Option<FelDate>,
 }
 
 impl FormspecEnvironment {
@@ -77,6 +79,7 @@ impl FormspecEnvironment {
             mip_states: HashMap::new(),
             variables: HashMap::new(),
             repeat_context: None,
+            current_datetime: None,
         }
     }
 
@@ -100,8 +103,24 @@ impl FormspecEnvironment {
         self.variables.insert(name.to_string(), value);
     }
 
+    /// Set the current runtime datetime from an ISO string.
+    pub fn set_now_from_iso(&mut self, iso: &str) {
+        let candidate = if iso.starts_with('@') {
+            iso.to_string()
+        } else {
+            format!("@{iso}")
+        };
+        self.current_datetime = parse_datetime_literal(&candidate);
+    }
+
     /// Enter a repeat context.
-    pub fn push_repeat(&mut self, current: FelValue, index: usize, count: usize, collection: Vec<FelValue>) {
+    pub fn push_repeat(
+        &mut self,
+        current: FelValue,
+        index: usize,
+        count: usize,
+        collection: Vec<FelValue>,
+    ) {
         let parent = self.repeat_context.take().map(Box::new);
         self.repeat_context = Some(RepeatContext {
             current,
@@ -131,12 +150,10 @@ fn resolve_path(val: &FelValue, segments: &[String]) -> FelValue {
     let mut current = val.clone();
     for seg in segments {
         match &current {
-            FelValue::Object(entries) => {
-                match entries.iter().find(|(k, _)| k == seg) {
-                    Some((_, v)) => current = v.clone(),
-                    None => return FelValue::Null,
-                }
-            }
+            FelValue::Object(entries) => match entries.iter().find(|(k, _)| k == seg) {
+                Some((_, v)) => current = v.clone(),
+                None => return FelValue::Null,
+            },
             _ => return FelValue::Null,
         }
     }
@@ -176,7 +193,11 @@ impl Environment for FormspecEnvironment {
             "current" => {
                 if let Some(ctx) = &self.repeat_context {
                     let base = ctx.current.clone();
-                    if tail.is_empty() { base } else { resolve_path(&base, tail) }
+                    if tail.is_empty() {
+                        base
+                    } else {
+                        resolve_path(&base, tail)
+                    }
                 } else {
                     FelValue::Null
                 }
@@ -198,7 +219,11 @@ impl Environment for FormspecEnvironment {
             "instance" => {
                 if let Some(inst_name) = arg {
                     if let Some(val) = self.instances.get(inst_name) {
-                        if tail.is_empty() { val.clone() } else { resolve_path(val, tail) }
+                        if tail.is_empty() {
+                            val.clone()
+                        } else {
+                            resolve_path(val, tail)
+                        }
                     } else {
                         FelValue::Null
                     }
@@ -209,7 +234,11 @@ impl Environment for FormspecEnvironment {
             // Definition variables: @variableName
             _ => {
                 if let Some(val) = self.variables.get(name) {
-                    if tail.is_empty() { val.clone() } else { resolve_path(val, tail) }
+                    if tail.is_empty() {
+                        val.clone()
+                    } else {
+                        resolve_path(val, tail)
+                    }
                 } else {
                     FelValue::Null
                 }
@@ -240,7 +269,11 @@ impl Environment for FormspecEnvironment {
     fn repeat_prev(&self) -> FelValue {
         if let Some(ctx) = &self.repeat_context {
             if ctx.index > 1 {
-                return ctx.collection.get(ctx.index - 2).cloned().unwrap_or(FelValue::Null);
+                return ctx
+                    .collection
+                    .get(ctx.index - 2)
+                    .cloned()
+                    .unwrap_or(FelValue::Null);
             }
         }
         FelValue::Null
@@ -249,7 +282,11 @@ impl Environment for FormspecEnvironment {
     fn repeat_next(&self) -> FelValue {
         if let Some(ctx) = &self.repeat_context {
             if ctx.index < ctx.count {
-                return ctx.collection.get(ctx.index).cloned().unwrap_or(FelValue::Null);
+                return ctx
+                    .collection
+                    .get(ctx.index)
+                    .cloned()
+                    .unwrap_or(FelValue::Null);
             }
         }
         FelValue::Null
@@ -262,6 +299,18 @@ impl Environment for FormspecEnvironment {
             }
         }
         FelValue::Null
+    }
+
+    fn current_date(&self) -> Option<FelDate> {
+        self.current_datetime.as_ref().map(|dt| FelDate::Date {
+            year: dt.year(),
+            month: dt.month(),
+            day: dt.day(),
+        })
+    }
+
+    fn current_datetime(&self) -> Option<FelDate> {
+        self.current_datetime.clone()
     }
 }
 
@@ -314,20 +363,11 @@ mod tests {
         env.push_repeat(num(20), 2, 3, items);
 
         // @current
-        assert_eq!(
-            env.resolve_context("current", None, &[]),
-            num(20)
-        );
+        assert_eq!(env.resolve_context("current", None, &[]), num(20));
         // @index (1-based)
-        assert_eq!(
-            env.resolve_context("index", None, &[]),
-            num(2)
-        );
+        assert_eq!(env.resolve_context("index", None, &[]), num(2));
         // @count
-        assert_eq!(
-            env.resolve_context("count", None, &[]),
-            num(3)
-        );
+        assert_eq!(env.resolve_context("count", None, &[]), num(3));
         // prev() — item at index 1 (0-indexed: 0)
         assert_eq!(env.repeat_prev(), num(10));
         // next() — item at index 3 (0-indexed: 2)
@@ -356,9 +396,7 @@ mod tests {
     #[test]
     fn test_named_instances() {
         let mut env = FormspecEnvironment::new();
-        let config = FelValue::Object(vec![
-            ("maxRetries".to_string(), num(3)),
-        ]);
+        let config = FelValue::Object(vec![("maxRetries".to_string(), num(3))]);
         env.set_instance("config", config);
 
         assert_eq!(
@@ -376,30 +414,36 @@ mod tests {
         let mut env = FormspecEnvironment::new();
         env.set_variable("total", num(100));
 
-        assert_eq!(
-            env.resolve_context("total", None, &[]),
-            num(100)
-        );
+        assert_eq!(env.resolve_context("total", None, &[]), num(100));
     }
 
     #[test]
     fn test_mip_states() {
         let mut env = FormspecEnvironment::new();
-        env.set_mip("email", MipState {
-            valid: false,
-            relevant: true,
-            readonly: false,
-            required: true,
-        });
+        env.set_mip(
+            "email",
+            MipState {
+                valid: false,
+                relevant: true,
+                readonly: false,
+                required: true,
+            },
+        );
 
         assert_eq!(env.mip_valid(&["email".into()]), FelValue::Boolean(false));
         assert_eq!(env.mip_relevant(&["email".into()]), FelValue::Boolean(true));
-        assert_eq!(env.mip_readonly(&["email".into()]), FelValue::Boolean(false));
+        assert_eq!(
+            env.mip_readonly(&["email".into()]),
+            FelValue::Boolean(false)
+        );
         assert_eq!(env.mip_required(&["email".into()]), FelValue::Boolean(true));
 
         // Default MIP for unknown fields
         assert_eq!(env.mip_valid(&["unknown".into()]), FelValue::Boolean(true));
-        assert_eq!(env.mip_required(&["unknown".into()]), FelValue::Boolean(false));
+        assert_eq!(
+            env.mip_required(&["unknown".into()]),
+            FelValue::Boolean(false)
+        );
     }
 
     #[test]

@@ -31,9 +31,7 @@ pub struct Parser {
 /// Parse a FEL expression string into an AST.
 pub fn parse(input: &str) -> Result<Expr, FelError> {
     let mut lexer = Lexer::new(input);
-    let tokens = lexer
-        .tokenize()
-        .map_err(|e| FelError::Parse(e))?;
+    let tokens = lexer.tokenize().map_err(|e| FelError::Parse(e))?;
     let mut parser = Parser {
         tokens,
         pos: 0,
@@ -663,7 +661,7 @@ impl Parser {
                 return Err(FelError::Parse(format!(
                     "expected object key, got {:?}",
                     self.peek()
-                )))
+                )));
             }
         };
         self.expect(&Token::Colon)?;
@@ -741,10 +739,18 @@ mod tests {
     fn test_parse_arithmetic_precedence() {
         let expr = parse("1 + 2 * 3").unwrap();
         match expr {
-            Expr::BinaryOp { op: BinaryOp::Add, left, right } => {
+            Expr::BinaryOp {
+                op: BinaryOp::Add,
+                left,
+                right,
+            } => {
                 assert_eq!(*left, Expr::Number(Decimal::from(1)));
                 match *right {
-                    Expr::BinaryOp { op: BinaryOp::Mul, left: rl, right: rr } => {
+                    Expr::BinaryOp {
+                        op: BinaryOp::Mul,
+                        left: rl,
+                        right: rr,
+                    } => {
                         assert_eq!(*rl, Expr::Number(Decimal::from(2)));
                         assert_eq!(*rr, Expr::Number(Decimal::from(3)));
                     }
@@ -763,10 +769,13 @@ mod tests {
             Expr::FunctionCall { name, args } => {
                 assert_eq!(name, "sum");
                 assert_eq!(args.len(), 1);
-                assert_eq!(args[0], Expr::FieldRef {
-                    name: Some("items".into()),
-                    path: vec![PathSegment::Wildcard, PathSegment::Dot("qty".into())],
-                });
+                assert_eq!(
+                    args[0],
+                    Expr::FieldRef {
+                        name: Some("items".into()),
+                        path: vec![PathSegment::Wildcard, PathSegment::Dot("qty".into())],
+                    }
+                );
             }
             other => panic!("expected FunctionCall, got {other:?}"),
         }
@@ -777,11 +786,25 @@ mod tests {
     fn test_parse_if_then_else() {
         let expr = parse("if $x > 0 then 'positive' else 'non-positive'").unwrap();
         match expr {
-            Expr::IfThenElse { condition, then_branch, else_branch } => {
+            Expr::IfThenElse {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
                 // condition: $x > 0
                 match *condition {
-                    Expr::BinaryOp { op: BinaryOp::Gt, left, right } => {
-                        assert_eq!(*left, Expr::FieldRef { name: Some("x".into()), path: vec![] });
+                    Expr::BinaryOp {
+                        op: BinaryOp::Gt,
+                        left,
+                        right,
+                    } => {
+                        assert_eq!(
+                            *left,
+                            Expr::FieldRef {
+                                name: Some("x".into()),
+                                path: vec![]
+                            }
+                        );
                         assert_eq!(*right, Expr::Number(Decimal::from(0)));
                     }
                     other => panic!("expected Gt condition, got {other:?}"),
@@ -802,7 +825,9 @@ mod tests {
                 assert_eq!(name, "if");
                 assert_eq!(args.len(), 3);
                 match &args[0] {
-                    Expr::BinaryOp { op: BinaryOp::Gt, .. } => {}
+                    Expr::BinaryOp {
+                        op: BinaryOp::Gt, ..
+                    } => {}
                     other => panic!("expected Gt as first arg, got {other:?}"),
                 }
                 assert_eq!(args[1], Expr::String("yes".into()));
@@ -817,10 +842,24 @@ mod tests {
     fn test_parse_ternary() {
         let expr = parse("$x > 0 ? 'yes' : 'no'").unwrap();
         match expr {
-            Expr::Ternary { condition, then_branch, else_branch } => {
+            Expr::Ternary {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
                 match *condition {
-                    Expr::BinaryOp { op: BinaryOp::Gt, left, right } => {
-                        assert_eq!(*left, Expr::FieldRef { name: Some("x".into()), path: vec![] });
+                    Expr::BinaryOp {
+                        op: BinaryOp::Gt,
+                        left,
+                        right,
+                    } => {
+                        assert_eq!(
+                            *left,
+                            Expr::FieldRef {
+                                name: Some("x".into()),
+                                path: vec![]
+                            }
+                        );
                         assert_eq!(*right, Expr::Number(Decimal::from(0)));
                     }
                     other => panic!("expected Gt condition, got {other:?}"),
@@ -841,8 +880,18 @@ mod tests {
                 assert_eq!(name, "x");
                 assert_eq!(*value, Expr::Number(Decimal::from(5)));
                 match *body {
-                    Expr::BinaryOp { op: BinaryOp::Add, left, right } => {
-                        assert_eq!(*left, Expr::FieldRef { name: Some("x".into()), path: vec![] });
+                    Expr::BinaryOp {
+                        op: BinaryOp::Add,
+                        left,
+                        right,
+                    } => {
+                        assert_eq!(
+                            *left,
+                            Expr::FieldRef {
+                                name: Some("x".into()),
+                                path: vec![]
+                            }
+                        );
                         assert_eq!(*right, Expr::Number(Decimal::from(1)));
                     }
                     other => panic!("expected Add in body, got {other:?}"),
@@ -857,9 +906,19 @@ mod tests {
     fn test_parse_membership() {
         let expr = parse("$status in ['active', 'pending']").unwrap();
         match expr {
-            Expr::Membership { value, container, negated } => {
+            Expr::Membership {
+                value,
+                container,
+                negated,
+            } => {
                 assert!(!negated);
-                assert_eq!(*value, Expr::FieldRef { name: Some("status".into()), path: vec![] });
+                assert_eq!(
+                    *value,
+                    Expr::FieldRef {
+                        name: Some("status".into()),
+                        path: vec![]
+                    }
+                );
                 match *container {
                     Expr::Array(ref elems) => {
                         assert_eq!(elems.len(), 2);
@@ -878,9 +937,19 @@ mod tests {
     fn test_parse_not_in() {
         let expr = parse("$status not in ['deleted']").unwrap();
         match expr {
-            Expr::Membership { value, container, negated } => {
+            Expr::Membership {
+                value,
+                container,
+                negated,
+            } => {
                 assert!(negated);
-                assert_eq!(*value, Expr::FieldRef { name: Some("status".into()), path: vec![] });
+                assert_eq!(
+                    *value,
+                    Expr::FieldRef {
+                        name: Some("status".into()),
+                        path: vec![]
+                    }
+                );
                 match *container {
                     Expr::Array(ref elems) => {
                         assert_eq!(elems.len(), 1);
@@ -899,7 +968,13 @@ mod tests {
         let expr = parse("$x ?? 0").unwrap();
         match expr {
             Expr::NullCoalesce { left, right } => {
-                assert_eq!(*left, Expr::FieldRef { name: Some("x".into()), path: vec![] });
+                assert_eq!(
+                    *left,
+                    Expr::FieldRef {
+                        name: Some("x".into()),
+                        path: vec![]
+                    }
+                );
                 assert_eq!(*right, Expr::Number(Decimal::from(0)));
             }
             other => panic!("expected NullCoalesce, got {other:?}"),
@@ -965,7 +1040,13 @@ mod tests {
     #[test]
     fn test_parse_unary_not() {
         let expr = parse("not true").unwrap();
-        assert!(matches!(expr, Expr::UnaryOp { op: UnaryOp::Not, .. }));
+        assert!(matches!(
+            expr,
+            Expr::UnaryOp {
+                op: UnaryOp::Not,
+                ..
+            }
+        ));
     }
 
     #[test]
