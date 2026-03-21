@@ -2,6 +2,7 @@
 ///
 /// Uses rust_decimal for base-10 arithmetic per spec S3.4.1 (minimum 18 significant digits).
 pub mod ast;
+pub mod convert;
 pub mod dependencies;
 pub mod environment;
 pub mod error;
@@ -14,6 +15,7 @@ pub mod types;
 
 // Re-export key types
 pub use ast::Expr;
+pub use convert::{fel_to_json, json_to_fel};
 pub use dependencies::{Dependencies, extract_dependencies};
 pub use environment::{FormspecEnvironment, MipState, RepeatContext};
 pub use error::{Diagnostic, FelError, Severity};

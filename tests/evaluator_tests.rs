@@ -815,7 +815,9 @@ fn test_money_number_comparison_returns_null_with_diagnostic() {
     assert_eq!(result.value, FelValue::Null);
     assert!(!result.diagnostics.is_empty(), "should have diagnostic");
     assert!(
-        result.diagnostics[0].message.contains("cannot compare money with number"),
+        result.diagnostics[0]
+            .message
+            .contains("cannot compare money with number"),
         "diagnostic message should mention money/number mismatch, got: {}",
         result.diagnostics[0].message
     );

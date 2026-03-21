@@ -268,33 +268,36 @@ impl Environment for FormspecEnvironment {
 
     fn repeat_prev(&self) -> FelValue {
         if let Some(ctx) = &self.repeat_context
-            && ctx.index > 1 {
-                return ctx
-                    .collection
-                    .get(ctx.index - 2)
-                    .cloned()
-                    .unwrap_or(FelValue::Null);
-            }
+            && ctx.index > 1
+        {
+            return ctx
+                .collection
+                .get(ctx.index - 2)
+                .cloned()
+                .unwrap_or(FelValue::Null);
+        }
         FelValue::Null
     }
 
     fn repeat_next(&self) -> FelValue {
         if let Some(ctx) = &self.repeat_context
-            && ctx.index < ctx.count {
-                return ctx
-                    .collection
-                    .get(ctx.index)
-                    .cloned()
-                    .unwrap_or(FelValue::Null);
-            }
+            && ctx.index < ctx.count
+        {
+            return ctx
+                .collection
+                .get(ctx.index)
+                .cloned()
+                .unwrap_or(FelValue::Null);
+        }
         FelValue::Null
     }
 
     fn repeat_parent(&self) -> FelValue {
         if let Some(ctx) = &self.repeat_context
-            && let Some(parent) = &ctx.parent {
-                return parent.current.clone();
-            }
+            && let Some(parent) = &ctx.parent
+        {
+            return parent.current.clone();
+        }
         FelValue::Null
     }
 

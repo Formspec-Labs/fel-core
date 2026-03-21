@@ -783,9 +783,7 @@ impl<'a> Evaluator<'a> {
             "startsWith" => self.fn_str2(args, "startsWith", |s, p| {
                 FelValue::Boolean(s.starts_with(p))
             }),
-            "endsWith" => {
-                self.fn_str2(args, "endsWith", |s, p| FelValue::Boolean(s.ends_with(p)))
-            }
+            "endsWith" => self.fn_str2(args, "endsWith", |s, p| FelValue::Boolean(s.ends_with(p))),
             "substring" => self.fn_substring(args),
             "replace" => self.fn_replace(args),
             "upper" => self.fn_str1(args, |s| FelValue::String(s.to_uppercase())),
@@ -973,9 +971,10 @@ impl<'a> Evaluator<'a> {
                 }
             };
             if let Some(ord) = cmp
-                && ((is_min && ord.is_gt()) || (!is_min && ord.is_lt())) {
-                    best = (*elem).clone();
-                }
+                && ((is_min && ord.is_gt()) || (!is_min && ord.is_lt()))
+            {
+                best = (*elem).clone();
+            }
         }
         best
     }
@@ -1090,10 +1089,7 @@ impl<'a> Evaluator<'a> {
             FelValue::Null => return FelValue::Null,
             _ => return FelValue::Null,
         };
-        match RegexBuilder::new(&pattern)
-            .size_limit(1_000_000)
-            .build()
-        {
+        match RegexBuilder::new(&pattern).size_limit(1_000_000).build() {
             Ok(re) => FelValue::Boolean(re.is_match(&s)),
             Err(e) => {
                 self.diag(format!(
