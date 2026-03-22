@@ -1,7 +1,10 @@
 //! Static dependency extraction — field refs, context refs, and MIP dependencies.
-///
-/// Walks the AST without evaluation to find field references,
-/// context references, MIP dependencies, and structural flags.
+//!
+//! Walks the AST without evaluation to find field references,
+//! context references, MIP dependencies, and structural flags.
+//!
+//! The `walk` helper and related functions recurse the AST to populate [`Dependencies`].
+#![allow(clippy::missing_docs_in_private_items)]
 use std::collections::HashSet;
 
 use crate::ast::*;
@@ -305,6 +308,7 @@ pub fn dependencies_to_json_value_styled(
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::missing_docs_in_private_items)]
     use super::*;
     use crate::parser;
 

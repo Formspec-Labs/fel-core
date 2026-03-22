@@ -19,7 +19,7 @@ Normative behavior is defined in the Formspec repo under `specs/fel/` and `schem
 
 ## Architecture
 
-**Authoritative API detail** is `cargo doc -p fel-core --no-deps`. A **Markdown mirror** of the same rustdoc (for editors and LLM context) lives under [`docs/rustdoc-md/`](docs/rustdoc-md/index.md), produced by [cargo-doc-md](https://github.com/Crazytieguy/cargo-doc-md).
+**Authoritative API detail** is `cargo doc -p fel-core --no-deps`. A **single-file Markdown mirror** of the same rustdoc (for editors and LLM context) is [`docs/rustdoc-md/API.md`](docs/rustdoc-md/API.md), produced by [cargo-doc-md](https://github.com/Crazytieguy/cargo-doc-md) plus `scripts/bundle-rustdoc-md.mjs`.
 
 ### Pipeline
 
@@ -38,7 +38,7 @@ Source string
 
 | File | Responsibility |
 |------|----------------|
-| `lib.rs` | Crate root, `#![warn(missing_docs)]`, re-exports, `tokenize` / JSON helpers for FFI. |
+| `lib.rs` | Crate root, `#![warn(missing_docs)]` + `clippy::missing_docs_in_private_items`, re-exports, `tokenize` / JSON helpers for FFI. |
 | `lexer.rs` | `Token`, `Lexer`, spans. |
 | `parser.rs` | `parse()`, precedence per module doc comment. |
 | `ast.rs` | `Expr`, `PathSegment`, operators. Large `Expr` enum uses `#[allow(missing_docs)]` on variants; see type-level rustdoc. |
@@ -64,9 +64,9 @@ Source string
 Before answering questions about this crate’s API, behavior, or module layout:
 
 1. Read this README (**Architecture** above for layout and pipeline).
-2. Read the full generated API mirror: start at [`docs/rustdoc-md/index.md`](docs/rustdoc-md/index.md), then every `*.md` file under [`docs/rustdoc-md/fel_core/`](docs/rustdoc-md/fel_core/) (not only the index).
+2. Read [`docs/rustdoc-md/API.md`](docs/rustdoc-md/API.md) in full (bundled public rustdoc).
 
-Skipping `docs/rustdoc-md/` will miss public-item rustdoc that is not duplicated here.
+Skipping that file will miss public-item rustdoc that is not duplicated here.
 
 ## Quick start
 
@@ -105,13 +105,26 @@ One-time install:
 cargo install cargo-doc-md
 ```
 
-Regenerate HTML + Markdown under `docs/rustdoc-md/`:
+Regenerate HTML + bundled Markdown:
 
 ```bash
 npm run docs:fel-core
 ```
 
-This runs `cargo doc-md -p fel-core --no-deps -o crates/fel-core/docs/rustdoc-md` and `cargo doc -p fel-core --no-deps`.
+This runs `cargo doc-md` into `target/doc-md-fel-core`, `scripts/bundle-rustdoc-md.mjs` → `docs/rustdoc-md/API.md`, then `cargo doc -p fel-core --no-deps`.
+
+## Internal (private) documentation
+
+`src/lib.rs` enables **`clippy::missing_docs_in_private_items`** (with **`#![warn(missing_docs)]`**) so private helpers are covered in CI-style `cargo clippy`.
+
+- **Narrative + allow** — Large internal pipelines (`lexer`, `parser`, `evaluator`, `dependencies`, `environment`, `extensions`, `printer`, `context_json`) extend the module `//!` with a short internal overview and use `#![allow(clippy::missing_docs_in_private_items)]` so lexer/parser/evaluator internals are not each annotated with `///`.
+- **Tests** — Each `#[cfg(test)] mod tests` uses `#![allow(clippy::missing_docs_in_private_items)]` for helper fns inside suites.
+
+Strict check (lint only this crate):
+
+```bash
+cargo clippy -p fel-core --no-deps -- -D clippy::missing_docs_in_private_items
+```
 
 ## Tests
 

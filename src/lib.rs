@@ -6,8 +6,9 @@
 //!
 //! - Human overview: crate `README.md` (architecture, pipeline, module map).
 //! - API reference: `cargo doc -p fel-core --no-deps --open`.
-//! - Markdown API export: `docs/rustdoc-md/` (regenerate with `cargo doc-md`; see crate README).
+//! - Markdown API export: `docs/rustdoc-md/API.md` (see crate README).
 #![warn(missing_docs)]
+#![warn(clippy::missing_docs_in_private_items)]
 
 pub mod ast;
 pub mod context_json;
@@ -108,6 +109,7 @@ fn token_type_name(token: &lexer::Token) -> &'static str {
     }
 }
 
+/// Slice `input` by Unicode scalar indices `[start, end)` (used for token text in `tokenize`).
 fn slice_by_char_offsets(input: &str, start: usize, end: usize) -> String {
     input
         .chars()

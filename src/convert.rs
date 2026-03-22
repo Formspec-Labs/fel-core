@@ -72,25 +72,24 @@ pub fn json_to_fel(val: &Value) -> FelValue {
                 .and_then(|v| v.as_str())
                 .map(|s| s == "money")
                 .unwrap_or(false);
-            if is_money_type {
-                if let Some(currency) = map.get("currency").and_then(|v| v.as_str())
-                    && let Some(amount) = map.get("amount")
-                {
-                    let maybe_decimal = match amount {
-                        Value::Number(n) => n
-                            .as_i64()
-                            .map(Decimal::from)
-                            .or_else(|| n.as_u64().map(Decimal::from))
-                            .or_else(|| n.as_f64().and_then(Decimal::from_f64)),
-                        Value::String(s) => Decimal::from_str_exact(s).ok(),
-                        _ => None,
-                    };
-                    if let Some(amount_decimal) = maybe_decimal {
-                        return FelValue::Money(FelMoney {
-                            amount: amount_decimal,
-                            currency: currency.to_string(),
-                        });
-                    }
+            if is_money_type
+                && let Some(currency) = map.get("currency").and_then(|v| v.as_str())
+                && let Some(amount) = map.get("amount")
+            {
+                let maybe_decimal = match amount {
+                    Value::Number(n) => n
+                        .as_i64()
+                        .map(Decimal::from)
+                        .or_else(|| n.as_u64().map(Decimal::from))
+                        .or_else(|| n.as_f64().and_then(Decimal::from_f64)),
+                    Value::String(s) => Decimal::from_str_exact(s).ok(),
+                    _ => None,
+                };
+                if let Some(amount_decimal) = maybe_decimal {
+                    return FelValue::Money(FelMoney {
+                        amount: amount_decimal,
+                        currency: currency.to_string(),
+                    });
                 }
             }
             FelValue::Object(
@@ -153,6 +152,7 @@ pub fn fel_to_json(val: &FelValue) -> Value {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::missing_docs_in_private_items)]
     use super::*;
     use serde_json::json;
 

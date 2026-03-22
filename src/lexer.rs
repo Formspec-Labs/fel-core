@@ -1,4 +1,7 @@
 //! FEL hand-rolled lexer — tokenization with spans and decimal numbers.
+//!
+//! Internal scanning uses a char buffer and cursor; [`Lexer::tokenize`] is the public entry point.
+#![allow(clippy::missing_docs_in_private_items)]
 use rust_decimal::Decimal;
 use rust_decimal::prelude::*;
 
@@ -456,6 +459,7 @@ impl<'a> Lexer<'a> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::missing_docs_in_private_items)]
     use super::*;
 
     fn lex_string(input: &str) -> Result<Vec<Token>, String> {

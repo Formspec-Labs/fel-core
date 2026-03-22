@@ -1,5 +1,8 @@
 //! FEL hand-rolled recursive descent parser with operator precedence.
-///
+//!
+//! Private `parse_*` / `current` / `advance` implement the precedence ladder listed below.
+#![allow(clippy::missing_docs_in_private_items)]
+
 /// Operator precedence (lowest → highest):
 /// 0: let...in, if...then...else
 /// 1: ternary ? :
@@ -673,6 +676,7 @@ impl Parser {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::missing_docs_in_private_items)]
     use super::*;
 
     #[test]

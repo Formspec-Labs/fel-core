@@ -1,4 +1,7 @@
 //! Build [`FormspecEnvironment`] from JSON-shaped evaluation context.
+//!
+//! `push_repeat_context` recursively walks nested repeat JSON into environment state.
+#![allow(clippy::missing_docs_in_private_items)]
 
 use serde_json::{Map, Value};
 
@@ -109,6 +112,7 @@ pub fn formspec_environment_from_json_map(ctx: &Map<String, Value>) -> FormspecE
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::missing_docs_in_private_items)]
     use rust_decimal::Decimal;
     use serde_json::json;
 

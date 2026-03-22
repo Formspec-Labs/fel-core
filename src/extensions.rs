@@ -1,7 +1,10 @@
 //! FEL extension function registry with null propagation and conflict detection.
-///
-/// Extensions cannot shadow reserved words or built-in function names.
-/// All extension functions are null-propagating: if any argument is null, the result is null.
+//!
+//! Extensions cannot shadow reserved words or built-in function names.
+//! All extension functions are null-propagating: if any argument is null, the result is null.
+//!
+//! Registration, dispatch, and `BUILTIN_FUNCTIONS` back the catalog / WASM surfaces.
+#![allow(clippy::missing_docs_in_private_items)]
 use std::collections::HashMap;
 
 use crate::types::FelValue;
@@ -551,6 +554,7 @@ impl Default for ExtensionRegistry {
 /// guard, a bug in the registry could allow shadowing; without the registry
 /// guard, extensions would silently be ignored instead of rejected.
 mod tests {
+    #![allow(clippy::missing_docs_in_private_items)]
     use super::*;
     use rust_decimal::Decimal;
 

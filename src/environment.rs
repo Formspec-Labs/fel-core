@@ -1,7 +1,10 @@
 //! FEL evaluation environment with field resolution, repeats, MIP state, and instances.
-///
-/// Provides `FormspecEnvironment`, a concrete `Environment` impl backed by
-/// nested data dicts, repeat context, MIP states, named instances, and variables.
+//!
+//! Provides `FormspecEnvironment`, a concrete `Environment` impl backed by
+//! nested data dicts, repeat context, MIP states, named instances, and variables.
+//!
+//! Helpers such as `project_repeat_field` resolve repeat-group keys into projected field values.
+#![allow(clippy::missing_docs_in_private_items)]
 use rust_decimal::Decimal;
 use std::collections::HashMap;
 
@@ -377,6 +380,7 @@ impl Environment for FormspecEnvironment {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::missing_docs_in_private_items)]
     use super::*;
 
     fn s(v: &str) -> FelValue {

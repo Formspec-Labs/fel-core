@@ -379,6 +379,7 @@ impl fmt::Display for FelValue {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::missing_docs_in_private_items)]
     use super::*;
 
     /// Spec: core/spec.md §3.5.4, fel-grammar.md §3.6 —

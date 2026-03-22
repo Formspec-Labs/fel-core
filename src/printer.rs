@@ -1,7 +1,10 @@
 //! FEL AST to string serializer for expression rewriting and debugging.
-///
-/// Used by the assembler to rewrite FEL expressions after AST transformations
-/// (e.g., field path prefixing during $ref resolution).
+//!
+//! Used by the assembler to rewrite FEL expressions after AST transformations
+//! (e.g., field path prefixing during $ref resolution).
+//!
+//! `write_expr` and helpers serialize each [`Expr`] variant; parentheses only when needed.
+#![allow(clippy::missing_docs_in_private_items)]
 use crate::ast::*;
 use crate::types::format_number;
 
@@ -249,6 +252,7 @@ fn binary_op_str(op: BinaryOp) -> &'static str {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::missing_docs_in_private_items)]
     use super::*;
     use crate::parse;
 
