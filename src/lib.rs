@@ -1,6 +1,14 @@
 //! FEL parser, evaluator, and dependency analysis with base-10 decimal arithmetic.
-///
-/// Uses rust_decimal for base-10 arithmetic per spec S3.4.1 (minimum 18 significant digits).
+//!
+//! Uses `rust_decimal` for base-10 arithmetic per spec S3.4.1 (minimum 18 significant digits).
+//!
+//! ## Docs
+//!
+//! - Human overview: crate `README.md` (architecture, pipeline, module map).
+//! - API reference: `cargo doc -p fel-core --no-deps --open`.
+//! - Markdown API export: `docs/rustdoc-md/` (regenerate with `cargo doc-md`; see crate README).
+#![warn(missing_docs)]
+
 pub mod ast;
 pub mod context_json;
 pub mod convert;
@@ -40,11 +48,16 @@ pub use rust_decimal::Decimal;
 pub use types::{FelDate, FelMoney, FelValue, parse_date_literal, parse_datetime_literal};
 pub use wire_style::JsonWireStyle;
 
+/// One lexeme from [`tokenize`] for host bindings and tooling (stable type names + source span).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PositionedToken {
+    /// Logical token kind (e.g. `NumberLiteral`, `Identifier`).
     pub token_type: String,
+    /// Lexeme text from the source.
     pub text: String,
+    /// Start offset in Unicode scalar indices.
     pub start: usize,
+    /// End offset (exclusive) in Unicode scalar indices.
     pub end: usize,
 }
 
@@ -103,6 +116,7 @@ fn slice_by_char_offsets(input: &str, start: usize, end: usize) -> String {
         .collect()
 }
 
+/// Tokenize FEL source into [`PositionedToken`]s (lexical analysis only; no parse).
 pub fn tokenize(input: &str) -> Result<Vec<PositionedToken>, String> {
     let mut lexer = lexer::Lexer::new(input);
     let tokens = lexer.tokenize()?;

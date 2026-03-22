@@ -2,6 +2,8 @@
 use rust_decimal::Decimal;
 use rust_decimal::prelude::*;
 
+/// Lexical token for FEL source (literals, keywords, operators, punctuation).
+#[allow(missing_docs)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
     // Literals
@@ -59,18 +61,25 @@ pub enum Token {
     Eof,
 }
 
+/// Byte/char span in the original source (Unicode scalar indices, inclusive start, exclusive end).
 #[derive(Debug, Clone)]
 pub struct Span {
+    /// Start offset.
     pub start: usize,
+    /// End offset (exclusive).
     pub end: usize,
 }
 
+/// A [`Token`] with its [`Span`].
 #[derive(Debug, Clone)]
 pub struct SpannedToken {
+    /// Classified token.
     pub token: Token,
+    /// Position in source.
     pub span: Span,
 }
 
+/// Character-based lexer over a FEL expression string.
 pub struct Lexer<'a> {
     _input: &'a str,
     chars: Vec<char>,
@@ -78,6 +87,7 @@ pub struct Lexer<'a> {
 }
 
 impl<'a> Lexer<'a> {
+    /// Create a lexer for `input` (no allocation beyond char buffer).
     pub fn new(input: &'a str) -> Self {
         Lexer {
             _input: input,
@@ -86,6 +96,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    /// Consume the entire input and return all tokens, ending with [`Token::Eof`].
     pub fn tokenize(&mut self) -> Result<Vec<SpannedToken>, String> {
         let mut tokens = Vec::new();
         loop {

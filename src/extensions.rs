@@ -9,11 +9,15 @@ use crate::types::FelValue;
 /// Type alias for extension function implementations.
 pub type ExtensionFn = Box<dyn Fn(&[FelValue]) -> FelValue + Send + Sync>;
 
-/// Metadata for a built-in FEL function exposed to tooling surfaces.
+/// Metadata for a built-in FEL function exposed to tooling surfaces (WASM catalog, docs).
 pub struct BuiltinFunctionCatalogEntry {
+    /// Function name as in FEL source.
     pub name: &'static str,
+    /// Grouping (e.g. `aggregate`, `string`, `repeat`).
     pub category: &'static str,
+    /// Human-readable arity and types.
     pub signature: &'static str,
+    /// Short description for UI or generated docs.
     pub description: &'static str,
 }
 
@@ -409,6 +413,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
     },
 ];
 
+/// Slice of all built-in functions (names reserved for [`ExtensionRegistry::register`]).
 pub fn builtin_function_catalog() -> &'static [BuiltinFunctionCatalogEntry] {
     BUILTIN_FUNCTIONS
 }
@@ -433,10 +438,11 @@ pub fn builtin_function_catalog_json_value() -> serde_json::Value {
 /// Error type for extension registration failures.
 #[derive(Debug, Clone)]
 pub enum ExtensionError {
-    /// Name conflicts with a reserved word or built-in function.
+    /// Registration rejected: name matches a reserved word or built-in function.
     NameConflict(String),
 }
 
+#[allow(missing_docs)]
 impl std::fmt::Display for ExtensionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -450,9 +456,11 @@ impl std::fmt::Display for ExtensionError {
     }
 }
 
+#[allow(missing_docs)]
 impl std::error::Error for ExtensionError {}
 
 impl ExtensionRegistry {
+    /// Empty registry (no custom extensions).
     pub fn new() -> Self {
         Self {
             extensions: HashMap::new(),
@@ -492,11 +500,13 @@ impl ExtensionRegistry {
     }
 
     /// Look up an extension function by name.
+    /// Lookup registered extension by name.
     pub fn get(&self, name: &str) -> Option<&ExtensionFunc> {
         self.extensions.get(name)
     }
 
     /// Check if a name is registered.
+    /// True if `name` is registered.
     pub fn contains(&self, name: &str) -> bool {
         self.extensions.contains_key(name)
     }
@@ -505,6 +515,7 @@ impl ExtensionRegistry {
     ///
     /// If any argument is null, returns null without calling the function.
     /// Returns None if the extension is not found.
+    /// Invoke extension if present; returns `None` if unknown (caller may treat as undefined function).
     pub fn call(&self, name: &str, args: &[FelValue]) -> Option<FelValue> {
         let ext = self.extensions.get(name)?;
 

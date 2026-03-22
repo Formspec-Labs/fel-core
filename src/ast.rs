@@ -1,15 +1,22 @@
 //! FEL abstract syntax tree node definitions and operators.
 use rust_decimal::Decimal;
 
-/// A path segment for field references and postfix access.
+/// A path segment for field references and postfix access (`$a.b`, `$a[1]`, `$a[*]`).
 #[derive(Debug, Clone, PartialEq)]
 pub enum PathSegment {
+    /// Property after a dot (identifier name).
     Dot(String),
+    /// Numeric index inside `[` `]`.
     Index(usize),
+    /// Repeat wildcard `[*]`.
     Wildcard,
 }
 
-/// An AST expression node.
+/// Expression AST for Formspec Expression Language (FEL).
+///
+/// Covers literals, operators, `let`/`if`, function calls, `$` field refs, and `@` context refs.
+/// Shape follows `specs/fel/fel-grammar.llm.md` in the Formspec repo.
+#[allow(missing_docs)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
     // Literals
@@ -85,26 +92,44 @@ pub enum Expr {
     },
 }
 
+/// Unary operators (`not`, unary `-`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnaryOp {
+    /// Logical not.
     Not,
+    /// Arithmetic negation.
     Neg,
 }
 
+/// Binary and logical operators (precedence enforced in the parser).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BinaryOp {
+    /// `+`
     Add,
+    /// `-`
     Sub,
+    /// `*`
     Mul,
+    /// `/`
     Div,
+    /// `%`
     Mod,
+    /// `&` string concatenation.
     Concat,
+    /// `=` or `==`
     Eq,
+    /// `!=`
     NotEq,
+    /// `<`
     Lt,
+    /// `>`
     Gt,
+    /// `<=`
     LtEq,
+    /// `>=`
     GtEq,
+    /// `and`
     And,
+    /// `or`
     Or,
 }

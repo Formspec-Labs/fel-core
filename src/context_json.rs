@@ -1,4 +1,4 @@
-//! Build [`FormspecEnvironment`](crate::FormspecEnvironment) from JSON-shaped evaluation context.
+//! Build [`FormspecEnvironment`] from JSON-shaped evaluation context.
 
 use serde_json::{Map, Value};
 

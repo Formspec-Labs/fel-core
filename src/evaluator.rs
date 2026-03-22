@@ -13,64 +13,80 @@ use crate::types::*;
 
 // ── Evaluation context ──────────────────────────────────────────
 
-/// Trait for resolving field values and MIP state from the host environment.
+/// Resolves `$` field paths, `@` context, MIP queries, repeat navigation, and clock for FEL builtins.
 pub trait Environment {
+    /// Resolve `$a.b` style path as segment list (`["a","b"]`); empty slice is bare `$`.
     fn resolve_field(&self, segments: &[String]) -> FelValue;
+    /// Resolve `@name`, `@name('arg')`, `@name.tail`.
     fn resolve_context(&self, name: &str, arg: Option<&str>, tail: &[String]) -> FelValue;
 
+    /// `valid($path)` — default `true` when not overridden.
     fn mip_valid(&self, _path: &[String]) -> FelValue {
         FelValue::Boolean(true)
     }
+    /// `relevant($path)` — default `true`.
     fn mip_relevant(&self, _path: &[String]) -> FelValue {
         FelValue::Boolean(true)
     }
+    /// `readonly($path)` — default `false`.
     fn mip_readonly(&self, _path: &[String]) -> FelValue {
         FelValue::Boolean(false)
     }
+    /// `required($path)` — default `false`.
     fn mip_required(&self, _path: &[String]) -> FelValue {
         FelValue::Boolean(false)
     }
 
+    /// `prev()` in repeat scope — default null.
     fn repeat_prev(&self) -> FelValue {
         FelValue::Null
     }
+    /// `next()` in repeat scope — default null.
     fn repeat_next(&self) -> FelValue {
         FelValue::Null
     }
+    /// `parent()` in repeat scope — default null.
     fn repeat_parent(&self) -> FelValue {
         FelValue::Null
     }
+    /// Calendar date for `today()` — default none (evaluator may still use literals).
     fn current_date(&self) -> Option<FelDate> {
         None
     }
+    /// Date-time for `now()` — default none.
     fn current_datetime(&self) -> Option<FelDate> {
         None
     }
 }
 
-/// A simple map-based environment for standalone evaluation.
+/// Flat `HashMap` environment for tests and simple hosts (no `@` context; fixed clock in default impl).
 pub struct MapEnvironment {
+    /// Top-level and nested values (nested via object values); keys may be dotted.
     pub fields: HashMap<String, FelValue>,
 }
 
 impl MapEnvironment {
+    /// Empty field map.
     pub fn new() -> Self {
         Self {
             fields: HashMap::new(),
         }
     }
 
+    /// Pre-populated field map.
     pub fn with_fields(fields: HashMap<String, FelValue>) -> Self {
         Self { fields }
     }
 }
 
+#[allow(missing_docs)]
 impl Default for MapEnvironment {
     fn default() -> Self {
         Self::new()
     }
 }
 
+#[allow(missing_docs)]
 impl Environment for MapEnvironment {
     fn resolve_field(&self, segments: &[String]) -> FelValue {
         if segments.is_empty() {
@@ -124,11 +140,13 @@ impl Environment for MapEnvironment {
 /// Result of evaluation: a value plus any accumulated diagnostics.
 #[derive(Debug, Clone)]
 pub struct EvalResult {
+    /// Computed value (may be null after errors).
     pub value: FelValue,
+    /// Non-fatal issues (undefined functions, type errors, etc.).
     pub diagnostics: Vec<Diagnostic>,
 }
 
-/// Evaluator state.
+/// Tree-walking evaluator with `let` scopes and diagnostic collection.
 pub struct Evaluator<'a> {
     env: &'a dyn Environment,
     diagnostics: Vec<Diagnostic>,

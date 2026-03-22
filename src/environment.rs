@@ -28,12 +28,17 @@ pub struct RepeatContext {
 /// XForms Model Item Properties for a single field path.
 #[derive(Debug, Clone)]
 pub struct MipState {
+    /// `valid($path)` result when set for this path.
     pub valid: bool,
+    /// `relevant($path)`.
     pub relevant: bool,
+    /// `readonly($path)`.
     pub readonly: bool,
+    /// `required($path)`.
     pub required: bool,
 }
 
+#[allow(missing_docs)]
 impl Default for MipState {
     fn default() -> Self {
         Self {
@@ -72,6 +77,7 @@ pub struct FormspecEnvironment {
 }
 
 impl FormspecEnvironment {
+    /// Empty environment (no data, instances, or repeat context).
     pub fn new() -> Self {
         Self {
             data: HashMap::new(),
@@ -139,6 +145,7 @@ impl FormspecEnvironment {
     }
 }
 
+#[allow(missing_docs)]
 impl Default for FormspecEnvironment {
     fn default() -> Self {
         Self::new()
@@ -210,6 +217,7 @@ fn project_repeat_field(data: &HashMap<String, FelValue>, segments: &[String]) -
     ))
 }
 
+#[allow(missing_docs)]
 impl Environment for FormspecEnvironment {
     fn resolve_field(&self, segments: &[String]) -> FelValue {
         if segments.is_empty() {

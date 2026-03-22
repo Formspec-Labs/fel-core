@@ -21,6 +21,7 @@ use crate::ast::*;
 use crate::error::FelError;
 use crate::lexer::{Lexer, SpannedToken, Token};
 
+/// Recursive-descent parser over a [`SpannedToken`] stream (use [`parse`] to build from source).
 pub struct Parser {
     tokens: Vec<SpannedToken>,
     pos: usize,
