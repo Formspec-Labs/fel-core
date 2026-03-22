@@ -244,6 +244,24 @@ impl<'a> Evaluator<'a> {
             }
             Expr::FunctionCall { name, args } => self.eval_function(name, args),
             Expr::PostfixAccess { expr, path } => {
+                if let Expr::FieldRef {
+                    name: Some(name),
+                    path: base_path,
+                } = expr.as_ref()
+                {
+                    let mut segments = vec![name.clone()];
+                    let mut combined = Vec::with_capacity(base_path.len() + path.len());
+                    combined.extend(base_path.iter().cloned());
+                    combined.extend(path.iter().cloned());
+                    if combined.iter().all(|segment| matches!(segment, PathSegment::Dot(_))) {
+                        for segment in &combined {
+                            if let PathSegment::Dot(part) = segment {
+                                segments.push(part.clone());
+                            }
+                        }
+                        return self.env.resolve_field(&segments);
+                    }
+                }
                 let base = self.eval(expr);
                 self.access_path(base, path)
             }

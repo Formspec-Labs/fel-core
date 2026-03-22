@@ -154,10 +154,60 @@ fn resolve_path(val: &FelValue, segments: &[String]) -> FelValue {
                 Some((_, v)) => current = v.clone(),
                 None => return FelValue::Null,
             },
+            FelValue::Array(entries) => {
+                current = FelValue::Array(
+                    entries
+                        .iter()
+                        .map(|entry| match entry {
+                            FelValue::Object(fields) => fields
+                                .iter()
+                                .find(|(k, _)| k == seg)
+                                .map(|(_, v)| v.clone())
+                                .unwrap_or(FelValue::Null),
+                            _ => FelValue::Null,
+                        })
+                        .collect(),
+                );
+            }
             _ => return FelValue::Null,
         }
     }
     current
+}
+
+fn project_repeat_field(data: &HashMap<String, FelValue>, segments: &[String]) -> Option<FelValue> {
+    if segments.len() < 2 {
+        return None;
+    }
+
+    let prefix = format!("{}[", segments[0]);
+    let suffix = format!(".{}", segments[1..].join("."));
+    let mut projected = Vec::new();
+
+    for (key, value) in data {
+        let Some(rest) = key.strip_prefix(&prefix) else {
+            continue;
+        };
+        let Some((idx, tail)) = rest.split_once(']') else {
+            continue;
+        };
+        if tail != suffix {
+            continue;
+        }
+        let Ok(index) = idx.parse::<usize>() else {
+            continue;
+        };
+        projected.push((index, value.clone()));
+    }
+
+    if projected.is_empty() {
+        return None;
+    }
+
+    projected.sort_by_key(|(index, _)| *index);
+    Some(FelValue::Array(
+        projected.into_iter().map(|(_, value)| value).collect(),
+    ))
 }
 
 impl Environment for FormspecEnvironment {
@@ -184,6 +234,9 @@ impl Environment for FormspecEnvironment {
                 return val.clone();
             }
             return resolve_path(val, &segments[1..]);
+        }
+        if let Some(projected) = project_repeat_field(&self.data, segments) {
+            return projected;
         }
         FelValue::Null
     }
@@ -353,6 +406,19 @@ mod tests {
         assert_eq!(
             env.resolve_field(&["address".into(), "missing".into()]),
             FelValue::Null
+        );
+    }
+
+    #[test]
+    fn test_repeat_field_projection_from_flat_rows() {
+        let mut env = FormspecEnvironment::new();
+        env.set_field("rows[0].score", num(80));
+        env.set_field("rows[1].score", num(30));
+        env.set_field("rows[2].score", num(50));
+
+        assert_eq!(
+            env.resolve_field(&["rows".into(), "score".into()]),
+            FelValue::Array(vec![num(80), num(30), num(50)]),
         );
     }
 
