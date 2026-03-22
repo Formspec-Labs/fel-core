@@ -233,6 +233,11 @@ fn test_let_binding() {
     assert_eq!(eval("let x = 10 in let y = 20 in x + y"), num(30));
 }
 
+#[test]
+fn test_let_binding_property_access_on_bound_object() {
+    assert_eq!(eval("let x = {a: 1} in x.a"), num(1));
+}
+
 // ── Field references ────────────────────────────────────────────
 
 #[test]

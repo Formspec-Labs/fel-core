@@ -278,12 +278,21 @@ impl<'a> Evaluator<'a> {
                         .iter()
                         .all(|segment| matches!(segment, PathSegment::Dot(_)))
                     {
-                        for segment in &combined {
-                            if let PathSegment::Dot(part) = segment {
-                                segments.push(part.clone());
+                        // Let-bound identifiers resolve in `eval_field_ref` before the environment.
+                        // Skipping `eval(expr)` would merge path segments and call `resolve_field`
+                        // only, so e.g. `let x = {a: 1} in x.a` would wrongly yield null.
+                        let bound_in_let = self
+                            .let_scopes
+                            .iter()
+                            .any(|scope| scope.contains_key(name));
+                        if !bound_in_let {
+                            for segment in &combined {
+                                if let PathSegment::Dot(part) = segment {
+                                    segments.push(part.clone());
+                                }
                             }
+                            return self.env.resolve_field(&segments);
                         }
-                        return self.env.resolve_field(&segments);
                     }
                 }
                 let base = self.eval(expr);
