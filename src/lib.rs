@@ -20,6 +20,7 @@ pub mod evaluator;
 pub mod extensions;
 pub mod lexer;
 pub mod parser;
+pub mod prepare_host;
 pub mod printer;
 pub mod types;
 pub mod wire_style;
@@ -44,6 +45,10 @@ pub use extensions::{
     builtin_function_catalog_json_value,
 };
 pub use parser::parse;
+pub use prepare_host::{
+    prepare_fel_expression_for_host, prepare_fel_expression_owned,
+    prepare_fel_host_options_from_json_map, PrepareFelHostInput, PrepareFelHostOptionsOwned,
+};
 pub use printer::print_expr;
 pub use rust_decimal::Decimal;
 pub use types::{FelDate, FelMoney, FelValue, parse_date_literal, parse_datetime_literal};
