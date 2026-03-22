@@ -142,11 +142,7 @@ pub fn fel_diagnostics_to_json_value(diagnostics: &[Diagnostic]) -> serde_json::
             .map(|d| {
                 serde_json::json!({
                     "message": d.message,
-                    "severity": match d.severity {
-                        Severity::Error => "error",
-                        Severity::Warning => "warning",
-                        Severity::Info => "info",
-                    },
+                    "severity": d.severity.as_wire_str(),
                 })
             })
             .collect(),

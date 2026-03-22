@@ -32,6 +32,17 @@ pub enum Severity {
     Info,
 }
 
+impl Severity {
+    /// Wire string used in JSON diagnostics (`error` / `warning` / `info`).
+    pub fn as_wire_str(self) -> &'static str {
+        match self {
+            Self::Error => "error",
+            Self::Warning => "warning",
+            Self::Info => "info",
+        }
+    }
+}
+
 impl Diagnostic {
     pub fn error(msg: impl Into<String>) -> Self {
         Diagnostic {
