@@ -238,6 +238,12 @@ fn test_let_binding_property_access_on_bound_object() {
     assert_eq!(eval("let x = {a: 1} in x.a"), num(1));
 }
 
+#[test]
+fn test_let_binding_multi_level_property_access() {
+    assert_eq!(eval("let x = {a: {b: 2}} in x.a.b"), num(2));
+    assert_eq!(eval("let x = {a: {b: {c: 3}}} in x.a.b.c"), num(3));
+}
+
 // ── Field references ────────────────────────────────────────────
 
 #[test]
