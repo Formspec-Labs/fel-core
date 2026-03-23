@@ -3,9 +3,21 @@
 //! Rewrites bare `$`, qualified repeat group refs (`$group.field`), and repeat row aliases into wildcard paths.
 
 use std::collections::{HashMap, HashSet};
+use std::sync::LazyLock;
 
 use regex::Regex;
 use serde_json::{Map, Value};
+
+static RE_TRAILING_INDEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\[\d+\]$").expect("valid regex"));
+static RE_PATH_SEGMENT: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"([^\[.\]]+\[\d+\]|[^\[.\]]+)").expect("valid regex"));
+static RE_REPEAT_SEG: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^(.+)\[(\d+)\]$").expect("valid regex"));
+static RE_INDEX_BRACKET: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\[(\d+)\]").expect("valid regex"));
+static RE_REPEAT_ALIAS: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^(.*)\[(\d+)\]\.([^\[.\]]+)$").expect("valid regex"));
 
 /// Inputs for [`prepare_fel_expression_for_host`], mirroring the engine WASM prepass.
 #[derive(Debug, Clone)]
@@ -39,27 +51,23 @@ fn current_field_leaf(item_path: &str) -> String {
     let Some(last) = segments.last().map(String::as_str) else {
         return String::new();
     };
-    Regex::new(r"\[\d+\]$")
-        .expect("valid regex")
-        .replace(last, "")
-        .to_string()
+    RE_TRAILING_INDEX.replace(last, "").to_string()
 }
 
 fn path_segments(path: &str) -> Vec<String> {
     // Same tokenization as TS `/[^.[\]]+\[\d+\]|[^.[\]]+/g` — `]` must not appear bare in a Rust char class.
-    let re = Regex::new(r"([^\[.\]]+\[\d+\]|[^\[.\]]+)").expect("valid regex");
-    re.find_iter(path)
+    RE_PATH_SEGMENT
+        .find_iter(path)
         .map(|m| m.as_str().to_string())
         .collect()
 }
 
 fn get_repeat_ancestors(path: &str, repeats: &HashMap<String, u32>) -> Vec<RepeatAncestor> {
-    let re_repeat_seg = Regex::new(r"^(.+)\[(\d+)\]$").expect("valid regex");
     let mut ancestors = Vec::new();
     let mut current = String::new();
 
     for segment in path_segments(path) {
-        if let Some(caps) = re_repeat_seg.captures(&segment) {
+        if let Some(caps) = RE_REPEAT_SEG.captures(&segment) {
             let g1 = caps.get(1).expect("group 1").as_str();
             let idx: usize = caps
                 .get(2)
@@ -90,8 +98,7 @@ fn get_repeat_ancestors(path: &str, repeats: &HashMap<String, u32>) -> Vec<Repea
 
 /// FEL uses 1-based repeat indices in paths; flat data uses 0-based.
 fn to_fel_indexed_path(path: &str) -> String {
-    let re = Regex::new(r"\[(\d+)\]").expect("valid regex");
-    re.replace_all(path, |caps: &regex::Captures| {
+    RE_INDEX_BRACKET.replace_all(path, |caps: &regex::Captures| {
         let n: i64 = caps.get(1).and_then(|m| m.as_str().parse().ok()).unwrap_or(0);
         format!("[{}]", n + 1)
     })
@@ -106,11 +113,10 @@ fn to_repeat_wildcard_path(alias: &str) -> String {
 }
 
 fn build_repeat_aliases_sorted(paths: &[String]) -> Vec<String> {
-    let re = Regex::new(r"^(.*)\[(\d+)\]\.([^\[.\]]+)$").expect("valid regex");
     let mut seen = HashSet::new();
     let mut aliases = Vec::new();
     for p in paths {
-        if let Some(caps) = re.captures(p) {
+        if let Some(caps) = RE_REPEAT_ALIAS.captures(p) {
             let base = caps.get(1).expect("base").as_str();
             let field = caps.get(3).expect("field").as_str();
             let alias = format!("{base}.{field}");
