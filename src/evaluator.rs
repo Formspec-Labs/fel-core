@@ -60,6 +60,14 @@ pub trait Environment {
     fn current_datetime(&self) -> Option<FelDate> {
         None
     }
+    /// Active locale code for `locale()` — default none (returns null).
+    fn locale(&self) -> Option<&str> {
+        None
+    }
+    /// Runtime metadata value for `runtimeMeta(key)` — default null.
+    fn runtime_meta(&self, _key: &str) -> FelValue {
+        FelValue::Null
+    }
 }
 
 /// Flat `HashMap` environment for tests and simple hosts (no `@` context; fixed clock in default impl).
@@ -927,6 +935,11 @@ impl<'a> Evaluator<'a> {
             "parent" => self.env.repeat_parent(),
             "instance" => self.fn_instance(args),
 
+            // Locale
+            "locale" => self.fn_locale(),
+            "runtimeMeta" => self.fn_runtime_meta(args),
+            "pluralCategory" => self.fn_plural_category(args),
+
             _ => {
                 self.diag(format!("undefined function: {name}"));
                 FelValue::Null
@@ -1702,6 +1715,74 @@ impl<'a> Evaluator<'a> {
             _ => FelValue::Null,
         }
     }
+
+    // ── Locale functions ───────────────────────────────────────────
+
+    /// `locale()` — returns the active locale code or null.
+    fn fn_locale(&self) -> FelValue {
+        match self.env.locale() {
+            Some(code) => FelValue::String(code.to_string()),
+            None => FelValue::Null,
+        }
+    }
+
+    /// `runtimeMeta(key)` — reads from the runtime metadata bag.
+    fn fn_runtime_meta(&mut self, args: &[Expr]) -> FelValue {
+        let key = self.eval_arg(args, 0);
+        match key {
+            FelValue::String(k) => self.env.runtime_meta(&k),
+            FelValue::Null => FelValue::Null,
+            _ => {
+                self.diag("runtimeMeta: key must be a string".to_string());
+                FelValue::Null
+            }
+        }
+    }
+
+    /// `pluralCategory(count, locale?)` — returns CLDR cardinal plural category.
+    ///
+    /// Uses the explicit locale parameter if provided, otherwise the environment locale.
+    /// Returns one of: "zero", "one", "two", "few", "many", "other".
+    fn fn_plural_category(&mut self, args: &[Expr]) -> FelValue {
+        let count_val = self.eval_arg(args, 0);
+        let count = match &count_val {
+            FelValue::Number(n) => n,
+            FelValue::Null => return FelValue::Null,
+            _ => {
+                self.diag("pluralCategory: count must be a number".to_string());
+                return FelValue::Null;
+            }
+        };
+
+        // Determine locale: explicit arg or environment
+        let locale_code = if args.len() >= 2 {
+            match self.eval_arg(args, 1) {
+                FelValue::String(s) => Some(s),
+                FelValue::Null => return FelValue::Null,
+                _ => {
+                    self.diag("pluralCategory: locale must be a string".to_string());
+                    return FelValue::Null;
+                }
+            }
+        } else {
+            self.env.locale().map(|s| s.to_string())
+        };
+
+        let Some(locale_str) = locale_code else {
+            return FelValue::Null;
+        };
+
+        // Extract language subtag (before first '-')
+        let lang = locale_str
+            .split('-')
+            .next()
+            .unwrap_or("")
+            .to_lowercase();
+
+        let n = count.to_i64().unwrap_or(0);
+        let category = cldr_cardinal_plural_category(&lang, n);
+        FelValue::String(category.to_string())
+    }
 }
 
 // ── Utility functions ───────────────────────────────────────────
@@ -1744,4 +1825,84 @@ fn parse_time_str(s: &str) -> Option<(i64, i64, i64)> {
         parts[1].parse().ok()?,
         parts[2].parse().ok()?,
     ))
+}
+
+/// CLDR cardinal plural category for integer counts.
+///
+/// Implements rules for common languages. Languages not explicitly listed
+/// fall back to the English pattern (one vs other).
+///
+/// Reference: <https://www.unicode.org/cldr/charts/latest/supplemental/language_plural_rules.html>
+fn cldr_cardinal_plural_category(lang: &str, n: i64) -> &'static str {
+    let abs_n = n.unsigned_abs();
+    let mod10 = abs_n % 10;
+    let mod100 = abs_n % 100;
+
+    match lang {
+        // ── Arabic: zero/one/two/few/many/other ──
+        "ar" => match abs_n {
+            0 => "zero",
+            1 => "one",
+            2 => "two",
+            _ if (3..=10).contains(&mod100) => "few",
+            _ if (11..=99).contains(&mod100) => "many",
+            _ => "other",
+        },
+
+        // ── Polish: one/few/many/other ──
+        // one: n=1; few: mod10 in 2..4 AND mod100 not in 12..14; many: rest
+        "pl" => {
+            if abs_n == 1 {
+                "one"
+            } else if (2..=4).contains(&mod10) && !(12..=14).contains(&mod100) {
+                "few"
+            } else {
+                "many"
+            }
+        }
+
+        // ── Russian/Ukrainian/Serbian/Croatian/Bosnian ──
+        // one: mod10=1 AND mod100!=11; few: mod10 in 2..4 AND mod100 not in 12..14
+        "ru" | "uk" | "sr" | "hr" | "bs" => {
+            if mod10 == 1 && mod100 != 11 {
+                "one"
+            } else if (2..=4).contains(&mod10) && !(12..=14).contains(&mod100) {
+                "few"
+            } else {
+                "many"
+            }
+        }
+
+        // ── Czech/Slovak ──
+        // one: n=1; few: n in 2..4
+        "cs" | "sk" => match abs_n {
+            1 => "one",
+            2..=4 => "few",
+            _ => "other",
+        },
+
+        // ── French/Portuguese (Brazilian) / Hindi / Bangla ──
+        // one: 0 or 1
+        "fr" | "pt" | "hi" | "bn" => {
+            if abs_n <= 1 {
+                "one"
+            } else {
+                "other"
+            }
+        }
+
+        // ── Japanese/Chinese/Korean/Vietnamese/Thai/Turkish/Indonesian/Malay ──
+        // No plural distinctions
+        "ja" | "zh" | "ko" | "vi" | "th" | "tr" | "id" | "ms" => "other",
+
+        // ── Default: English pattern (Germanic/Romance except French) ──
+        // one: n=1; other: everything else
+        _ => {
+            if abs_n == 1 {
+                "one"
+            } else {
+                "other"
+            }
+        }
+    }
 }

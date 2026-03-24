@@ -38,7 +38,7 @@ fn push_repeat_context(env: &mut FormspecEnvironment, repeat: &Value, depth: u8)
 /// Populate a [`FormspecEnvironment`] from a JSON object (e.g. WASM `evalFELWithContext` payload).
 ///
 /// Recognized keys: `nowIso` / `now_iso`, `fields`, `variables`, `mipStates` / `mip_states`,
-/// `repeatContext` / `repeat_context`, `instances`.
+/// `repeatContext` / `repeat_context`, `instances`, `locale`, `meta`.
 pub fn formspec_environment_from_json_map(ctx: &Map<String, Value>) -> FormspecEnvironment {
     let mut env = FormspecEnvironment::new();
 
@@ -104,6 +104,16 @@ pub fn formspec_environment_from_json_map(ctx: &Map<String, Value>) -> FormspecE
     if let Some(instances) = ctx.get("instances").and_then(|v| v.as_object()) {
         for (k, v) in instances {
             env.set_instance(k, json_to_fel(v));
+        }
+    }
+
+    if let Some(locale) = ctx.get("locale").and_then(|v| v.as_str()) {
+        env.set_locale(locale);
+    }
+
+    if let Some(meta) = ctx.get("meta").and_then(|v| v.as_object()) {
+        for (k, v) in meta {
+            env.set_meta(k, json_to_fel(v));
         }
     }
 

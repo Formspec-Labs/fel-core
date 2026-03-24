@@ -414,6 +414,24 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         signature: "instance(string, string?) -> any",
         description: "Reads data from a named instance, optionally at a dotted path.",
     },
+    BuiltinFunctionCatalogEntry {
+        name: "locale",
+        category: "locale",
+        signature: "locale() -> string",
+        description: "Returns the active locale code (BCP 47) from the runtime context.",
+    },
+    BuiltinFunctionCatalogEntry {
+        name: "runtimeMeta",
+        category: "locale",
+        signature: "runtimeMeta(string) -> any",
+        description: "Reads a value from the runtime metadata bag set by the host.",
+    },
+    BuiltinFunctionCatalogEntry {
+        name: "pluralCategory",
+        category: "locale",
+        signature: "pluralCategory(number, string?) -> string",
+        description: "Returns the CLDR cardinal plural category (zero/one/two/few/many/other) for a count and optional locale.",
+    },
 ];
 
 /// Slice of all built-in functions (names reserved for [`ExtensionRegistry::register`]).

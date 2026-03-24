@@ -64,6 +64,8 @@ impl Default for MipState {
 /// - MIP state queries via `valid()`, `relevant()`, etc.
 /// - Definition variables via `@variableName`
 /// - Mapping context via `@source`, `@target`
+/// - Locale via `locale()` and `pluralCategory()`
+/// - Runtime metadata via `runtimeMeta(key)`
 pub struct FormspecEnvironment {
     /// Primary data dict — backs `$field` references.
     pub data: HashMap<String, FelValue>,
@@ -77,6 +79,10 @@ pub struct FormspecEnvironment {
     pub repeat_context: Option<RepeatContext>,
     /// Current runtime date for today()/now().
     pub current_datetime: Option<FelDate>,
+    /// Active locale code (BCP 47) — backs `locale()` and default for `pluralCategory()`.
+    pub locale: Option<String>,
+    /// Runtime metadata bag — backs `runtimeMeta(key)`.
+    pub meta: HashMap<String, FelValue>,
 }
 
 impl FormspecEnvironment {
@@ -89,6 +95,8 @@ impl FormspecEnvironment {
             variables: HashMap::new(),
             repeat_context: None,
             current_datetime: None,
+            locale: None,
+            meta: HashMap::new(),
         }
     }
 
@@ -110,6 +118,16 @@ impl FormspecEnvironment {
     /// Set a variable value.
     pub fn set_variable(&mut self, name: &str, value: FelValue) {
         self.variables.insert(name.to_string(), value);
+    }
+
+    /// Set the active locale code (BCP 47).
+    pub fn set_locale(&mut self, code: &str) {
+        self.locale = Some(code.to_string());
+    }
+
+    /// Set a runtime metadata value.
+    pub fn set_meta(&mut self, key: &str, value: FelValue) {
+        self.meta.insert(key.to_string(), value);
     }
 
     /// Set the current runtime datetime from an ISO string.
@@ -375,6 +393,14 @@ impl Environment for FormspecEnvironment {
 
     fn current_datetime(&self) -> Option<FelDate> {
         self.current_datetime.clone()
+    }
+
+    fn locale(&self) -> Option<&str> {
+        self.locale.as_deref()
+    }
+
+    fn runtime_meta(&self, key: &str) -> FelValue {
+        self.meta.get(key).cloned().unwrap_or(FelValue::Null)
     }
 }
 
