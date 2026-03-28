@@ -244,10 +244,7 @@ impl<'a> Lexer<'a> {
                     self.advance();
                     Ok(Token::NotEq)
                 } else {
-                    Err(format!(
-                        "unexpected character '!' at position {}",
-                        self.pos - 1
-                    ))
+                    Ok(Token::Not)
                 }
             }
             '<' => {

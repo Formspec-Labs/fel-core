@@ -18,6 +18,7 @@ pub mod environment;
 pub mod error;
 pub mod evaluator;
 pub mod extensions;
+pub mod interpolation;
 pub mod lexer;
 pub mod parser;
 pub mod prepare_host;
@@ -40,6 +41,7 @@ pub use error::{
     undefined_function_names_from_diagnostics,
 };
 pub use evaluator::{Environment, EvalResult, Evaluator, MapEnvironment, evaluate};
+pub use interpolation::expr_is_interpolation_static_literal;
 pub use extensions::{
     BuiltinFunctionCatalogEntry, ExtensionError, ExtensionRegistry, builtin_function_catalog,
     builtin_function_catalog_json_value,
