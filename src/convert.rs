@@ -109,7 +109,7 @@ pub fn json_to_fel(val: &Value) -> FelValue {
 /// - `Number(n)` → `Value::Number` (integer when whole, f64 otherwise)
 /// - `String(s)` → `Value::String(s)`
 /// - `Date(d)` → `Value::String(d.format_iso())`
-/// - `Money { amount, currency }` → `{"$type": "money", "amount": <number>, "currency": <string>}`
+/// - `Money { amount, currency }` → `{"$type": "money", "amount": <string>, "currency": <string>}`
 /// - `Array(arr)` → `Value::Array` (recursive)
 /// - `Object(entries)` → `Value::Object` (recursive)
 pub fn fel_to_json(val: &FelValue) -> Value {
@@ -142,7 +142,7 @@ pub fn fel_to_json(val: &FelValue) -> Value {
             map.insert("$type".to_string(), Value::String("money".to_string()));
             map.insert(
                 "amount".to_string(),
-                fel_to_json(&FelValue::Number(m.amount)),
+                Value::String(m.amount.normalize().to_string()),
             );
             map.insert("currency".to_string(), Value::String(m.currency.clone()));
             Value::Object(map)
@@ -283,8 +283,7 @@ mod tests {
         let json = fel_to_json(&money);
         assert_eq!(json.get("$type"), Some(&json!("money")));
         assert_eq!(json.get("currency"), Some(&json!("USD")));
-        let amount = json.get("amount").and_then(|v| v.as_f64()).unwrap();
-        assert!((amount - 99.99).abs() < 0.01, "money amount: {amount}");
+        assert_eq!(json.get("amount"), Some(&json!("99.99")));
     }
 
     #[test]
