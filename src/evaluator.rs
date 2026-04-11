@@ -14,6 +14,7 @@ use unic_langid::LanguageIdentifier;
 
 use crate::ast::*;
 use crate::error::Diagnostic;
+use crate::iso_duration::{parse_iso8601_duration, IsoDurationParse};
 use crate::types::*;
 
 // ── Evaluation context ──────────────────────────────────────────
@@ -316,7 +317,8 @@ impl<'a> Evaluator<'a> {
     fn eval_field_ref(&mut self, name: &Option<String>, path: &[PathSegment]) -> FelValue {
         match name {
             None => {
-                // Check let-scopes for bare $ (used by countWhere)
+                // Check let-scopes for bare `$` (predicate rebound in countWhere / every / some
+                // and in *Where helpers via filter_where).
                 for scope in self.let_scopes.iter().rev() {
                     if let Some(val) = scope.get("$") {
                         return if path.is_empty() {
@@ -840,6 +842,8 @@ impl<'a> Evaluator<'a> {
             "min" => self.fn_min_max(args, true),
             "max" => self.fn_min_max(args, false),
             "countWhere" => self.fn_count_where(args),
+            "every" => self.fn_every(args),
+            "some" => self.fn_some(args),
             "sumWhere" => self.fn_sum_where(args),
             "avgWhere" => self.fn_avg_where(args),
             "minWhere" => self.fn_min_where(args),
@@ -880,6 +884,7 @@ impl<'a> Evaluator<'a> {
             "seconds" => self.fn_time_part(args, 2),
             "time" => self.fn_time(args),
             "timeDiff" => self.fn_time_diff(args),
+            "duration" => self.fn_duration(args),
             "dateDiff" => self.fn_date_diff(args),
             "dateAdd" => self.fn_date_add(args),
 
@@ -1107,7 +1112,51 @@ impl<'a> Evaluator<'a> {
         FelValue::Number(dec(count))
     }
 
-    /// Filter array elements by predicate (shared by *Where functions).
+    fn fn_every(&mut self, args: &[Expr]) -> FelValue {
+        if args.len() < 2 {
+            self.diag("every: requires 2 arguments");
+            return FelValue::Null;
+        }
+        let arr_val = self.eval(&args[0]);
+        let arr = match self.get_array(&arr_val, "every") {
+            Some(a) => a,
+            None => return FelValue::Null,
+        };
+        for elem in &arr {
+            self.let_scopes
+                .push(HashMap::from([("$".to_string(), elem.clone())]));
+            let pred = self.eval(&args[1]);
+            self.let_scopes.pop();
+            if !pred.is_truthy() {
+                return FelValue::Boolean(false);
+            }
+        }
+        FelValue::Boolean(true)
+    }
+
+    fn fn_some(&mut self, args: &[Expr]) -> FelValue {
+        if args.len() < 2 {
+            self.diag("some: requires 2 arguments");
+            return FelValue::Null;
+        }
+        let arr_val = self.eval(&args[0]);
+        let arr = match self.get_array(&arr_val, "some") {
+            Some(a) => a,
+            None => return FelValue::Null,
+        };
+        for elem in &arr {
+            self.let_scopes
+                .push(HashMap::from([("$".to_string(), elem.clone())]));
+            let pred = self.eval(&args[1]);
+            self.let_scopes.pop();
+            if pred.is_truthy() {
+                return FelValue::Boolean(true);
+            }
+        }
+        FelValue::Boolean(false)
+    }
+
+    /// Filter array elements by predicate (shared by sumWhere / avgWhere / minWhere / maxWhere / moneySumWhere).
     fn filter_where(&mut self, args: &[Expr], fn_name: &str) -> Option<Vec<FelValue>> {
         if args.len() < 2 {
             self.diag(format!("{fn_name}: requires 2 arguments"));
@@ -1523,6 +1572,31 @@ impl<'a> Evaluator<'a> {
             }
             _ => {
                 self.diag("timeDiff: invalid time strings");
+                FelValue::Null
+            }
+        }
+    }
+
+    fn fn_duration(&mut self, args: &[Expr]) -> FelValue {
+        let v = self.eval_arg(args, 0);
+        match v {
+            FelValue::String(s) => match parse_iso8601_duration(&s) {
+                IsoDurationParse::Milliseconds(ms) => FelValue::Number(dec(ms)),
+                IsoDurationParse::Invalid => {
+                    self.diag("duration: invalid ISO 8601 duration string");
+                    FelValue::Null
+                }
+                IsoDurationParse::OutOfRange => {
+                    self.diag("duration: duration exceeds representable range (milliseconds)");
+                    FelValue::Null
+                }
+            },
+            FelValue::Null => FelValue::Null,
+            _ => {
+                self.diag(format!(
+                    "duration: expected string, got {}",
+                    v.type_name()
+                ));
                 FelValue::Null
             }
         }

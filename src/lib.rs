@@ -18,6 +18,7 @@ pub mod environment;
 pub mod error;
 pub mod evaluator;
 pub mod extensions;
+pub mod iso_duration;
 pub mod interpolation;
 pub mod lexer;
 pub mod parser;
@@ -46,6 +47,7 @@ pub use extensions::{
     BuiltinFunctionCatalogEntry, ExtensionError, ExtensionRegistry, builtin_function_catalog,
     builtin_function_catalog_json_value,
 };
+pub use iso_duration::{parse_iso8601_duration, parse_iso8601_duration_ms, IsoDurationParse};
 pub use parser::parse;
 pub use prepare_host::{
     prepare_fel_expression_for_host, prepare_fel_expression_owned,

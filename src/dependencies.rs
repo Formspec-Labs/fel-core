@@ -41,7 +41,7 @@ fn walk(expr: &Expr, deps: &mut Dependencies, let_vars: &mut Vec<String>) {
         Expr::FieldRef { name, path } => {
             match name {
                 None => {
-                    // Bare $ is rebound inside countWhere predicates;
+                    // Bare `$` is rebound inside countWhere / every / some and *Where predicates;
                     // only mark self-ref if not suppressed.
                     if !let_vars.contains(&"$".to_string()) {
                         deps.has_self_ref = true;
@@ -124,7 +124,14 @@ fn walk(expr: &Expr, deps: &mut Dependencies, let_vars: &mut Vec<String>) {
                         walk(arg, deps, let_vars);
                     }
                 }
-                "countWhere" => {
+                "countWhere"
+                | "every"
+                | "some"
+                | "sumWhere"
+                | "avgWhere"
+                | "minWhere"
+                | "maxWhere"
+                | "moneySumWhere" => {
                     // First arg: normal walk
                     if let Some(first) = args.first() {
                         walk(first, deps, let_vars);
@@ -441,11 +448,29 @@ mod tests {
         assert_eq!(d.fields.len(), 1);
     }
 
+    /// Spec: core/spec.md §3.5.1 — `every` rebinds `$` like `countWhere`.
+    #[test]
+    fn every_rebinds_bare_dollar() {
+        let d = deps("every($items, $ > 0)");
+        assert!(d.fields.contains("items"));
+        assert!(!d.has_self_ref);
+        assert_eq!(d.fields.len(), 1);
+    }
+
+    /// Spec: core/spec.md §3.5.1 — `sumWhere` rebinds `$` like `countWhere` (via `filter_where`).
+    #[test]
+    fn sum_where_rebinds_bare_dollar() {
+        let d = deps("sumWhere($items, $ > 0)");
+        assert!(d.fields.contains("items"));
+        assert!(!d.has_self_ref);
+        assert_eq!(d.fields.len(), 1);
+    }
+
     /// Spec: core/spec.md §3.6.1 — deeply nested function calls (3+ levels)
     /// must recursively extract all deps.
     #[test]
     fn deeply_nested_function_calls_extract_all_deps() {
-        let d = deps("sum(round($a + $b) + countWhere($items, $ > $threshold))");
+        let d = deps("sum(round($a + $b) + every($items, $ > $threshold))");
         assert!(d.fields.contains("a"));
         assert!(d.fields.contains("b"));
         assert!(d.fields.contains("items"));

@@ -577,6 +577,68 @@ fn test_count_where() {
     assert_eq!(eval("countWhere([1, 2, 3], $ = 2)"), num(1));
 }
 
+// ── every / some (spec §3.5.1) ──────────────────────────────────
+
+#[test]
+fn test_every_some_basic() {
+    assert_eq!(eval("every([1, 2, 3], $ > 0)"), FelValue::Boolean(true));
+    assert_eq!(eval("every([1, 0, 3], $ > 0)"), FelValue::Boolean(false));
+    assert_eq!(eval("some([0, 2, 0], $ > 1)"), FelValue::Boolean(true));
+    assert_eq!(eval("some([0, 1], $ > 5)"), FelValue::Boolean(false));
+}
+
+#[test]
+fn test_every_some_empty_array() {
+    assert_eq!(eval("every([], $ > 0)"), FelValue::Boolean(true));
+    assert_eq!(eval("some([], $ > 0)"), FelValue::Boolean(false));
+}
+
+#[test]
+fn test_duration_ms() {
+    assert_eq!(eval("duration('PT1H')"), num(3_600_000));
+    assert_eq!(eval("duration('P1D')"), num(86_400_000));
+    assert_eq!(eval("duration('PT0.5S')"), num(500));
+    assert_eq!(eval("duration('-PT1M')"), num(-60_000));
+}
+
+#[test]
+fn test_duration_invalid_vs_out_of_range_diagnostics() {
+    let env = MapEnvironment::new();
+    let expr_invalid = parse("duration('P')").unwrap();
+    let r_inv = evaluate(&expr_invalid, &env);
+    assert!(r_inv.value.is_null());
+    assert!(
+        r_inv.diagnostics.iter().any(|d| d.message == "duration: invalid ISO 8601 duration string"),
+        "invalid shape should use invalid-string diagnostic, got {:?}",
+        r_inv.diagnostics
+    );
+
+    let expr_range = parse("duration('P106751991167301D')").unwrap();
+    let r_or = evaluate(&expr_range, &env);
+    assert!(r_or.value.is_null());
+    assert!(
+        r_or.diagnostics.iter().any(|d| {
+            d.message == "duration: duration exceeds representable range (milliseconds)"
+        }),
+        "overflow should use range diagnostic, got {:?}",
+        r_or.diagnostics
+    );
+}
+
+/// Spec: core/spec.md §3.5.1 — predicate `$` may be an object; `$.field` resolves on the element.
+#[test]
+fn test_quantifier_predicates_with_object_elements() {
+    assert_eq!(
+        eval("every([{amount: 1}, {amount: 2}], $.amount > 0)"),
+        FelValue::Boolean(true)
+    );
+    assert_eq!(
+        eval("some([{ok: false}, {ok: true}], $.ok)"),
+        FelValue::Boolean(true)
+    );
+    assert_eq!(eval("countWhere([{v: 10}, {v: 20}], $.v > 15)"), num(1));
+}
+
 // ── Aggregate functions on empty arrays (spec §3.5.1) ───────────
 
 /// Spec: core/spec.md §3.5.1 (lines 1220-1225) — sum([]) must return 0.

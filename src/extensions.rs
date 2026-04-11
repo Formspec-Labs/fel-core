@@ -109,6 +109,18 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Returns the largest array element for which the expression evaluates to true. `$` is rebound to each element; the expression is NOT pre-evaluated. E.g. `maxWhere($items[*].price, $ < 1000)`.",
     },
     BuiltinFunctionCatalogEntry {
+        name: "every",
+        category: "aggregate",
+        signature: "every(array<any>, expression) -> boolean",
+        description: "True if the array is empty or the expression is true for every element. `$` is rebound to each element; the expression is NOT pre-evaluated. E.g. `every($amounts, $ > 0)`.",
+    },
+    BuiltinFunctionCatalogEntry {
+        name: "some",
+        category: "aggregate",
+        signature: "some(array<any>, expression) -> boolean",
+        description: "True if any element satisfies the expression. `$` is rebound to each element; the expression is NOT pre-evaluated. `some([], expr)` is false. E.g. `some($flags, $ = true)`.",
+    },
+    BuiltinFunctionCatalogEntry {
         name: "moneySumWhere",
         category: "money",
         signature: "moneySumWhere(array<money>, expression) -> money",
@@ -269,6 +281,12 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         category: "date",
         signature: "timeDiff(laterTime, earlierTime) -> number",
         description: "Returns the difference in seconds between laterTime and earlierTime.",
+    },
+    BuiltinFunctionCatalogEntry {
+        name: "duration",
+        category: "date",
+        signature: "duration(string) -> number",
+        description: "Parses an ISO 8601 duration (PnYnMnDTnHnMnS subset) and returns its length in milliseconds. Fixed year/month lengths (365 and 30 days) apply in the date component — not calendar arithmetic.",
     },
     BuiltinFunctionCatalogEntry {
         name: "dateDiff",
