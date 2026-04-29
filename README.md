@@ -129,7 +129,7 @@ cargo clippy -p fel-core --no-deps -- -D clippy::missing_docs_in_private_items
 ## Tests
 
 ```bash
-cargo test -p fel-core
+cargo nextest run -p fel-core
 ```
 
 Integration-style suites live under `crates/fel-core/tests/`.
