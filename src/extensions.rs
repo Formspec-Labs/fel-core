@@ -84,6 +84,7 @@ impl FelType {
 }
 
 /// One parameter in a built-in function signature.
+#[non_exhaustive]
 pub struct Parameter {
     /// Parameter name.
     pub name: &'static str,
@@ -100,6 +101,7 @@ pub struct Parameter {
 }
 
 /// One worked example attached to a built-in function.
+#[non_exhaustive]
 pub struct Example {
     /// FEL expression demonstrating the function.
     pub expression: &'static str,
@@ -114,6 +116,7 @@ pub struct Example {
 ///
 /// This is the canonical source of truth for the FEL function catalog.
 /// Emit [`emit_schema_json`] to regenerate `formspec/schemas/fel-functions.schema.json`.
+#[non_exhaustive]
 pub struct BuiltinFunctionCatalogEntry {
     /// Function name as used in FEL source.
     pub name: &'static str,
@@ -132,6 +135,10 @@ pub struct BuiltinFunctionCatalogEntry {
     pub null_handling: Option<&'static str>,
     /// False if the function can return different results for the same arguments.
     pub deterministic: bool,
+    /// True if `deterministic` should be emitted explicitly in the catalog JSON even when the
+    /// value is `true` (the default). Used for entries whose canonical schema records the field
+    /// explicitly for clarity (e.g., `pluralCategory`).
+    pub emit_deterministic_explicitly: bool,
     /// True if the function evaluates arguments lazily.
     pub short_circuit: bool,
     /// Worked examples.
@@ -186,6 +193,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Sums all numeric elements in the array. Extracts .amount from money objects. Non-finite values treated as 0.",
         null_handling: Some("Null elements are skipped. Null argument returns 0."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "sum($items[*].amount)", result_json: "1500", note: None },
@@ -211,6 +219,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Returns the number of elements in the array, including nulls.",
         null_handling: Some("Null argument returns 0. Null elements ARE counted."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "count($items[*].name)", result_json: "3", note: None },
@@ -245,6 +254,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Counts array elements for which the predicate evaluates to true. The predicate receives each element via '$' (the self-reference is rebound per element). Special argument handling: the predicate is NOT pre-evaluated — it is evaluated once per element.",
         null_handling: Some("Null array returns 0. Null predicate result counts as false."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: true,
         examples: &[
             Example { expression: "countWhere($items[*].amount, $ > 100)", result_json: "2", note: None },
@@ -279,6 +289,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Sums numeric array elements for which the predicate evaluates to true. The predicate is NOT pre-evaluated — it is evaluated once per element.",
         null_handling: Some("Null array returns null. Non-numeric matches are skipped. No numeric matches returns 0."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: true,
         examples: &[
             Example { expression: "sumWhere([1, 2, 3, 4], $ > 2)", result_json: "7", note: None },
@@ -312,6 +323,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Arithmetic mean of numeric elements for which the predicate is true. Returns null when no elements match.",
         null_handling: Some("Null array returns null. No matches returns null."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: true,
         examples: &[
             Example { expression: "avgWhere([40, 50, 60], $ >= 50)", result_json: "55", note: None },
@@ -345,6 +357,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Smallest element among those satisfying the predicate. Also applies to dates and strings.",
         null_handling: Some("Null array returns null. No matches returns null."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: true,
         examples: &[
             Example { expression: "minWhere([3, 1, 4], $ > 0)", result_json: "1", note: None },
@@ -378,6 +391,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Largest element among those satisfying the predicate. Also applies to dates and strings.",
         null_handling: Some("Null array returns null. No matches returns null."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: true,
         examples: &[
             Example { expression: "maxWhere([3, 1, 4], $ < 4)", result_json: "3", note: None },
@@ -411,6 +425,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "True if the array is empty or the predicate is true for every element. The predicate is NOT pre-evaluated — it is evaluated once per element.",
         null_handling: Some("Null array returns null. Null predicate result is not true (element fails every, does not satisfy some)."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: true,
         examples: &[
             Example { expression: "every([1, 2, 3], $ > 0)", result_json: "true", note: None },
@@ -445,6 +460,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "True if at least one element satisfies the predicate. The predicate is NOT pre-evaluated — it is evaluated once per element.",
         null_handling: Some("Null array returns null. Null predicate result counts as false."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: true,
         examples: &[
             Example { expression: "some([0, 2, 4], $ > 3)", result_json: "true", note: None },
@@ -469,6 +485,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Arithmetic mean of all finite numeric elements. Skips nulls and non-numeric values.",
         null_handling: Some("Null/non-numeric elements skipped. Empty array or all-null returns 0."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "avg([10, 20, 30])", result_json: "20", note: None },
@@ -493,6 +510,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Returns the smallest finite numeric value in the array.",
         null_handling: Some("Null/non-numeric elements skipped. Empty array returns 0."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "min([5, 2, 8])", result_json: "2", note: None },
@@ -517,6 +535,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Returns the largest finite numeric value in the array.",
         null_handling: Some("Null/non-numeric elements skipped. Empty array returns 0."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "max([5, 2, 8])", result_json: "8", note: None },
@@ -541,6 +560,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Returns the number of characters in the string.",
         null_handling: Some("Null returns 0."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "length('hello')", result_json: "5", note: None },
@@ -576,6 +596,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Returns true if haystack contains needle. Case-sensitive.",
         null_handling: Some("Null haystack treated as empty string."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "contains('hello world', 'world')", result_json: "true", note: None },
@@ -610,6 +631,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Returns true if value starts with prefix. Case-sensitive.",
         null_handling: Some("Null value treated as empty string."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "startsWith($url, 'https://')", result_json: "true", note: None },
@@ -643,6 +665,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Returns true if value ends with suffix. Case-sensitive.",
         null_handling: Some("Null value treated as empty string."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "endsWith($email, '.gov')", result_json: "true", note: None },
@@ -684,6 +707,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Extracts a substring starting at the 1-based position. If length is omitted, extracts to the end of the string.",
         null_handling: Some("Null value treated as empty string."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "substring('abcdef', 2, 3)", result_json: "\"bcd\"", note: None },
@@ -726,6 +750,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Replaces ALL occurrences of the search literal with the replacement. Not regex — literal string match only.",
         null_handling: Some("Null value treated as empty string."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "replace('hello world', 'world', 'there')", result_json: "\"hello there\"", note: None },
@@ -750,6 +775,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Converts string to uppercase.",
         null_handling: Some("Null treated as empty string, returns empty string."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "upper('hello')", result_json: "\"HELLO\"", note: None },
@@ -773,6 +799,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Converts string to lowercase.",
         null_handling: Some("Null treated as empty string, returns empty string."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "lower('HELLO')", result_json: "\"hello\"", note: None },
@@ -796,6 +823,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Removes leading and trailing whitespace.",
         null_handling: Some("Null treated as empty string, returns empty string."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "trim('  hello  ')", result_json: "\"hello\"", note: None },
@@ -829,6 +857,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Returns true if the string matches the regular expression pattern. Pattern syntax follows the host language's regex engine (ECMA-262 for TypeScript, Python re for Python).",
         null_handling: Some("Null value treated as empty string."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "matches($ein, '^[0-9]{2}-[0-9]{7}$')", result_json: "true", note: None },
@@ -863,6 +892,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Positional string interpolation. Replaces {0}, {1}, etc. in the template with stringified arguments. Null arguments become empty string. Numbers strip trailing zeros. Booleans become 'true'/'false'.",
         null_handling: Some("Null template returns empty string. Null arguments substituted as empty string."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "format('{0} of {1}', $current, $total)", result_json: "\"3 of 10\"", note: None },
@@ -898,6 +928,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Rounds to the specified number of decimal places using banker's rounding (round half to even).",
         null_handling: Some("Null treated as 0."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "round(3.456, 2)", result_json: "3.46", note: None },
@@ -923,6 +954,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Returns the largest integer less than or equal to the value.",
         null_handling: Some("Null treated as 0."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "floor(3.7)", result_json: "3", note: None },
@@ -947,6 +979,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Returns the smallest integer greater than or equal to the value.",
         null_handling: Some("Null treated as 0."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "ceil(3.2)", result_json: "4", note: None },
@@ -971,6 +1004,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Returns the absolute value of the number.",
         null_handling: Some("Null treated as 0."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "abs(-42)", result_json: "42", note: None },
@@ -1005,6 +1039,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Returns base raised to the power of exponent.",
         null_handling: Some("Null arguments treated as 0."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "power(2, 10)", result_json: "1024", note: None },
@@ -1023,6 +1058,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Returns the current date as an ISO 8601 date string (YYYY-MM-DD). Non-deterministic.",
         null_handling: Some("N/A — no parameters."),
         deterministic: false,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "today()", result_json: "\"2025-07-10\"", note: None },
@@ -1039,6 +1075,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Returns the current date and time as an ISO 8601 dateTime string. Non-deterministic.",
         null_handling: Some("N/A — no parameters."),
         deterministic: false,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "now()", result_json: "\"2025-07-10T14:30:00.000Z\"", note: None },
@@ -1062,6 +1099,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Extracts the 4-digit year from a date.",
         null_handling: Some("Null returns null."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "year(@2025-07-10)", result_json: "2025", note: None },
@@ -1086,6 +1124,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Extracts the month (1-12) from a date.",
         null_handling: Some("Null returns null."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "month(@2025-07-10)", result_json: "7", note: None },
@@ -1109,6 +1148,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Extracts the day of month (1-31) from a date.",
         null_handling: Some("Null returns null."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "day(@2025-07-10)", result_json: "10", note: None },
@@ -1132,6 +1172,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Extracts the hour component (0-23) from a dateTime or time value.",
         null_handling: Some("Null returns null."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "hours(@2025-07-10T14:30:00Z)", result_json: "14", note: None },
@@ -1155,6 +1196,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Extracts the minute component (0-59) from a dateTime or time value.",
         null_handling: Some("Null returns null."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "minutes(@2025-07-10T14:30:00Z)", result_json: "30", note: None },
@@ -1178,6 +1220,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Extracts the second component (0-59) from a dateTime or time value.",
         null_handling: Some("Null returns null."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "seconds(@2025-07-10T14:30:45Z)", result_json: "45", note: None },
@@ -1219,6 +1262,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Constructs an HH:MM:SS time string from numeric components.",
         null_handling: Some("Null components treated as 0."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "time(14, 30, 0)", result_json: "\"14:30:00\"", note: None },
@@ -1261,6 +1305,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Returns the difference date1 - date2 in the specified unit. Result is positive when date1 > date2, negative when date1 < date2. For months/years, incomplete periods are truncated (not rounded).",
         null_handling: Some("Null or invalid dates return null."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "dateDiff(@2025-07-10, @2025-01-01, 'days')", result_json: "190", note: None },
@@ -1304,6 +1349,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Adds the specified number of units to a date. Negative values subtract. Month/year arithmetic handles end-of-month overflow per the host language's Date implementation.",
         null_handling: Some("Null date returns null."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "dateAdd(@2025-01-15, 30, 'days')", result_json: "\"2025-02-14\"", note: None },
@@ -1339,6 +1385,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Difference in seconds between two time-of-day strings. Distinct from duration(), which parses an ISO 8601 duration and returns milliseconds.",
         null_handling: Some("Invalid time strings produce a diagnostic and null."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "timeDiff('14:30:00', '13:00:00')", result_json: "5400", note: None },
@@ -1363,6 +1410,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Parses a duration string and returns its length in milliseconds. Years/months in the date part use fixed 365-day years and 30-day months (not calendar arithmetic). Distinct from timeDiff, which compares two clock times in seconds.",
         null_handling: Some("Null argument returns null. Invalid strings produce an error diagnostic and null."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "duration('PT1H')", result_json: "3600000", note: None },
@@ -1406,6 +1454,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Conditional function. Returns thenValue when condition is true, elseValue when false. Only the selected branch is evaluated (short-circuit). Alternative syntax: 'if cond then a else b' (keyword form). Note: 'if' is a reserved word; this function is special-cased in the parser.",
         null_handling: Some("Null condition is an evaluation error."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: true,
         examples: &[
             Example { expression: "if($age >= 18, 'adult', 'minor')", result_json: "\"adult\"", note: None },
@@ -1430,6 +1479,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Returns the first argument that is not null, undefined, or empty string. If all arguments are null/empty, returns null.",
         null_handling: Some("Core purpose is null handling — returns first non-null, non-empty value."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "coalesce($preferredName, $firstName, 'Unknown')", result_json: "\"Alice\"", note: None },
@@ -1454,6 +1504,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Returns true if the value is null, undefined, empty string (''), or an empty array ([]). Broader than a simple null check.",
         null_handling: Some("Null returns true (that's the point)."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "empty(null)", result_json: "true", note: None },
@@ -1481,6 +1532,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Inverse of empty(). Returns true if the value is non-null, non-empty-string, and non-empty-array.",
         null_handling: Some("Null returns false."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "present($email)", result_json: "true", note: None },
@@ -1516,6 +1568,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "For multiChoice (array): returns true if the option is included in the array. For choice (string): returns true if value equals option. Designed for testing selected options in choice/multiChoice fields.",
         null_handling: Some("Null value returns false."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "selected($categories, 'personnel')", result_json: "true", note: Some("multiChoice field") },
@@ -1541,6 +1594,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Returns true if the value is a finite number (not NaN).",
         null_handling: Some("Null returns false."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "isNumber(42)", result_json: "true", note: None },
@@ -1565,6 +1619,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Returns true if the value is a string.",
         null_handling: Some("Null returns false."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "isString('hello')", result_json: "true", note: None },
@@ -1589,6 +1644,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Returns true if the value can be parsed as a valid date.",
         null_handling: Some("Null returns false."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "isDate('2025-07-10')", result_json: "true", note: None },
@@ -1613,6 +1669,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Returns true if the value is null, undefined, or empty string. Note: broader than a strict null check — empty string is also considered 'null' in FEL.",
         null_handling: Some("Null returns true (that's the point)."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "isNull(null)", result_json: "true", note: None },
@@ -1638,6 +1695,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Returns the FEL type name of the value.",
         null_handling: Some("Null returns 'null'."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "typeOf(42)", result_json: "\"number\"", note: None },
@@ -1664,6 +1722,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Explicit type cast to number. Strings are parsed as numbers. Returns null if coercion fails.",
         null_handling: Some("Null returns null."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "number('42')", result_json: "42", note: None },
@@ -1689,6 +1748,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Explicit type cast to string. Null becomes empty string. Numbers, booleans, and dates are stringified.",
         null_handling: Some("Null returns empty string ''."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "string(42)", result_json: "\"42\"", note: None },
@@ -1714,6 +1774,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Explicit type cast to boolean. Accepts: booleans (pass-through), numbers (0 = false, non-zero = true), strings 'true'/'false'. Other values produce an evaluation error.",
         null_handling: Some("Null returns false."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "boolean(1)", result_json: "true", note: None },
@@ -1740,6 +1801,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Validates and returns the input as an ISO 8601 date string. If the input is not a valid date, produces an evaluation error.",
         null_handling: Some("Null returns null."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "date('2025-07-10')", result_json: "\"2025-07-10\"", note: None },
@@ -1774,6 +1836,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Constructs a money object from an amount and currency code.",
         null_handling: Some("Null arguments produce a money object with null/undefined fields."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "money(50000, 'USD')", result_json: "{\"amount\": 50000, \"currency\": \"USD\"}", note: None },
@@ -1798,6 +1861,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Extracts the numeric amount from a money object.",
         null_handling: Some("Null or non-money value returns null."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "moneyAmount($budget)", result_json: "50000", note: None },
@@ -1821,6 +1885,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Extracts the currency code from a money object.",
         null_handling: Some("Null or non-money value returns null."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "moneyCurrency($budget)", result_json: "\"USD\"", note: None },
@@ -1854,6 +1919,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Adds two money objects. Uses the currency from the first non-null operand. Per the spec, both operands SHOULD have the same currency; implementations MAY error on mismatched currencies.",
         null_handling: Some("Null operand returns null."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "moneyAdd(money(100, 'USD'), money(250, 'USD'))", result_json: "{\"amount\": 350, \"currency\": \"USD\"}", note: None },
@@ -1877,6 +1943,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Sums an array of money objects. Returns a money object with the currency from the first element. All elements SHOULD have the same currency.",
         null_handling: Some("Null elements skipped. Empty array returns null."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "moneySum($lineItems[*].cost)", result_json: "{\"amount\": 1500, \"currency\": \"USD\"}", note: None },
@@ -1910,6 +1977,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Sums money array elements for which the predicate evaluates to true. Matched elements MUST share the same currency. The predicate is NOT pre-evaluated — it is evaluated once per element.",
         null_handling: Some("Null array returns null. No matches returns null."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: true,
         examples: &[
             Example { expression: "moneySumWhere([money(100,'USD'), money(200,'USD')], moneyAmount($) > 50)", result_json: "{\"amount\": 300, \"currency\": \"USD\"}", note: None },
@@ -1927,6 +1995,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Returns the active BCP 47 locale tag from the evaluation context.",
         null_handling: Some("When the host has not set a locale, returns null."),
         deterministic: false,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "locale()", result_json: "\"en-US\"", note: None },
@@ -1950,6 +2019,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Reads a value from runtime metadata supplied by the host.",
         null_handling: Some("Missing key returns null."),
         deterministic: false,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "runtimeMeta('tenantId')", result_json: "\"acme-42\"", note: None },
@@ -1983,6 +2053,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Returns the CLDR cardinal plural category (zero, one, two, few, many, other) for the count and locale.",
         null_handling: Some("Null count returns null."),
         deterministic: true,
+        emit_deterministic_explicitly: true,
         short_circuit: false,
         examples: &[
             Example { expression: "pluralCategory(1)", result_json: "\"one\"", note: None },
@@ -2008,6 +2079,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Returns true if the field at the given path has zero validation errors. The argument is a field reference path, not a general expression — the parser extracts it as a literal string rather than evaluating it.",
         null_handling: Some("N/A — path is a literal reference."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "valid($totalBudget)", result_json: "true", note: None },
@@ -2032,6 +2104,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Returns the computed relevance (visibility) state of the field at the given path. True means the field is visible/active.",
         null_handling: Some("N/A — path is a literal reference."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "relevant($spouseInfo)", result_json: "false", note: None },
@@ -2055,6 +2128,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Returns the computed readonly state of the field at the given path.",
         null_handling: Some("N/A — path is a literal reference."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "readonly($approvedAmount)", result_json: "true", note: None },
@@ -2078,6 +2152,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Returns the computed required state of the field at the given path.",
         null_handling: Some("N/A — path is a literal reference."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "required($email)", result_json: "true", note: None },
@@ -2102,6 +2177,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Returns the value of the named field from the previous repeat instance (index - 1). Must be called within a repeat context. Returns null if at the first instance or not inside a repeat.",
         null_handling: Some("Returns null when no previous instance exists."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "prev('runningTotal')", result_json: "500", note: Some("Value from previous row") },
@@ -2125,6 +2201,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Returns the value of the named field from the next repeat instance (index + 1). Must be called within a repeat context. Returns null if at the last instance or not inside a repeat.",
         null_handling: Some("Returns null when no next instance exists."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "next('amount')", result_json: "200", note: Some("Peek at next row's value") },
@@ -2148,6 +2225,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Walks up the path hierarchy from the current item and returns the value of the first ancestor field matching the given name. Useful for accessing enclosing group data from within nested repeats.",
         null_handling: Some("Returns null if no ancestor field with that name is found."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "parent('projectName')", result_json: "\"Infrastructure Upgrade\"", note: None },
@@ -2183,6 +2261,7 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         description: "Retrieves data from a named secondary instance. Typically invoked via the '@instance(\"name\")' context reference syntax in FEL, which the parser translates to this function call. The optional path parameter drills into the instance data.",
         null_handling: Some("Returns null/undefined if instance name not found or path doesn't exist."),
         deterministic: true,
+        emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
             Example { expression: "@instance('priorYear').totalExpenditure", result_json: "200000", note: None },
@@ -2248,9 +2327,15 @@ fn emit_function_entry(e: &BuiltinFunctionCatalogEntry) -> serde_json::Value {
     if let Some(nh) = e.null_handling {
         obj.insert("nullHandling".into(), serde_json::Value::String(nh.into()));
     }
-    // Emit `deterministic` when it differs from the default (true) or is explicitly stated in the
-    // canonical schema for clarity (only `pluralCategory` does so with value `true`).
-    if !e.deterministic || e.name == "pluralCategory" {
+    if e.since_version != "1.0" {
+        obj.insert(
+            "sinceVersion".into(),
+            serde_json::Value::String(e.since_version.to_string()),
+        );
+    }
+    // Emit `deterministic` when it differs from the default (true) or when the entry opts in to
+    // explicit emission for canonical-schema clarity (`emit_deterministic_explicitly`).
+    if !e.deterministic || e.emit_deterministic_explicitly {
         obj.insert("deterministic".into(), serde_json::Value::Bool(e.deterministic));
     }
     if e.short_circuit {
@@ -2404,12 +2489,10 @@ pub fn builtin_function_catalog() -> &'static [BuiltinFunctionCatalogEntry] {
     BUILTIN_FUNCTIONS
 }
 
-/// Built-in catalog as a JSON value for WASM / tooling.
-///
-/// Emits the full schema envelope (matching `formspec/schemas/fel-functions.schema.json`).
-/// Use [`emit_schema_json`] for the complete schema document.
+/// Returns a JSON array of all builtin function entries (compact form, suitable for tooling that
+/// iterates the catalog). For the full normative schema document, use [`emit_schema_json`].
 pub fn builtin_function_catalog_json_value() -> serde_json::Value {
-    emit_schema_json()
+    serde_json::Value::Array(BUILTIN_FUNCTIONS.iter().map(emit_function_entry).collect())
 }
 
 /// Catalog filtered to entries reachable from `package`.

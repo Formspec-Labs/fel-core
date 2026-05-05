@@ -5,33 +5,15 @@
 //! silently break tooling that consumes the catalog (wos-lint, WASM surfaces,
 //! IDE autocomplete).
 
-use fel_core::{
-    BuiltinFunctionCatalogEntry, FelType, MapEnvironment, Package, builtin_function_catalog,
-    evaluate, parse,
-};
-
-// Fake entry used only by `gate_fires_for_fake_entry` to verify the assertion logic.
-static FAKE_ENTRY: BuiltinFunctionCatalogEntry = BuiltinFunctionCatalogEntry {
-    name: "thisDoesNotExist",
-    category: "aggregate",
-    parameters: &[],
-    returns: FelType::Number,
-    return_description: None,
-    description: "Fake entry to verify the gate fires.",
-    null_handling: None,
-    deterministic: true,
-    short_circuit: false,
-    examples: &[],
-    since_version: "1.0",
-    package: Package::Universal,
-};
+use fel_core::{MapEnvironment, builtin_function_catalog, evaluate, parse};
 
 #[test]
 #[should_panic(expected = "has no dispatch arm — diagnostic")]
 fn gate_fires_for_fake_entry() {
+    // Use a name that is definitely not in the catalog to verify the assertion logic.
     let env = MapEnvironment::new();
-    let entry = &FAKE_ENTRY;
-    let expr_src = format!("{}()", entry.name);
+    let fake_name = "thisDoesNotExist";
+    let expr_src = format!("{}()", fake_name);
     let parsed = parse(&expr_src).expect("parseable");
     let result = evaluate(&parsed, &env);
     for diag in &result.diagnostics {
@@ -39,7 +21,7 @@ fn gate_fires_for_fake_entry() {
         assert!(
             !s.to_lowercase().contains("undefined function"),
             "Catalog entry '{}' has no dispatch arm — diagnostic: {}",
-            entry.name,
+            fake_name,
             s
         );
     }
