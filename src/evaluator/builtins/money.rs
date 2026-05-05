@@ -1,0 +1,75 @@
+#![allow(clippy::missing_docs_in_private_items)]
+use crate::ast::*;
+use crate::types::*;
+
+use super::super::core::Evaluator;
+
+impl<'a> Evaluator<'a> {
+    // ── Money helpers ───────────────────────────────────────────
+
+    pub(in crate::evaluator) fn fn_money(&mut self, args: &[Expr]) -> Value {
+        let amount = match self.eval_arg(args, 0) {
+            Value::Number(n) => n,
+            _ => return Value::Null,
+        };
+        let currency = match self.eval_arg(args, 1) {
+            Value::String(s) => s,
+            _ => return Value::Null,
+        };
+        Value::Money(Money { amount, currency })
+    }
+
+    pub(in crate::evaluator) fn fn_money_add(&mut self, args: &[Expr]) -> Value {
+        let a = match self.eval_arg(args, 0) {
+            Value::Money(m) => m,
+            _ => return Value::Null,
+        };
+        let b = match self.eval_arg(args, 1) {
+            Value::Money(m) => m,
+            _ => return Value::Null,
+        };
+        if a.currency != b.currency {
+            self.diag("moneyAdd: currency mismatch");
+            return Value::Null;
+        }
+        Value::Money(Money {
+            amount: a.amount + b.amount,
+            currency: a.currency,
+        })
+    }
+
+    pub(in crate::evaluator) fn fn_money_sum(&mut self, args: &[Expr]) -> Value {
+        let val = self.eval_arg(args, 0);
+        let arr = match self.get_array(&val, "moneySum") {
+            Some(a) => a,
+            None => return Value::Null,
+        };
+        let mut total: Option<Money> = None;
+        for elem in &arr {
+            match elem {
+                Value::Money(m) => match &total {
+                    None => total = Some(m.clone()),
+                    Some(t) => {
+                        if t.currency != m.currency {
+                            self.diag("moneySum: mixed currencies");
+                            return Value::Null;
+                        }
+                        total = Some(Money {
+                            amount: t.amount + m.amount,
+                            currency: t.currency.clone(),
+                        });
+                    }
+                },
+                Value::Null => {}
+                _ => {
+                    self.diag("moneySum: non-money element");
+                    return Value::Null;
+                }
+            }
+        }
+        match total {
+            Some(t) => Value::Money(t),
+            None => Value::Null,
+        }
+    }
+}
