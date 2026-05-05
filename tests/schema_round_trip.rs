@@ -2,7 +2,7 @@
 //! `formspec/schemas/fel-functions.schema.json` byte-for-byte (up to JSON
 //! semantic equivalence — key order in objects doesn't matter).
 
-const CANONICAL: &str = include_str!("../formspec/schemas/fel-functions.schema.json");
+const CANONICAL: &str = include_str!("../../formspec/schemas/fel-functions.schema.json");
 
 #[test]
 fn emitted_schema_matches_canonical() {
