@@ -10,7 +10,6 @@ pub enum Error {
     Eval(String),
 }
 
-#[allow(missing_docs)]
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -20,7 +19,6 @@ impl fmt::Display for Error {
     }
 }
 
-#[allow(missing_docs)]
 impl std::error::Error for Error {}
 
 /// A non-fatal diagnostic recorded during evaluation.

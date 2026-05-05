@@ -3,6 +3,7 @@ use rust_decimal::Decimal;
 use rust_decimal::prelude::*;
 
 use crate::ast::*;
+use crate::error::Diagnostic;
 use crate::iso_duration::{IsoDurationParse, parse_iso8601_duration};
 use crate::types::*;
 
@@ -99,7 +100,23 @@ impl<'a> Evaluator<'a> {
         let v = self.eval_arg(args, 0);
         match v {
             Value::String(s) => match parse_iso8601_duration(&s) {
-                IsoDurationParse::Milliseconds(ms) => Value::Number(dec(ms)),
+                IsoDurationParse::Milliseconds(ms) => {
+                    // Warn when the date component contains year (Y) or month (M before T).
+                    // These use nominal lengths (365d, 30d), not calendar arithmetic.
+                    let has_year = s.contains('Y');
+                    let has_date_month = {
+                        // 'M' before any 'T' is a month designator; after 'T' it is minutes.
+                        let t_pos = s.find('T').unwrap_or(s.len());
+                        s[..t_pos].contains('M')
+                    };
+                    if has_year || has_date_month {
+                        self.diagnostics.push(Diagnostic::warning(
+                            "duration: year/month components use nominal lengths (365d, 30d); \
+                             use dateAdd(\"years\"|\"months\", ...) for calendar arithmetic",
+                        ));
+                    }
+                    Value::Number(dec(ms))
+                }
                 IsoDurationParse::Invalid => {
                     self.diag("duration: invalid ISO 8601 duration string");
                     Value::Null

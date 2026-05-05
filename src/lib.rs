@@ -7,7 +7,7 @@
 //! - Human overview: crate `README.md` (architecture, pipeline, module map).
 //! - API reference: `cargo doc -p fel-core --no-deps --open`.
 //! - Markdown API export: `docs/rustdoc-md/API.md` (see crate README).
-#![warn(missing_docs)]
+#![deny(missing_docs)]
 #![warn(clippy::missing_docs_in_private_items)]
 
 pub mod ast;
@@ -58,7 +58,10 @@ pub use prepare_host::{
 pub use printer::print_expr;
 pub use rust_decimal::Decimal;
 pub use trace::{Trace, TraceStep};
-pub use types::{Date, Money, Value, parse_date_literal, parse_datetime_literal};
+pub use types::{
+    Date, Money, Value, civil_from_days_pub, days_from_civil_pub, days_in_month,
+    parse_date_literal, parse_datetime_literal,
+};
 pub use wire_style::JsonWireStyle;
 
 /// One lexeme from [`tokenize`] for host bindings and tooling (stable type names + source span).

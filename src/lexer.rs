@@ -6,64 +6,105 @@ use rust_decimal::Decimal;
 use rust_decimal::prelude::*;
 
 /// Lexical token for FEL source (literals, keywords, operators, punctuation).
-#[allow(missing_docs)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
     // Literals
+    /// Decimal number literal.
     Number(Decimal),
+    /// String literal (content without surrounding quotes).
     StringLit(String),
+    /// Boolean `true`.
     True,
+    /// Boolean `false`.
     False,
+    /// `null` literal.
     Null,
+    /// Date literal (`@YYYY-MM-DD`).
     DateLiteral(String),
+    /// Date-time literal (`@YYYY-MM-DDTHH:MM:SS`).
     DateTimeLiteral(String),
 
     // Identifiers and keywords
+    /// Unclassified name or function identifier.
     Identifier(String),
+    /// `let` keyword.
     Let,
+    /// `in` keyword (let binding body delimiter).
     In,
+    /// `if` keyword.
     If,
+    /// `then` keyword.
     Then,
+    /// `else` keyword.
     Else,
+    /// `and` keyword.
     And,
+    /// `or` keyword.
     Or,
+    /// `not` keyword.
     Not,
     /// `!` prefix (not followed by `=`). Semantically identical to `Not`
     /// but tracked separately for round-trip printer fidelity.
     Bang,
 
     // Operators
+    /// `+` addition.
     Plus,
+    /// `-` subtraction / negation.
     Minus,
+    /// `*` multiplication.
     Star,
+    /// `/` division.
     Slash,
+    /// `%` modulo.
     Percent,
+    /// `&` string concatenation.
     Ampersand,
-    Eq,    // = or ==
-    NotEq, // !=
+    /// `=` or `==` equality.
+    Eq,
+    /// `!=` inequality.
+    NotEq,
+    /// `<` less-than.
     Lt,
+    /// `>` greater-than.
     Gt,
+    /// `<=` less-than-or-equal.
     LtEq,
+    /// `>=` greater-than-or-equal.
     GtEq,
-    DoubleQuestion, // ??
-    Question,       // ?
+    /// `??` null-coalescing operator.
+    DoubleQuestion,
+    /// `?` conditional (ternary) operator.
+    Question,
 
     // Punctuation
+    /// `(` open parenthesis.
     LParen,
+    /// `)` close parenthesis.
     RParen,
+    /// `[` open bracket.
     LBracket,
+    /// `]` close bracket.
     RBracket,
+    /// `{` open brace.
     LBrace,
+    /// `}` close brace.
     RBrace,
+    /// `,` comma separator.
     Comma,
+    /// `.` member-access dot.
     Dot,
+    /// `:` key-value colon.
     Colon,
 
     // Special
+    /// `$` field reference prefix.
     Dollar,
+    /// `@` context reference prefix.
     At,
 
     // End
+    /// End-of-input sentinel.
     Eof,
 }
 

@@ -1,0 +1,15 @@
+name: doc
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  doc-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Check docs (deny broken intra-doc links)
+        run: RUSTDOCFLAGS="-D rustdoc::broken-intra-doc-links" cargo doc --no-deps

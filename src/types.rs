@@ -3,34 +3,51 @@ use rust_decimal::Decimal;
 use std::fmt;
 
 /// Runtime value for FEL evaluation (mirrors JSON + dates + money).
-#[allow(missing_docs)]
 #[derive(Debug, Clone)]
 pub enum Value {
+    /// Null / absent value.
     Null,
+    /// Boolean (`true` or `false`).
     Boolean(bool),
+    /// Numeric value (arbitrary-precision decimal).
     Number(Decimal),
+    /// UTF-8 string value.
     String(String),
+    /// Calendar date or date-time value.
     Date(Date),
+    /// Ordered list of values.
     Array(Vec<Value>),
+    /// Ordered key-value map.
     Object(Vec<(String, Value)>),
+    /// Monetary amount with ISO currency code.
     Money(Money),
 }
 
 /// Calendar date or date-time (no timezone model; used by date functions).
-#[allow(missing_docs)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Date {
+    /// Calendar date (year, month, day).
     Date {
+        /// Gregorian year.
         year: i32,
+        /// Month 1–12.
         month: u32,
+        /// Day of month 1–31.
         day: u32,
     },
+    /// Date with time of day (no timezone).
     DateTime {
+        /// Gregorian year.
         year: i32,
+        /// Month 1–12.
         month: u32,
+        /// Day of month 1–31.
         day: u32,
+        /// Hour 0–23.
         hour: u32,
+        /// Minute 0–59.
         minute: u32,
+        /// Second 0–59.
         second: u32,
     },
 }
@@ -44,7 +61,6 @@ pub struct Money {
     pub currency: String,
 }
 
-#[allow(missing_docs)]
 impl PartialEq for Value {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
@@ -61,7 +77,6 @@ impl PartialEq for Value {
     }
 }
 
-#[allow(missing_docs)]
 impl PartialEq for Money {
     fn eq(&self, other: &Self) -> bool {
         self.currency == other.currency && self.amount == other.amount
@@ -333,7 +348,16 @@ fn civil_from_days(z: i64) -> Date {
     }
 }
 
+/// Convert a civil (Gregorian) date to days since the internal FEL epoch (2000-01-01).
+///
+/// Public re-export of the private Hinnant algorithm for property testing.
+pub fn days_from_civil_pub(year: i32, month: u32, day: u32) -> i64 {
+    days_from_civil(year, month, day)
+}
+
 /// Convert days since the internal FEL epoch (2000-01-01) to a [`Date`] (date-only).
+///
+/// Public re-export of the private Hinnant algorithm for property testing.
 pub fn civil_from_days_pub(z: i64) -> Date {
     civil_from_days(z)
 }
@@ -343,7 +367,6 @@ pub fn format_number(n: Decimal) -> String {
     n.normalize().to_string()
 }
 
-#[allow(missing_docs)]
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
