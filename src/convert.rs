@@ -1,4 +1,4 @@
-//! Canonical conversion between serde_json::Value and FelValue.
+//! Canonical conversion between serde_json::Value and TypeValue.
 //!
 //! These are the single source of truth for JSON↔FEL value conversion.
 //! All crates should use these instead of rolling their own.
@@ -9,10 +9,10 @@ use rust_decimal::Decimal;
 use rust_decimal::prelude::*;
 use serde_json::Value;
 
-use crate::types::{Money as FelMoney, Value as FelValue};
+use crate::types::{Money as TypeMoney, Value as TypeValue};
 
 /// JSON object → flat field map for FEL `MapEnvironment` (`{}` / empty → empty map).
-pub fn json_object_to_field_map(val: &Value) -> HashMap<String, FelValue> {
+pub fn json_object_to_field_map(val: &Value) -> HashMap<String, TypeValue> {
     let mut map = HashMap::new();
     if let Some(obj) = val.as_object() {
         for (k, v) in obj {
@@ -23,7 +23,7 @@ pub fn json_object_to_field_map(val: &Value) -> HashMap<String, FelValue> {
 }
 
 /// Parse a JSON object string into a field map (empty or `"{}"` → empty map).
-pub fn field_map_from_json_str(fields_json: &str) -> Result<HashMap<String, FelValue>, String> {
+pub fn field_map_from_json_str(fields_json: &str) -> Result<HashMap<String, TypeValue>, String> {
     if fields_json.is_empty() || fields_json == "{}" {
         return Ok(HashMap::new());
     }
@@ -32,16 +32,16 @@ pub fn field_map_from_json_str(fields_json: &str) -> Result<HashMap<String, FelV
     Ok(json_object_to_field_map(&json_val))
 }
 
-/// Convert a `serde_json::Value` to a `FelValue`.
+/// Convert a `serde_json::Value` to a `TypeValue`.
 ///
 /// Conversion rules:
-/// - `Null` → `FelValue::Null`
-/// - `Bool(b)` → `FelValue::Boolean(b)`
-/// - `Number(n)` → `FelValue::Number` (tries i64, then u64, then f64)
-/// - `String(s)` → `FelValue::String(s)` — no silent date coercion
-/// - `Array(arr)` → `FelValue::Array` (recursive)
-/// - `Object` with `"$type": "money"` + `"amount"` + `"currency"` → `FelValue::Money`
-/// - `Object` otherwise → `FelValue::Object` (recursive)
+/// - `Null` → `TypeValue::Null`
+/// - `Bool(b)` → `TypeValue::Boolean(b)`
+/// - `Number(n)` → `TypeValue::Number` (tries i64, then u64, then f64)
+/// - `String(s)` → `TypeValue::String(s)` — no silent date coercion
+/// - `Array(arr)` → `TypeValue::Array` (recursive)
+/// - `Object` with `"$type": "money"` + `"amount"` + `"currency"` → `TypeValue::Money`
+/// - `Object` otherwise → `TypeValue::Object` (recursive)
 ///
 /// Money detection requires an explicit `"$type": "money"` marker. Objects that
 /// happen to have `amount` and `currency` fields but lack the marker are treated
@@ -49,23 +49,23 @@ pub fn field_map_from_json_str(fields_json: &str) -> Result<HashMap<String, FelV
 ///
 /// The `amount` field accepts either a JSON number or a JSON string that parses
 /// as a Decimal.
-pub fn json_to_fel(val: &Value) -> FelValue {
+pub fn json_to_fel(val: &Value) -> TypeValue {
     match val {
-        Value::Null => FelValue::Null,
-        Value::Bool(b) => FelValue::Boolean(*b),
+        Value::Null => TypeValue::Null,
+        Value::Bool(b) => TypeValue::Boolean(*b),
         Value::Number(n) => {
             if let Some(i) = n.as_i64() {
-                FelValue::Number(Decimal::from(i))
+                TypeValue::Number(Decimal::from(i))
             } else if let Some(u) = n.as_u64() {
-                FelValue::Number(Decimal::from(u))
+                TypeValue::Number(Decimal::from(u))
             } else if let Some(f) = n.as_f64() {
-                FelValue::Number(Decimal::from_f64(f).unwrap_or(Decimal::ZERO))
+                TypeValue::Number(Decimal::from_f64(f).unwrap_or(Decimal::ZERO))
             } else {
-                FelValue::Null
+                TypeValue::Null
             }
         }
-        Value::String(s) => FelValue::String(s.clone()),
-        Value::Array(arr) => FelValue::Array(arr.iter().map(json_to_fel).collect()),
+        Value::String(s) => TypeValue::String(s.clone()),
+        Value::Array(arr) => TypeValue::Array(arr.iter().map(json_to_fel).collect()),
         Value::Object(map) => {
             let is_money_type = map
                 .get("$type")
@@ -86,13 +86,13 @@ pub fn json_to_fel(val: &Value) -> FelValue {
                     _ => None,
                 };
                 if let Some(amount_decimal) = maybe_decimal {
-                    return FelValue::Money(FelMoney {
+                    return TypeValue::Money(TypeMoney {
                         amount: amount_decimal,
                         currency: currency.to_string(),
                     });
                 }
             }
-            FelValue::Object(
+            TypeValue::Object(
                 map.iter()
                     .map(|(k, v)| (k.clone(), json_to_fel(v)))
                     .collect(),
@@ -101,7 +101,7 @@ pub fn json_to_fel(val: &Value) -> FelValue {
     }
 }
 
-/// Convert a `FelValue` to a `serde_json::Value`.
+/// Convert a `TypeValue` to a `serde_json::Value`.
 ///
 /// Conversion rules:
 /// - `Null` → `Value::Null`
@@ -112,11 +112,11 @@ pub fn json_to_fel(val: &Value) -> FelValue {
 /// - `Money { amount, currency }` → `{"$type": "money", "amount": <number>, "currency": <string>}`
 /// - `Array(arr)` → `Value::Array` (recursive)
 /// - `Object(entries)` → `Value::Object` (recursive)
-pub fn fel_to_json(val: &FelValue) -> Value {
+pub fn fel_to_json(val: &TypeValue) -> Value {
     match val {
-        FelValue::Null => Value::Null,
-        FelValue::Boolean(b) => Value::Bool(*b),
-        FelValue::Number(n) => {
+        TypeValue::Null => Value::Null,
+        TypeValue::Boolean(b) => Value::Bool(*b),
+        TypeValue::Number(n) => {
             if n.fract().is_zero()
                 && let Some(i) = n.to_i64()
             {
@@ -127,22 +127,22 @@ pub fn fel_to_json(val: &FelValue) -> Value {
                 .map(Value::Number)
                 .unwrap_or(Value::Null)
         }
-        FelValue::String(s) => Value::String(s.clone()),
-        FelValue::Date(d) => Value::String(d.format_iso()),
-        FelValue::Array(arr) => Value::Array(arr.iter().map(fel_to_json).collect()),
-        FelValue::Object(entries) => {
+        TypeValue::String(s) => Value::String(s.clone()),
+        TypeValue::Date(d) => Value::String(d.format_iso()),
+        TypeValue::Array(arr) => Value::Array(arr.iter().map(fel_to_json).collect()),
+        TypeValue::Object(entries) => {
             let map: serde_json::Map<String, Value> = entries
                 .iter()
                 .map(|(k, v)| (k.clone(), fel_to_json(v)))
                 .collect();
             Value::Object(map)
         }
-        FelValue::Money(m) => {
+        TypeValue::Money(m) => {
             let mut map = serde_json::Map::new();
             map.insert("$type".to_string(), Value::String("money".to_string()));
             map.insert(
                 "amount".to_string(),
-                fel_to_json(&FelValue::Number(m.amount)),
+                fel_to_json(&TypeValue::Number(m.amount)),
             );
             map.insert("currency".to_string(), Value::String(m.currency.clone()));
             Value::Object(map)
@@ -159,19 +159,19 @@ mod tests {
     #[test]
     fn null_roundtrip() {
         let val = json_to_fel(&json!(null));
-        assert!(matches!(val, FelValue::Null));
+        assert!(matches!(val, TypeValue::Null));
         assert_eq!(fel_to_json(&val), json!(null));
     }
 
     #[test]
     fn boolean_roundtrip() {
-        assert!(matches!(json_to_fel(&json!(true)), FelValue::Boolean(true)));
+        assert!(matches!(json_to_fel(&json!(true)), TypeValue::Boolean(true)));
         assert!(matches!(
             json_to_fel(&json!(false)),
-            FelValue::Boolean(false)
+            TypeValue::Boolean(false)
         ));
-        assert_eq!(fel_to_json(&FelValue::Boolean(true)), json!(true));
-        assert_eq!(fel_to_json(&FelValue::Boolean(false)), json!(false));
+        assert_eq!(fel_to_json(&TypeValue::Boolean(true)), json!(true));
+        assert_eq!(fel_to_json(&TypeValue::Boolean(false)), json!(false));
     }
 
     #[test]
@@ -192,22 +192,22 @@ mod tests {
     #[test]
     fn string_roundtrip() {
         let val = json_to_fel(&json!("hello"));
-        assert!(matches!(val, FelValue::String(ref s) if s == "hello"));
+        assert!(matches!(val, TypeValue::String(ref s) if s == "hello"));
         assert_eq!(fel_to_json(&val), json!("hello"));
     }
 
     #[test]
     fn string_no_date_coercion() {
-        // ISO date strings must NOT be silently coerced to FelValue::Date
+        // ISO date strings must NOT be silently coerced to TypeValue::Date
         let val = json_to_fel(&json!("2024-06-15"));
         assert!(
-            matches!(val, FelValue::String(ref s) if s == "2024-06-15"),
+            matches!(val, TypeValue::String(ref s) if s == "2024-06-15"),
             "expected String, got {val:?}"
         );
 
         let val = json_to_fel(&json!("2024-06-15T10:30:00"));
         assert!(
-            matches!(val, FelValue::String(ref s) if s == "2024-06-15T10:30:00"),
+            matches!(val, TypeValue::String(ref s) if s == "2024-06-15T10:30:00"),
             "expected String, got {val:?}"
         );
     }
@@ -231,7 +231,7 @@ mod tests {
     fn money_numeric_amount() {
         let val = json_to_fel(&json!({"$type": "money", "amount": 99.99, "currency": "USD"}));
         match &val {
-            FelValue::Money(m) => {
+            TypeValue::Money(m) => {
                 assert_eq!(m.currency, "USD");
                 let f = m.amount.to_f64().unwrap();
                 assert!((f - 99.99).abs() < 0.01, "amount: {f}");
@@ -244,7 +244,7 @@ mod tests {
     fn money_string_amount() {
         let val = json_to_fel(&json!({"$type": "money", "amount": "99.99", "currency": "USD"}));
         match &val {
-            FelValue::Money(m) => {
+            TypeValue::Money(m) => {
                 assert_eq!(m.currency, "USD");
                 // String amount parsed as exact Decimal
                 assert_eq!(m.amount, Decimal::from_str_exact("99.99").unwrap());
@@ -257,7 +257,7 @@ mod tests {
     fn money_integer_amount() {
         let val = json_to_fel(&json!({"$type": "money", "amount": 100, "currency": "EUR"}));
         match &val {
-            FelValue::Money(m) => {
+            TypeValue::Money(m) => {
                 assert_eq!(m.currency, "EUR");
                 assert_eq!(m.amount, Decimal::from(100));
             }
@@ -270,14 +270,14 @@ mod tests {
         // Object with "amount" + "currency" but no "$type": "money" must NOT become Money
         let val = json_to_fel(&json!({"amount": 99.99, "currency": "USD"}));
         assert!(
-            matches!(val, FelValue::Object(_)),
+            matches!(val, TypeValue::Object(_)),
             "expected Object, got {val:?}"
         );
     }
 
     #[test]
     fn money_roundtrip() {
-        let money = FelValue::Money(FelMoney {
+        let money = TypeValue::Money(TypeMoney {
             amount: Decimal::from_str_exact("99.99").unwrap(),
             currency: "USD".to_string(),
         });
@@ -293,7 +293,7 @@ mod tests {
         // Object with "amount" but no "currency" should NOT become Money
         let val = json_to_fel(&json!({"$type": "money", "amount": 100}));
         assert!(
-            matches!(val, FelValue::Object(_)),
+            matches!(val, TypeValue::Object(_)),
             "expected Object, got {val:?}"
         );
     }
@@ -303,7 +303,7 @@ mod tests {
         // "amount" that isn't numeric or parseable as Decimal → plain Object
         let val = json_to_fel(&json!({"$type": "money", "amount": true, "currency": "USD"}));
         assert!(
-            matches!(val, FelValue::Object(_)),
+            matches!(val, TypeValue::Object(_)),
             "expected Object, got {val:?}"
         );
     }
@@ -311,7 +311,7 @@ mod tests {
     #[test]
     fn date_to_json_iso_string() {
         use crate::types::Date;
-        let date = FelValue::Date(Date::Date {
+        let date = TypeValue::Date(Date::Date {
             year: 2025,
             month: 6,
             day: 15,
@@ -322,7 +322,7 @@ mod tests {
     #[test]
     fn datetime_to_json_iso_string() {
         use crate::types::Date;
-        let dt = FelValue::Date(Date::DateTime {
+        let dt = TypeValue::Date(Date::DateTime {
             year: 2025,
             month: 6,
             day: 15,
@@ -335,7 +335,7 @@ mod tests {
 
     #[test]
     fn decimal_max_produces_number() {
-        let val = FelValue::Number(Decimal::MAX);
+        let val = TypeValue::Number(Decimal::MAX);
         let json = fel_to_json(&val);
         assert!(
             json.is_number(),
@@ -358,7 +358,7 @@ mod tests {
         let big = (i64::MAX as u64) + 1;
         let val = json_to_fel(&json!(big));
         match &val {
-            FelValue::Number(n) => assert_eq!(*n, Decimal::from(big)),
+            TypeValue::Number(n) => assert_eq!(*n, Decimal::from(big)),
             other => panic!("expected Number, got {other:?}"),
         }
     }

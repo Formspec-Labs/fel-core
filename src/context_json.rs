@@ -6,7 +6,7 @@
 use serde_json::{Map, Value};
 
 use crate::convert::json_to_fel;
-use crate::types::Value as FelValue;
+use crate::types::Value as CoreValue;
 use crate::{FormspecEnvironment, MipState};
 
 fn push_repeat_context(env: &mut FormspecEnvironment, repeat: &Value, depth: u8) {
@@ -24,7 +24,7 @@ fn push_repeat_context(env: &mut FormspecEnvironment, repeat: &Value, depth: u8)
     let current = obj
         .get("current")
         .map(json_to_fel)
-        .unwrap_or(FelValue::Null);
+        .unwrap_or(CoreValue::Null);
     let index = obj.get("index").and_then(|v| v.as_u64()).unwrap_or(1) as usize;
     let count = obj.get("count").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
     let collection = obj
@@ -126,7 +126,7 @@ mod tests {
     use rust_decimal::Decimal;
     use serde_json::json;
 
-    use crate::types::Value as FelValue;
+    use crate::types::Value as CoreValue;
 
     use super::*;
 
@@ -138,7 +138,7 @@ mod tests {
         });
         let obj = ctx.as_object().unwrap();
         let env = formspec_environment_from_json_map(obj);
-        assert_eq!(env.data.get("n"), Some(&FelValue::Number(Decimal::from(3))));
+        assert_eq!(env.data.get("n"), Some(&CoreValue::Number(Decimal::from(3))));
         assert!(env.current_datetime.is_some());
     }
 }

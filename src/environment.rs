@@ -9,7 +9,7 @@ use rust_decimal::Decimal;
 use std::collections::HashMap;
 
 use crate::evaluator::Environment;
-use crate::types::{Date as FelDate, Value as FelValue, parse_datetime_literal};
+use crate::types::{Date as TypeDate, Value as TypeValue, parse_datetime_literal};
 
 // ── Data structures ─────────────────────────────────────────────
 
@@ -17,7 +17,7 @@ use crate::types::{Date as FelDate, Value as FelValue, parse_datetime_literal};
 #[derive(Debug, Clone)]
 pub struct RepeatContext {
     /// The current row value.
-    pub current: FelValue,
+    pub current: TypeValue,
     /// 1-based index within the repeat group.
     pub index: usize,
     /// Total instance count.
@@ -25,7 +25,7 @@ pub struct RepeatContext {
     /// Parent repeat context (for nested repeats).
     pub parent: Option<Box<RepeatContext>>,
     /// All rows in the collection (for prev/next navigation).
-    pub collection: Vec<FelValue>,
+    pub collection: Vec<TypeValue>,
 }
 
 /// XForms Model Item Properties for a single field path.
@@ -68,21 +68,21 @@ impl Default for MipState {
 /// - Runtime metadata via `runtimeMeta(key)`
 pub struct FormspecEnvironment {
     /// Primary data dict — backs `$field` references.
-    pub data: HashMap<String, FelValue>,
+    pub data: HashMap<String, TypeValue>,
     /// Named secondary instances — backs `@instance('name')`.
-    pub instances: HashMap<String, FelValue>,
+    pub instances: HashMap<String, TypeValue>,
     /// MIP states per dotted field path.
     pub mip_states: HashMap<String, MipState>,
     /// Definition variables — backs `@variableName`.
-    pub variables: HashMap<String, FelValue>,
+    pub variables: HashMap<String, TypeValue>,
     /// Current repeat context (if inside a repeat iteration).
     pub repeat_context: Option<RepeatContext>,
     /// Current runtime date for today()/now().
-    pub current_datetime: Option<FelDate>,
+    pub current_datetime: Option<TypeDate>,
     /// Active locale code (BCP 47) — backs `locale()` and default for `pluralCategory()`.
     pub locale: Option<String>,
     /// Runtime metadata bag — backs `runtimeMeta(key)`.
-    pub meta: HashMap<String, FelValue>,
+    pub meta: HashMap<String, TypeValue>,
 }
 
 impl FormspecEnvironment {
@@ -101,12 +101,12 @@ impl FormspecEnvironment {
     }
 
     /// Set a field value by dotted path (e.g., "address.city").
-    pub fn set_field(&mut self, path: &str, value: FelValue) {
+    pub fn set_field(&mut self, path: &str, value: TypeValue) {
         self.data.insert(path.to_string(), value);
     }
 
     /// Set a named instance.
-    pub fn set_instance(&mut self, name: &str, value: FelValue) {
+    pub fn set_instance(&mut self, name: &str, value: TypeValue) {
         self.instances.insert(name.to_string(), value);
     }
 
@@ -116,7 +116,7 @@ impl FormspecEnvironment {
     }
 
     /// Set a variable value.
-    pub fn set_variable(&mut self, name: &str, value: FelValue) {
+    pub fn set_variable(&mut self, name: &str, value: TypeValue) {
         self.variables.insert(name.to_string(), value);
     }
 
@@ -126,7 +126,7 @@ impl FormspecEnvironment {
     }
 
     /// Set a runtime metadata value.
-    pub fn set_meta(&mut self, key: &str, value: FelValue) {
+    pub fn set_meta(&mut self, key: &str, value: TypeValue) {
         self.meta.insert(key.to_string(), value);
     }
 
@@ -143,10 +143,10 @@ impl FormspecEnvironment {
     /// Enter a repeat context.
     pub fn push_repeat(
         &mut self,
-        current: FelValue,
+        current: TypeValue,
         index: usize,
         count: usize,
-        collection: Vec<FelValue>,
+        collection: Vec<TypeValue>,
     ) {
         let parent = self.repeat_context.take().map(Box::new);
         self.repeat_context = Some(RepeatContext {
@@ -174,36 +174,36 @@ impl Default for FormspecEnvironment {
 }
 
 /// Walk a nested value by string path segments.
-fn resolve_path(val: &FelValue, segments: &[String]) -> FelValue {
+fn resolve_path(val: &TypeValue, segments: &[String]) -> TypeValue {
     let mut current = val.clone();
     for seg in segments {
         match &current {
-            FelValue::Object(entries) => match entries.iter().find(|(k, _)| k == seg) {
+            TypeValue::Object(entries) => match entries.iter().find(|(k, _)| k == seg) {
                 Some((_, v)) => current = v.clone(),
-                None => return FelValue::Null,
+                None => return TypeValue::Null,
             },
-            FelValue::Array(entries) => {
-                current = FelValue::Array(
+            TypeValue::Array(entries) => {
+                current = TypeValue::Array(
                     entries
                         .iter()
                         .map(|entry| match entry {
-                            FelValue::Object(fields) => fields
+                            TypeValue::Object(fields) => fields
                                 .iter()
                                 .find(|(k, _)| k == seg)
                                 .map(|(_, v)| v.clone())
-                                .unwrap_or(FelValue::Null),
-                            _ => FelValue::Null,
+                                .unwrap_or(TypeValue::Null),
+                            _ => TypeValue::Null,
                         })
                         .collect(),
                 );
             }
-            _ => return FelValue::Null,
+            _ => return TypeValue::Null,
         }
     }
     current
 }
 
-fn project_repeat_field(data: &HashMap<String, FelValue>, segments: &[String]) -> Option<FelValue> {
+fn project_repeat_field(data: &HashMap<String, TypeValue>, segments: &[String]) -> Option<TypeValue> {
     if segments.len() < 2 {
         return None;
     }
@@ -236,7 +236,7 @@ fn project_repeat_field(data: &HashMap<String, FelValue>, segments: &[String]) -
 
         if !projected.is_empty() {
             projected.sort_by_key(|(index, _)| *index);
-            return Some(FelValue::Array(
+            return Some(TypeValue::Array(
                 projected.into_iter().map(|(_, value)| value).collect(),
             ));
         }
@@ -247,7 +247,7 @@ fn project_repeat_field(data: &HashMap<String, FelValue>, segments: &[String]) -
 
 #[allow(missing_docs)]
 impl Environment for FormspecEnvironment {
-    fn resolve_field(&self, segments: &[String]) -> FelValue {
+    fn resolve_field(&self, segments: &[String]) -> TypeValue {
         if segments.is_empty() {
             // Bare $ — return repeat context current, data[""], or null
             if let Some(ctx) = &self.repeat_context {
@@ -256,7 +256,7 @@ impl Environment for FormspecEnvironment {
             if let Some(val) = self.data.get("") {
                 return val.clone();
             }
-            return FelValue::Null;
+            return TypeValue::Null;
         }
 
         let key = segments.join(".");
@@ -274,10 +274,10 @@ impl Environment for FormspecEnvironment {
         if let Some(projected) = project_repeat_field(&self.data, segments) {
             return projected;
         }
-        FelValue::Null
+        TypeValue::Null
     }
 
-    fn resolve_context(&self, name: &str, arg: Option<&str>, tail: &[String]) -> FelValue {
+    fn resolve_context(&self, name: &str, arg: Option<&str>, tail: &[String]) -> TypeValue {
         match name {
             "current" => {
                 if let Some(ctx) = &self.repeat_context {
@@ -288,21 +288,21 @@ impl Environment for FormspecEnvironment {
                         resolve_path(&base, tail)
                     }
                 } else {
-                    FelValue::Null
+                    TypeValue::Null
                 }
             }
             "index" => {
                 if let Some(ctx) = &self.repeat_context {
-                    FelValue::Number(Decimal::from(ctx.index as i64))
+                    TypeValue::Number(Decimal::from(ctx.index as i64))
                 } else {
-                    FelValue::Null
+                    TypeValue::Null
                 }
             }
             "count" => {
                 if let Some(ctx) = &self.repeat_context {
-                    FelValue::Number(Decimal::from(ctx.count as i64))
+                    TypeValue::Number(Decimal::from(ctx.count as i64))
                 } else {
-                    FelValue::Null
+                    TypeValue::Null
                 }
             }
             "instance" => {
@@ -314,10 +314,10 @@ impl Environment for FormspecEnvironment {
                             resolve_path(val, tail)
                         }
                     } else {
-                        FelValue::Null
+                        TypeValue::Null
                     }
                 } else {
-                    FelValue::Null
+                    TypeValue::Null
                 }
             }
             // Definition variables: @variableName
@@ -329,33 +329,33 @@ impl Environment for FormspecEnvironment {
                         resolve_path(val, tail)
                     }
                 } else {
-                    FelValue::Null
+                    TypeValue::Null
                 }
             }
         }
     }
 
-    fn mip_valid(&self, path: &[String]) -> FelValue {
+    fn mip_valid(&self, path: &[String]) -> TypeValue {
         let key = path.join(".");
-        FelValue::Boolean(self.mip_states.get(&key).is_none_or(|s| s.valid))
+        TypeValue::Boolean(self.mip_states.get(&key).is_none_or(|s| s.valid))
     }
 
-    fn mip_relevant(&self, path: &[String]) -> FelValue {
+    fn mip_relevant(&self, path: &[String]) -> TypeValue {
         let key = path.join(".");
-        FelValue::Boolean(self.mip_states.get(&key).is_none_or(|s| s.relevant))
+        TypeValue::Boolean(self.mip_states.get(&key).is_none_or(|s| s.relevant))
     }
 
-    fn mip_readonly(&self, path: &[String]) -> FelValue {
+    fn mip_readonly(&self, path: &[String]) -> TypeValue {
         let key = path.join(".");
-        FelValue::Boolean(self.mip_states.get(&key).is_some_and(|s| s.readonly))
+        TypeValue::Boolean(self.mip_states.get(&key).is_some_and(|s| s.readonly))
     }
 
-    fn mip_required(&self, path: &[String]) -> FelValue {
+    fn mip_required(&self, path: &[String]) -> TypeValue {
         let key = path.join(".");
-        FelValue::Boolean(self.mip_states.get(&key).is_some_and(|s| s.required))
+        TypeValue::Boolean(self.mip_states.get(&key).is_some_and(|s| s.required))
     }
 
-    fn repeat_prev(&self) -> FelValue {
+    fn repeat_prev(&self) -> TypeValue {
         if let Some(ctx) = &self.repeat_context
             && ctx.index > 1
         {
@@ -363,12 +363,12 @@ impl Environment for FormspecEnvironment {
                 .collection
                 .get(ctx.index - 2)
                 .cloned()
-                .unwrap_or(FelValue::Null);
+                .unwrap_or(TypeValue::Null);
         }
-        FelValue::Null
+        TypeValue::Null
     }
 
-    fn repeat_next(&self) -> FelValue {
+    fn repeat_next(&self) -> TypeValue {
         if let Some(ctx) = &self.repeat_context
             && ctx.index < ctx.count
         {
@@ -376,29 +376,29 @@ impl Environment for FormspecEnvironment {
                 .collection
                 .get(ctx.index)
                 .cloned()
-                .unwrap_or(FelValue::Null);
+                .unwrap_or(TypeValue::Null);
         }
-        FelValue::Null
+        TypeValue::Null
     }
 
-    fn repeat_parent(&self) -> FelValue {
+    fn repeat_parent(&self) -> TypeValue {
         if let Some(ctx) = &self.repeat_context
             && let Some(parent) = &ctx.parent
         {
             return parent.current.clone();
         }
-        FelValue::Null
+        TypeValue::Null
     }
 
-    fn current_date(&self) -> Option<FelDate> {
-        self.current_datetime.as_ref().map(|dt| FelDate::Date {
+    fn current_date(&self) -> Option<TypeDate> {
+        self.current_datetime.as_ref().map(|dt| TypeDate::Date {
             year: dt.year(),
             month: dt.month(),
             day: dt.day(),
         })
     }
 
-    fn current_datetime(&self) -> Option<FelDate> {
+    fn current_datetime(&self) -> Option<TypeDate> {
         self.current_datetime.clone()
     }
 
@@ -406,8 +406,8 @@ impl Environment for FormspecEnvironment {
         self.locale.as_deref()
     }
 
-    fn runtime_meta(&self, key: &str) -> FelValue {
-        self.meta.get(key).cloned().unwrap_or(FelValue::Null)
+    fn runtime_meta(&self, key: &str) -> TypeValue {
+        self.meta.get(key).cloned().unwrap_or(TypeValue::Null)
     }
 }
 
@@ -416,12 +416,12 @@ mod tests {
     #![allow(clippy::missing_docs_in_private_items)]
     use super::*;
 
-    fn s(v: &str) -> FelValue {
-        FelValue::String(v.to_string())
+    fn s(v: &str) -> TypeValue {
+        TypeValue::String(v.to_string())
     }
 
-    fn num(n: i64) -> FelValue {
-        FelValue::Number(Decimal::from(n))
+    fn num(n: i64) -> TypeValue {
+        TypeValue::Number(Decimal::from(n))
     }
 
     #[test]
@@ -432,13 +432,13 @@ mod tests {
 
         assert_eq!(env.resolve_field(&["name".into()]), s("Alice"));
         assert_eq!(env.resolve_field(&["age".into()]), num(30));
-        assert_eq!(env.resolve_field(&["missing".into()]), FelValue::Null);
+        assert_eq!(env.resolve_field(&["missing".into()]), TypeValue::Null);
     }
 
     #[test]
     fn test_nested_field_resolution() {
         let mut env = FormspecEnvironment::new();
-        let addr = FelValue::Object(vec![
+        let addr = TypeValue::Object(vec![
             ("city".to_string(), s("NYC")),
             ("zip".to_string(), s("10001")),
         ]);
@@ -450,7 +450,7 @@ mod tests {
         );
         assert_eq!(
             env.resolve_field(&["address".into(), "missing".into()]),
-            FelValue::Null
+            TypeValue::Null
         );
     }
 
@@ -463,7 +463,7 @@ mod tests {
 
         assert_eq!(
             env.resolve_field(&["rows".into(), "score".into()]),
-            FelValue::Array(vec![num(80), num(30), num(50)]),
+            TypeValue::Array(vec![num(80), num(30), num(50)]),
         );
     }
 
@@ -507,7 +507,7 @@ mod tests {
     #[test]
     fn test_named_instances() {
         let mut env = FormspecEnvironment::new();
-        let config = FelValue::Object(vec![("maxRetries".to_string(), num(3))]);
+        let config = TypeValue::Object(vec![("maxRetries".to_string(), num(3))]);
         env.set_instance("config", config);
 
         assert_eq!(
@@ -516,7 +516,7 @@ mod tests {
         );
         assert_eq!(
             env.resolve_context("instance", Some("missing"), &[]),
-            FelValue::Null
+            TypeValue::Null
         );
     }
 
@@ -541,19 +541,19 @@ mod tests {
             },
         );
 
-        assert_eq!(env.mip_valid(&["email".into()]), FelValue::Boolean(false));
-        assert_eq!(env.mip_relevant(&["email".into()]), FelValue::Boolean(true));
+        assert_eq!(env.mip_valid(&["email".into()]), TypeValue::Boolean(false));
+        assert_eq!(env.mip_relevant(&["email".into()]), TypeValue::Boolean(true));
         assert_eq!(
             env.mip_readonly(&["email".into()]),
-            FelValue::Boolean(false)
+            TypeValue::Boolean(false)
         );
-        assert_eq!(env.mip_required(&["email".into()]), FelValue::Boolean(true));
+        assert_eq!(env.mip_required(&["email".into()]), TypeValue::Boolean(true));
 
         // Default MIP for unknown fields
-        assert_eq!(env.mip_valid(&["unknown".into()]), FelValue::Boolean(true));
+        assert_eq!(env.mip_valid(&["unknown".into()]), TypeValue::Boolean(true));
         assert_eq!(
             env.mip_required(&["unknown".into()]),
-            FelValue::Boolean(false)
+            TypeValue::Boolean(false)
         );
     }
 

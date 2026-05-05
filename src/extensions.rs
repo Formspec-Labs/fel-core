@@ -7,10 +7,10 @@
 #![allow(clippy::missing_docs_in_private_items)]
 use std::collections::HashMap;
 
-use crate::types::Value as FelValue;
+use crate::types::Value as TypeValue;
 
 /// Type alias for extension function implementations.
-pub type ExtensionFn = Box<dyn Fn(&[FelValue]) -> FelValue + Send + Sync>;
+pub type ExtensionFn = Box<dyn Fn(&[TypeValue]) -> TypeValue + Send + Sync>;
 
 /// Metadata for a built-in FEL function exposed to tooling surfaces (WASM catalog, docs).
 pub struct BuiltinFunctionCatalogEntry {
@@ -544,7 +544,7 @@ impl ExtensionRegistry {
         name: impl Into<String>,
         min_args: usize,
         max_args: Option<usize>,
-        func: impl Fn(&[FelValue]) -> FelValue + Send + Sync + 'static,
+        func: impl Fn(&[TypeValue]) -> TypeValue + Send + Sync + 'static,
     ) -> Result<(), ExtensionError> {
         let name = name.into();
 
@@ -585,12 +585,12 @@ impl ExtensionRegistry {
     /// If any argument is null, returns null without calling the function.
     /// Returns None if the extension is not found.
     /// Invoke extension if present; returns `None` if unknown (caller may treat as undefined function).
-    pub fn call(&self, name: &str, args: &[FelValue]) -> Option<FelValue> {
+    pub fn call(&self, name: &str, args: &[TypeValue]) -> Option<TypeValue> {
         let ext = self.extensions.get(name)?;
 
         // Null propagation: any null arg → null result
         if args.iter().any(|a| a.is_null()) {
-            return Some(FelValue::Null);
+            return Some(TypeValue::Null);
         }
 
         Some((ext.func)(args))
@@ -624,12 +624,12 @@ mod tests {
     use super::*;
     use rust_decimal::Decimal;
 
-    fn num(n: i64) -> FelValue {
-        FelValue::Number(Decimal::from(n))
+    fn num(n: i64) -> TypeValue {
+        TypeValue::Number(Decimal::from(n))
     }
 
-    fn s(v: &str) -> FelValue {
-        FelValue::String(v.to_string())
+    fn s(v: &str) -> TypeValue {
+        TypeValue::String(v.to_string())
     }
 
     #[test]
@@ -637,8 +637,8 @@ mod tests {
         let mut registry = ExtensionRegistry::new();
         registry
             .register("double", 1, Some(1), |args| match &args[0] {
-                FelValue::Number(n) => FelValue::Number(*n * Decimal::from(2)),
-                _ => FelValue::Null,
+                TypeValue::Number(n) => TypeValue::Number(*n * Decimal::from(2)),
+                _ => TypeValue::Null,
             })
             .unwrap();
 
@@ -654,8 +654,8 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            registry.call("identity", &[FelValue::Null]),
-            Some(FelValue::Null)
+            registry.call("identity", &[TypeValue::Null]),
+            Some(TypeValue::Null)
         );
         assert_eq!(registry.call("identity", &[num(42)]), Some(num(42)));
     }
@@ -665,17 +665,17 @@ mod tests {
         let mut registry = ExtensionRegistry::new();
         assert!(
             registry
-                .register("if", 1, None, |_| FelValue::Null)
+                .register("if", 1, None, |_| TypeValue::Null)
                 .is_err()
         );
         assert!(
             registry
-                .register("true", 0, None, |_| FelValue::Null)
+                .register("true", 0, None, |_| TypeValue::Null)
                 .is_err()
         );
         assert!(
             registry
-                .register("and", 2, None, |_| FelValue::Null)
+                .register("and", 2, None, |_| TypeValue::Null)
                 .is_err()
         );
     }
@@ -685,17 +685,17 @@ mod tests {
         let mut registry = ExtensionRegistry::new();
         assert!(
             registry
-                .register("sum", 1, None, |_| FelValue::Null)
+                .register("sum", 1, None, |_| TypeValue::Null)
                 .is_err()
         );
         assert!(
             registry
-                .register("round", 1, None, |_| FelValue::Null)
+                .register("round", 1, None, |_| TypeValue::Null)
                 .is_err()
         );
         assert!(
             registry
-                .register("today", 0, None, |_| FelValue::Null)
+                .register("today", 0, None, |_| TypeValue::Null)
                 .is_err()
         );
     }
@@ -712,7 +712,7 @@ mod tests {
         registry
             .register("concat3", 3, Some(3), |args| {
                 let parts: Vec<String> = args.iter().map(|a| a.to_string()).collect();
-                FelValue::String(parts.join("-"))
+                TypeValue::String(parts.join("-"))
             })
             .unwrap();
 

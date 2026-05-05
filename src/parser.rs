@@ -21,7 +21,7 @@ use rust_decimal::prelude::*;
 use std::collections::HashSet;
 
 use crate::ast::*;
-use crate::error::Error as FelError;
+use crate::error::Error;
 use crate::lexer::{Lexer, SpannedToken, Token};
 
 /// Recursive-descent parser over a [`SpannedToken`] stream (use [`parse`] to build from source).
@@ -33,9 +33,9 @@ pub struct Parser {
 }
 
 /// Parse a FEL expression string into an AST.
-pub fn parse(input: &str) -> Result<Expr, FelError> {
+pub fn parse(input: &str) -> Result<Expr, Error> {
     let mut lexer = Lexer::new(input);
-    let tokens = lexer.tokenize().map_err(FelError::Parse)?;
+    let tokens = lexer.tokenize().map_err(Error::Parse)?;
     let mut parser = Parser {
         tokens,
         pos: 0,
@@ -43,7 +43,7 @@ pub fn parse(input: &str) -> Result<Expr, FelError> {
     };
     let expr = parser.parse_expression()?;
     if !parser.at_eof() {
-        return Err(FelError::Parse(format!(
+        return Err(Error::Parse(format!(
             "unexpected token {:?} at position {}",
             parser.current().token,
             parser.current().span.start
@@ -73,26 +73,26 @@ impl Parser {
         tok
     }
 
-    fn expect(&mut self, expected: &Token) -> Result<(), FelError> {
+    fn expect(&mut self, expected: &Token) -> Result<(), Error> {
         if self.peek() == expected {
             self.advance();
             Ok(())
         } else {
-            Err(FelError::Parse(format!(
+            Err(Error::Parse(format!(
                 "expected {expected:?}, got {:?}",
                 self.peek()
             )))
         }
     }
 
-    fn eat_identifier(&mut self) -> Result<String, FelError> {
+    fn eat_identifier(&mut self) -> Result<String, Error> {
         match self.peek().clone() {
             Token::Identifier(name) => {
                 let name = name.clone();
                 self.advance();
                 Ok(name)
             }
-            _ => Err(FelError::Parse(format!(
+            _ => Err(Error::Parse(format!(
                 "expected identifier, got {:?}",
                 self.peek()
             ))),
@@ -101,11 +101,11 @@ impl Parser {
 
     // ── Expression (entry point) ────────────────────────────────
 
-    fn parse_expression(&mut self) -> Result<Expr, FelError> {
+    fn parse_expression(&mut self) -> Result<Expr, Error> {
         self.parse_let_or_if()
     }
 
-    fn parse_let_or_if(&mut self) -> Result<Expr, FelError> {
+    fn parse_let_or_if(&mut self) -> Result<Expr, Error> {
         // let <name> = <value> in <body>
         if matches!(self.peek(), Token::Let) {
             self.advance(); // let
@@ -188,7 +188,7 @@ impl Parser {
 
     // ── Ternary ─────────────────────────────────────────────────
 
-    fn parse_ternary(&mut self) -> Result<Expr, FelError> {
+    fn parse_ternary(&mut self) -> Result<Expr, Error> {
         let expr = self.parse_logical_or()?;
         if matches!(self.peek(), Token::Question) {
             self.advance(); // ?
@@ -207,7 +207,7 @@ impl Parser {
 
     // ── Logical ─────────────────────────────────────────────────
 
-    fn parse_logical_or(&mut self) -> Result<Expr, FelError> {
+    fn parse_logical_or(&mut self) -> Result<Expr, Error> {
         let mut left = self.parse_logical_and()?;
         while matches!(self.peek(), Token::Or) {
             self.advance();
@@ -221,7 +221,7 @@ impl Parser {
         Ok(left)
     }
 
-    fn parse_logical_and(&mut self) -> Result<Expr, FelError> {
+    fn parse_logical_and(&mut self) -> Result<Expr, Error> {
         let mut left = self.parse_equality()?;
         while matches!(self.peek(), Token::And) {
             self.advance();
@@ -237,7 +237,7 @@ impl Parser {
 
     // ── Equality / Comparison ───────────────────────────────────
 
-    fn parse_equality(&mut self) -> Result<Expr, FelError> {
+    fn parse_equality(&mut self) -> Result<Expr, Error> {
         let mut left = self.parse_comparison()?;
         loop {
             let op = match self.peek() {
@@ -256,7 +256,7 @@ impl Parser {
         Ok(left)
     }
 
-    fn parse_comparison(&mut self) -> Result<Expr, FelError> {
+    fn parse_comparison(&mut self) -> Result<Expr, Error> {
         let mut left = self.parse_membership()?;
         loop {
             let op = match self.peek() {
@@ -279,7 +279,7 @@ impl Parser {
 
     // ── Membership ──────────────────────────────────────────────
 
-    fn parse_membership(&mut self) -> Result<Expr, FelError> {
+    fn parse_membership(&mut self) -> Result<Expr, Error> {
         let left = self.parse_null_coalesce()?;
 
         if self.no_in_depth > 0 {
@@ -318,7 +318,7 @@ impl Parser {
 
     // ── Null coalesce ───────────────────────────────────────────
 
-    fn parse_null_coalesce(&mut self) -> Result<Expr, FelError> {
+    fn parse_null_coalesce(&mut self) -> Result<Expr, Error> {
         let mut left = self.parse_addition()?;
         while matches!(self.peek(), Token::DoubleQuestion) {
             self.advance();
@@ -333,7 +333,7 @@ impl Parser {
 
     // ── Arithmetic ──────────────────────────────────────────────
 
-    fn parse_addition(&mut self) -> Result<Expr, FelError> {
+    fn parse_addition(&mut self) -> Result<Expr, Error> {
         let mut left = self.parse_multiplication()?;
         loop {
             let op = match self.peek() {
@@ -353,7 +353,7 @@ impl Parser {
         Ok(left)
     }
 
-    fn parse_multiplication(&mut self) -> Result<Expr, FelError> {
+    fn parse_multiplication(&mut self) -> Result<Expr, Error> {
         let mut left = self.parse_unary()?;
         loop {
             let op = match self.peek() {
@@ -375,7 +375,7 @@ impl Parser {
 
     // ── Unary ───────────────────────────────────────────────────
 
-    fn parse_unary(&mut self) -> Result<Expr, FelError> {
+    fn parse_unary(&mut self) -> Result<Expr, Error> {
         let is_bang = matches!(self.peek(), Token::Bang);
         if matches!(self.peek(), Token::Not | Token::Bang) {
             // Make sure it's not `not in` (handled by membership) — `!` cannot mean `! in`
@@ -409,7 +409,7 @@ impl Parser {
 
     // ── Postfix (dot/bracket access) ────────────────────────────
 
-    fn parse_postfix(&mut self) -> Result<Expr, FelError> {
+    fn parse_postfix(&mut self) -> Result<Expr, Error> {
         let mut expr = self.parse_atom()?;
         loop {
             match self.peek() {
@@ -430,7 +430,7 @@ impl Parser {
                         self.advance();
                         PathSegment::Index(n.to_u64().unwrap_or(0) as usize)
                     } else {
-                        return Err(FelError::Parse(format!(
+                        return Err(Error::Parse(format!(
                             "expected number or * in brackets, got {:?}",
                             self.peek()
                         )));
@@ -449,7 +449,7 @@ impl Parser {
 
     // ── Atoms ───────────────────────────────────────────────────
 
-    fn parse_atom(&mut self) -> Result<Expr, FelError> {
+    fn parse_atom(&mut self) -> Result<Expr, Error> {
         match self.peek().clone() {
             Token::Number(n) => {
                 self.advance();
@@ -521,19 +521,19 @@ impl Parser {
                 if matches!(self.peek(), Token::LParen) {
                     self.parse_function_call("if".to_string())
                 } else {
-                    Err(FelError::Parse(
+                    Err(Error::Parse(
                         "unexpected 'if' — use if...then...else or if(...)".into(),
                     ))
                 }
             }
-            _ => Err(FelError::Parse(format!(
+            _ => Err(Error::Parse(format!(
                 "unexpected token {:?}",
                 self.peek()
             ))),
         }
     }
 
-    fn parse_field_ref(&mut self) -> Result<Expr, FelError> {
+    fn parse_field_ref(&mut self) -> Result<Expr, Error> {
         let mut name: Option<String> = None;
         let mut path = Vec::new();
 
@@ -560,7 +560,7 @@ impl Parser {
                         self.advance();
                         PathSegment::Index(n.to_u64().unwrap_or(0) as usize)
                     } else {
-                        return Err(FelError::Parse(format!(
+                        return Err(Error::Parse(format!(
                             "expected number or * in field ref brackets, got {:?}",
                             self.peek()
                         )));
@@ -575,7 +575,7 @@ impl Parser {
         Ok(Expr::FieldRef { name, path })
     }
 
-    fn parse_context_ref(&mut self) -> Result<Expr, FelError> {
+    fn parse_context_ref(&mut self) -> Result<Expr, Error> {
         let name = self.eat_identifier()?;
         let mut arg = None;
         let mut tail = Vec::new();
@@ -599,7 +599,7 @@ impl Parser {
         Ok(Expr::ContextRef { name, arg, tail })
     }
 
-    fn parse_function_call(&mut self, name: String) -> Result<Expr, FelError> {
+    fn parse_function_call(&mut self, name: String) -> Result<Expr, Error> {
         self.expect(&Token::LParen)?;
         let mut args = Vec::new();
         if !matches!(self.peek(), Token::RParen) {
@@ -613,7 +613,7 @@ impl Parser {
         Ok(Expr::FunctionCall { name, args })
     }
 
-    fn parse_array_literal(&mut self) -> Result<Expr, FelError> {
+    fn parse_array_literal(&mut self) -> Result<Expr, Error> {
         self.expect(&Token::LBracket)?;
         let mut elements = Vec::new();
         if !matches!(self.peek(), Token::RBracket) {
@@ -627,7 +627,7 @@ impl Parser {
         Ok(Expr::Array(elements))
     }
 
-    fn parse_object_literal(&mut self) -> Result<Expr, FelError> {
+    fn parse_object_literal(&mut self) -> Result<Expr, Error> {
         self.expect(&Token::LBrace)?;
         let mut entries = Vec::new();
         let mut seen_keys = HashSet::new();
@@ -643,7 +643,7 @@ impl Parser {
                 }
                 let entry = self.parse_object_entry()?;
                 if !seen_keys.insert(entry.0.clone()) {
-                    return Err(FelError::Parse(format!(
+                    return Err(Error::Parse(format!(
                         "duplicate key '{}' in object literal",
                         entry.0
                     )));
@@ -655,7 +655,7 @@ impl Parser {
         Ok(Expr::Object(entries))
     }
 
-    fn parse_object_entry(&mut self) -> Result<(String, Expr), FelError> {
+    fn parse_object_entry(&mut self) -> Result<(String, Expr), Error> {
         let key = match self.peek().clone() {
             Token::Identifier(name) => {
                 self.advance();
@@ -666,7 +666,7 @@ impl Parser {
                 s.clone()
             }
             _ => {
-                return Err(FelError::Parse(format!(
+                return Err(Error::Parse(format!(
                     "expected object key, got {:?}",
                     self.peek()
                 )));
