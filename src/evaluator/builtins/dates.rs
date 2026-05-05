@@ -103,6 +103,7 @@ impl<'a> Evaluator<'a> {
                 IsoDurationParse::Milliseconds(ms) => {
                     // Warn when the date component contains year (Y) or month (M before T).
                     // These use nominal lengths (365d, 30d), not calendar arithmetic.
+                    // `W` is intentionally excluded: 1W = 7d exactly is not a nominal-length lie.
                     let has_year = s.contains('Y');
                     let has_date_month = {
                         // 'M' before any 'T' is a month designator; after 'T' it is minutes.

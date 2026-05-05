@@ -11,5 +11,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
       - name: Check docs (deny broken intra-doc links)
         run: RUSTDOCFLAGS="-D rustdoc::broken-intra-doc-links" cargo doc --no-deps

@@ -59,7 +59,7 @@ pub use printer::print_expr;
 pub use rust_decimal::Decimal;
 pub use trace::{Trace, TraceStep};
 pub use types::{
-    Date, Money, Value, civil_from_days_pub, days_from_civil_pub, days_in_month,
+    Date, Money, Value, civil_from_days, days_from_civil, days_in_month,
     parse_date_literal, parse_datetime_literal,
 };
 pub use wire_style::JsonWireStyle;

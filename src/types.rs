@@ -9,7 +9,7 @@ pub enum Value {
     Null,
     /// Boolean (`true` or `false`).
     Boolean(bool),
-    /// Numeric value (arbitrary-precision decimal).
+    /// Numeric value (high-precision decimal, rust_decimal 96-bit mantissa).
     Number(Decimal),
     /// UTF-8 string value.
     String(String),
@@ -191,7 +191,7 @@ impl Date {
         (self.year(), self.month(), self.day())
     }
 
-    /// Days since epoch (2000-01-01) for ordering.
+    /// Days since epoch (1970-01-01) for ordering.
     pub fn ordinal_days(&self) -> i64 {
         days_from_civil(self.year(), self.month(), self.day())
     }
@@ -234,8 +234,8 @@ impl Date {
     }
 }
 
-/// Days from civil date (algorithm from Howard Hinnant).
-fn days_from_civil(year: i32, month: u32, day: u32) -> i64 {
+/// Days from civil date to days since the FEL epoch (1970-01-01) (algorithm from Howard Hinnant).
+pub fn days_from_civil(year: i32, month: u32, day: u32) -> i64 {
     let y = if month <= 2 {
         year as i64 - 1
     } else {
@@ -329,8 +329,8 @@ pub fn date_add_days(d: &Date, n: i64) -> Date {
     civil_from_days(total_days)
 }
 
-/// Convert days since epoch back to civil date.
-fn civil_from_days(z: i64) -> Date {
+/// Convert days since the FEL epoch (1970-01-01) back to a civil [`Date`] (date-only).
+pub fn civil_from_days(z: i64) -> Date {
     let z = z + 719468;
     let era = if z >= 0 { z } else { z - 146096 } / 146097;
     let doe = (z - era * 146097) as u64;
@@ -348,19 +348,6 @@ fn civil_from_days(z: i64) -> Date {
     }
 }
 
-/// Convert a civil (Gregorian) date to days since the internal FEL epoch (2000-01-01).
-///
-/// Public re-export of the private Hinnant algorithm for property testing.
-pub fn days_from_civil_pub(year: i32, month: u32, day: u32) -> i64 {
-    days_from_civil(year, month, day)
-}
-
-/// Convert days since the internal FEL epoch (2000-01-01) to a [`Date`] (date-only).
-///
-/// Public re-export of the private Hinnant algorithm for property testing.
-pub fn civil_from_days_pub(z: i64) -> Date {
-    civil_from_days(z)
-}
 
 /// Format a Decimal: strip trailing zeros, show as integer when possible.
 pub fn format_number(n: Decimal) -> String {
@@ -517,7 +504,7 @@ mod tests {
         for (year, month, day) in test_dates {
             let date = Date::Date { year, month, day };
             let days = date.ordinal_days();
-            let reconstructed = civil_from_days_pub(days);
+            let reconstructed = civil_from_days(days);
             assert_eq!(
                 reconstructed, date,
                 "round-trip failed for {year}-{month:02}-{day:02}"
