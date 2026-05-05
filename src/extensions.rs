@@ -4,10 +4,41 @@
 //! All extension functions are null-propagating: if any argument is null, the result is null.
 //!
 //! Registration, dispatch, and `BUILTIN_FUNCTIONS` back the catalog / WASM surfaces.
+//!
+//! ## Design note (spec: core/spec.md §3.12, registry/extension-registry.md §7)
+//!
+//! `ExtensionRegistry` is intentionally isolated from the evaluator's built-in
+//! function dispatch. The spec says extensions "MAY supplement but MUST NOT
+//! override" built-ins. This is enforced structurally: the evaluator matches
+//! built-in names first in `eval_function`, and only falls through to the
+//! extension registry for unknown names. The registry itself independently
+//! rejects registration of names that collide with built-ins or reserved words.
+//!
+//! This two-layer defense is by design, not accident. The evaluator's match
+//! arms guarantee built-in semantics can never be replaced at runtime, while
+//! the registry's registration-time check gives early feedback to extension
+//! authors. Neither layer alone would be sufficient: without the evaluator
+//! guard, a bug in the registry could allow shadowing; without the registry
+//! guard, extensions would silently be ignored instead of rejected.
 #![allow(clippy::missing_docs_in_private_items)]
 use std::collections::HashMap;
 
 use crate::types::Value as TypeValue;
+
+/// Host-package classification for a built-in.
+///
+/// Used by tooling (linters, IDE autocomplete) to filter the visible builtin
+/// set per host. `Universal` builtins are reachable from any host;
+/// `Formspec` builtins require formspec-shaped data (MIP queries, repeat
+/// groups, instances, locale) and are no-ops against [`crate::MapEnvironment`].
+#[non_exhaustive]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Package {
+    /// Available to every host — pure language semantics.
+    Universal,
+    /// Requires formspec-shaped data: MIP queries, repeat groups, instances, locale.
+    Formspec,
+}
 
 /// Type alias for extension function implementations.
 pub type ExtensionFn = Box<dyn Fn(&[TypeValue]) -> TypeValue + Send + Sync>;
@@ -22,6 +53,8 @@ pub struct BuiltinFunctionCatalogEntry {
     pub signature: &'static str,
     /// Short description for UI or generated docs.
     pub description: &'static str,
+    /// Host-package classification for filtering by tooling.
+    pub package: Package,
 }
 
 /// A registered extension function.
@@ -53,432 +86,504 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         category: "aggregate",
         signature: "sum(array<number>) -> number",
         description: "Returns the sum of numeric elements in an array.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "count",
         category: "aggregate",
         signature: "count(array<any>) -> number",
         description: "Counts non-null elements in an array.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "avg",
         category: "aggregate",
         signature: "avg(array<number>) -> number",
         description: "Returns the arithmetic mean of numeric array elements.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "min",
         category: "aggregate",
         signature: "min(array<any>) -> any | min(any, any, ...) -> any",
         description: "Smallest non-null element. Accepts an array or two-or-more scalar arguments.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "max",
         category: "aggregate",
         signature: "max(array<any>) -> any | max(any, any, ...) -> any",
         description: "Largest non-null element. Accepts an array or two-or-more scalar arguments.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "countWhere",
         category: "aggregate",
         signature: "countWhere(array<any>, expression) -> number",
         description: "Counts array elements for which the expression evaluates to true. `$` is rebound to each element; the expression is NOT pre-evaluated. E.g. `countWhere($items[*].amount, $ > 100)`.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "sumWhere",
         category: "aggregate",
         signature: "sumWhere(array<number>, expression) -> number",
         description: "Sums numeric array elements for which the expression evaluates to true. `$` is rebound to each element; the expression is NOT pre-evaluated. E.g. `sumWhere($items[*].amount, $ > 0)`.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "avgWhere",
         category: "aggregate",
         signature: "avgWhere(array<number>, expression) -> number",
         description: "Returns the mean of numeric array elements for which the expression evaluates to true. `$` is rebound to each element; the expression is NOT pre-evaluated. E.g. `avgWhere($scores[*], $ >= 60)`.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "minWhere",
         category: "aggregate",
         signature: "minWhere(array<any>, expression) -> any",
         description: "Returns the smallest array element for which the expression evaluates to true. `$` is rebound to each element; the expression is NOT pre-evaluated. E.g. `minWhere($items[*].price, $ > 0)`.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "maxWhere",
         category: "aggregate",
         signature: "maxWhere(array<any>, expression) -> any",
         description: "Returns the largest array element for which the expression evaluates to true. `$` is rebound to each element; the expression is NOT pre-evaluated. E.g. `maxWhere($items[*].price, $ < 1000)`.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "every",
         category: "aggregate",
         signature: "every(array<any>, expression) -> boolean",
         description: "True if the array is empty or the expression is true for every element. `$` is rebound to each element; the expression is NOT pre-evaluated. E.g. `every($amounts, $ > 0)`.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "some",
         category: "aggregate",
         signature: "some(array<any>, expression) -> boolean",
         description: "True if any element satisfies the expression. `$` is rebound to each element; the expression is NOT pre-evaluated. `some([], expr)` is false. E.g. `some($flags, $ = true)`.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "moneySumWhere",
         category: "money",
         signature: "moneySumWhere(array<money>, expression) -> money",
         description: "Sums money array elements for which the expression evaluates to true. `$` is rebound to each element; the expression is NOT pre-evaluated. E.g. `moneySumWhere($lineItems[*].cost, $ > money(0, 'USD'))`.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "length",
         category: "string",
         signature: "length(string | array<any>) -> number",
         description: "Returns the number of characters in a string or elements in an array.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "contains",
         category: "string",
         signature: "contains(string, string) -> boolean",
         description: "Returns true when the first string contains the second as a substring.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "startsWith",
         category: "string",
         signature: "startsWith(string, string) -> boolean",
         description: "Returns true when a string starts with the given prefix.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "endsWith",
         category: "string",
         signature: "endsWith(string, string) -> boolean",
         description: "Returns true when a string ends with the given suffix.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "substring",
         category: "string",
         signature: "substring(string, number, number?) -> string",
         description: "Extracts a substring using 1-based start and optional length.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "replace",
         category: "string",
         signature: "replace(string, string, string) -> string",
         description: "Replaces occurrences of a substring with a new value.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "upper",
         category: "string",
         signature: "upper(string) -> string",
         description: "Converts a string to uppercase.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "lower",
         category: "string",
         signature: "lower(string) -> string",
         description: "Converts a string to lowercase.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "trim",
         category: "string",
         signature: "trim(string) -> string",
         description: "Removes leading and trailing whitespace from a string.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "matches",
         category: "string",
         signature: "matches(string, string) -> boolean",
         description: "Returns true when a string matches a regular expression pattern.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "format",
         category: "string",
         signature: "format(string, ...any) -> string",
         description: "Interpolates indexed placeholders like {0} and sequential %s markers with argument values.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "round",
         category: "numeric",
         signature: "round(number, number?) -> number",
-        description: "Rounds a number using banker’s rounding with optional precision.",
+        description: "Rounds a number using banker's rounding with optional precision.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "floor",
         category: "numeric",
         signature: "floor(number) -> number",
         description: "Rounds a number down to the nearest integer.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "ceil",
         category: "numeric",
         signature: "ceil(number) -> number",
         description: "Rounds a number up to the nearest integer.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "abs",
         category: "numeric",
         signature: "abs(number) -> number",
         description: "Returns the absolute value of a number.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "power",
         category: "numeric",
         signature: "power(number, number) -> number",
         description: "Raises a base to a numeric exponent.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "today",
         category: "date",
         signature: "today() -> date",
         description: "Returns the current local date from the runtime context.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "now",
         category: "date",
         signature: "now() -> dateTime",
         description: "Returns the current local datetime from the runtime context.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "year",
         category: "date",
         signature: "year(date) -> number",
         description: "Extracts the year component from a date.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "month",
         category: "date",
         signature: "month(date) -> number",
         description: "Extracts the month component from a date.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "day",
         category: "date",
         signature: "day(date) -> number",
         description: "Extracts the day component from a date.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "hours",
         category: "date",
         signature: "hours(string) -> number",
         description: "Extracts the hour component from a HH:MM:SS time string.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "minutes",
         category: "date",
         signature: "minutes(string) -> number",
         description: "Extracts the minute component from a HH:MM:SS time string.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "seconds",
         category: "date",
         signature: "seconds(string) -> number",
         description: "Extracts the second component from a HH:MM:SS time string.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "time",
         category: "date",
         signature: "time(number, number, number) -> string",
         description: "Builds a HH:MM:SS time string from numeric parts.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "timeDiff",
         category: "date",
         signature: "timeDiff(laterTime, earlierTime) -> number",
         description: "Returns the difference in seconds between laterTime and earlierTime.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "duration",
         category: "date",
         signature: "duration(string) -> number",
         description: "Parses an ISO 8601 duration (PnYnMnDTnHnMnS subset) and returns its length in milliseconds. Fixed year/month lengths (365 and 30 days) apply in the date component — not calendar arithmetic.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "dateDiff",
         category: "date",
         signature: "dateDiff(laterDate, earlierDate, unit) -> number",
         description: "Returns the difference between laterDate and earlierDate in the requested unit.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "dateAdd",
         category: "date",
         signature: "dateAdd(date, number, unit) -> date",
         description: "Adds a number of days, months, or years to a date.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "if",
         category: "logical",
         signature: "if(boolean, any, any) -> any",
         description: "Returns the second argument when the condition is true, otherwise the third.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "coalesce",
         category: "logical",
         signature: "coalesce(...any) -> any",
         description: "Returns the first non-null argument.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "empty",
         category: "logical",
         signature: "empty(any) -> boolean",
         description: "Returns true for null, empty strings, and empty arrays.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "present",
         category: "logical",
         signature: "present(any) -> boolean",
         description: "Returns true when a value is not empty.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "selected",
         category: "logical",
         signature: "selected(array<any>, any) -> boolean",
         description: "Returns true when a choice value is present in a selected choices array.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "isNumber",
         category: "type",
         signature: "isNumber(any) -> boolean",
         description: "Returns true when a value is a number.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "isString",
         category: "type",
         signature: "isString(any) -> boolean",
         description: "Returns true when a value is a string.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "isDate",
         category: "type",
         signature: "isDate(any) -> boolean",
         description: "Returns true when a value is a date or datetime.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "isNull",
         category: "type",
         signature: "isNull(any) -> boolean",
         description: "Returns true when a value is null.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "typeOf",
         category: "type",
         signature: "typeOf(any) -> string",
         description: "Returns the FEL type name of a value.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "number",
         category: "cast",
         signature: "number(any) -> number",
         description: "Casts strings, booleans, and numbers to number values.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "string",
         category: "cast",
         signature: "string(any) -> string",
         description: "Casts a value to its string representation.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "boolean",
         category: "cast",
         signature: "boolean(any) -> boolean",
         description: "Casts a value to boolean using FEL conversion rules.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "date",
         category: "cast",
         signature: "date(any) -> date",
         description: "Parses an ISO date or datetime string into a FEL date value.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "money",
         category: "money",
         signature: "money(number, string) -> money",
         description: "Constructs a money value from an amount and currency code.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "moneyAmount",
         category: "money",
         signature: "moneyAmount(money) -> number",
         description: "Extracts the numeric amount from a money value.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "moneyCurrency",
         category: "money",
         signature: "moneyCurrency(money) -> string",
         description: "Extracts the currency code from a money value.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "moneyAdd",
         category: "money",
         signature: "moneyAdd(money, money) -> money",
         description: "Adds two money values with the same currency.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "moneySum",
         category: "money",
         signature: "moneySum(array<money>) -> money",
         description: "Sums money values in an array when all currencies match.",
+        package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "valid",
         category: "mip",
         signature: "valid(fieldRef) -> boolean",
         description: "Returns whether a field currently has zero validation errors.",
+        package: Package::Formspec,
     },
     BuiltinFunctionCatalogEntry {
         name: "relevant",
         category: "mip",
         signature: "relevant(fieldRef) -> boolean",
         description: "Returns whether a field is currently relevant.",
+        package: Package::Formspec,
     },
     BuiltinFunctionCatalogEntry {
         name: "readonly",
         category: "mip",
         signature: "readonly(fieldRef) -> boolean",
         description: "Returns whether a field is currently readonly.",
+        package: Package::Formspec,
     },
     BuiltinFunctionCatalogEntry {
         name: "required",
         category: "mip",
         signature: "required(fieldRef) -> boolean",
         description: "Returns whether a field is currently required.",
+        package: Package::Formspec,
     },
     BuiltinFunctionCatalogEntry {
         name: "prev",
         category: "repeat",
         signature: "prev() -> object | null",
         description: "Returns the previous repeat row object, or null at the boundary.",
+        package: Package::Formspec,
     },
     BuiltinFunctionCatalogEntry {
         name: "next",
         category: "repeat",
         signature: "next() -> object | null",
         description: "Returns the next repeat row object, or null at the boundary.",
+        package: Package::Formspec,
     },
     BuiltinFunctionCatalogEntry {
         name: "parent",
         category: "repeat",
         signature: "parent() -> object | null",
         description: "Returns the parent repeat row or enclosing group object.",
+        package: Package::Formspec,
     },
     BuiltinFunctionCatalogEntry {
         name: "instance",
         category: "instance",
         signature: "instance(string, string?) -> any",
         description: "Reads data from a named instance, optionally at a dotted path.",
+        package: Package::Formspec,
     },
     BuiltinFunctionCatalogEntry {
         name: "locale",
         category: "locale",
         signature: "locale() -> string",
         description: "Returns the active locale code (BCP 47) from the runtime context.",
+        package: Package::Formspec,
     },
     BuiltinFunctionCatalogEntry {
         name: "runtimeMeta",
         category: "locale",
         signature: "runtimeMeta(string) -> any",
         description: "Reads a value from the runtime metadata bag set by the host.",
+        package: Package::Formspec,
     },
     BuiltinFunctionCatalogEntry {
         name: "pluralCategory",
         category: "locale",
         signature: "pluralCategory(number, string?) -> string",
         description: "Returns the CLDR cardinal plural category (zero/one/two/few/many/other) via intl_pluralrules for a count and optional locale.",
+        package: Package::Formspec,
     },
 ];
 
@@ -492,6 +597,37 @@ pub fn builtin_function_catalog_json_value() -> serde_json::Value {
     serde_json::Value::Array(
         builtin_function_catalog()
             .iter()
+            .map(|e| {
+                serde_json::json!({
+                    "name": e.name,
+                    "category": e.category,
+                    "signature": e.signature,
+                    "description": e.description,
+                })
+            })
+            .collect(),
+    )
+}
+
+/// Catalog filtered to entries reachable from `package`.
+///
+/// `Package::Formspec` returns the union of `Universal` and `Formspec` entries
+/// (formspec hosts can call everything). `Package::Universal` returns only
+/// `Universal` entries — appropriate for hosts that use [`crate::MapEnvironment`] or
+/// any non-formspec [`crate::Environment`] implementation.
+pub fn builtin_function_catalog_for(
+    package: Package,
+) -> impl Iterator<Item = &'static BuiltinFunctionCatalogEntry> {
+    BUILTIN_FUNCTIONS.iter().filter(move |e| match package {
+        Package::Universal => matches!(e.package, Package::Universal),
+        Package::Formspec => true, // Universal ∪ Formspec
+    })
+}
+
+/// `builtin_function_catalog_for(package)` rendered as a JSON array.
+pub fn builtin_function_catalog_json_value_for(package: Package) -> serde_json::Value {
+    serde_json::Value::Array(
+        builtin_function_catalog_for(package)
             .map(|e| {
                 serde_json::json!({
                     "name": e.name,
@@ -602,21 +738,6 @@ impl Default for ExtensionRegistry {
 }
 
 #[cfg(test)]
-/// Design note (spec: core/spec.md §3.12, registry/extension-registry.md §7):
-///
-/// ExtensionRegistry is intentionally isolated from the evaluator's built-in
-/// function dispatch. The spec says extensions "MAY supplement but MUST NOT
-/// override" built-ins. This is enforced structurally: the evaluator matches
-/// built-in names first in `eval_function`, and only falls through to the
-/// extension registry for unknown names. The registry itself independently
-/// rejects registration of names that collide with built-ins or reserved words.
-///
-/// This two-layer defense is by design, not accident. The evaluator's match
-/// arms guarantee built-in semantics can never be replaced at runtime, while
-/// the registry's registration-time check gives early feedback to extension
-/// authors. Neither layer alone would be sufficient: without the evaluator
-/// guard, a bug in the registry could allow shadowing; without the registry
-/// guard, extensions would silently be ignored instead of rejected.
 mod tests {
     #![allow(clippy::missing_docs_in_private_items)]
     use super::*;
@@ -718,5 +839,22 @@ mod tests {
             registry.call("concat3", &[s("a"), s("b"), s("c")]),
             Some(s("a-b-c"))
         );
+    }
+
+    #[test]
+    fn package_filter_universal_excludes_formspec() {
+        let universal: Vec<_> = builtin_function_catalog_for(Package::Universal).collect();
+        assert!(universal.iter().all(|e| matches!(e.package, Package::Universal)));
+        // Formspec-only names must be absent
+        assert!(!universal.iter().any(|e| e.name == "valid"));
+        assert!(!universal.iter().any(|e| e.name == "prev"));
+        assert!(!universal.iter().any(|e| e.name == "instance"));
+        assert!(!universal.iter().any(|e| e.name == "locale"));
+    }
+
+    #[test]
+    fn package_filter_formspec_includes_all() {
+        let formspec_count: usize = builtin_function_catalog_for(Package::Formspec).count();
+        assert_eq!(formspec_count, BUILTIN_FUNCTIONS.len());
     }
 }
