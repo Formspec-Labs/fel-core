@@ -6,16 +6,23 @@
 //! IDE autocomplete).
 
 use fel_core::{
-    BuiltinFunctionCatalogEntry, MapEnvironment, Package, builtin_function_catalog, evaluate,
-    parse,
+    BuiltinFunctionCatalogEntry, FelType, MapEnvironment, Package, builtin_function_catalog,
+    evaluate, parse,
 };
 
 // Fake entry used only by `gate_fires_for_fake_entry` to verify the assertion logic.
 static FAKE_ENTRY: BuiltinFunctionCatalogEntry = BuiltinFunctionCatalogEntry {
     name: "thisDoesNotExist",
     category: "aggregate",
-    signature: "thisDoesNotExist() -> number",
+    parameters: &[],
+    returns: FelType::Number,
+    return_description: None,
     description: "Fake entry to verify the gate fires.",
+    null_handling: None,
+    deterministic: true,
+    short_circuit: false,
+    examples: &[],
+    since_version: "1.0",
     package: Package::Universal,
 };
 

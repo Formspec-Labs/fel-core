@@ -45,9 +45,10 @@ pub use evaluator::{
     Environment, EvalResult, Evaluator, MapEnvironment, evaluate, evaluate_with_trace,
 };
 pub use extensions::{
-    BuiltinFunctionCatalogEntry, ExtensionError, ExtensionFn, ExtensionFunc, ExtensionRegistry,
-    Package, builtin_function_catalog, builtin_function_catalog_for,
-    builtin_function_catalog_json_value, builtin_function_catalog_json_value_for,
+    BuiltinFunctionCatalogEntry, Example, ExtensionError, ExtensionFn, ExtensionFunc,
+    ExtensionRegistry, FelType, Package, Parameter, builtin_function_catalog,
+    builtin_function_catalog_for, builtin_function_catalog_json_value,
+    builtin_function_catalog_json_value_for, emit_schema_json,
 };
 pub use interpolation::expr_is_interpolation_static_literal;
 pub use iso_duration::{IsoDurationParse, parse_iso8601_duration, parse_iso8601_duration_ms};

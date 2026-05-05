@@ -40,22 +40,110 @@ pub enum Package {
     Formspec,
 }
 
-/// Type alias for extension function implementations.
-pub type ExtensionFn = Box<dyn Fn(&[TypeValue]) -> TypeValue + Send + Sync>;
+/// FEL type identifier used in structured catalog entries.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum FelType {
+    /// String type.
+    String,
+    /// Number type.
+    Number,
+    /// Boolean type.
+    Boolean,
+    /// Date type (ISO 8601 date).
+    Date,
+    /// DateTime type (ISO 8601 dateTime).
+    DateTime,
+    /// Time type (HH:MM:SS).
+    Time,
+    /// Money type ({amount, currency}).
+    Money,
+    /// Array type (`array<T>`).
+    Array,
+    /// Any type (accepts or returns multiple types).
+    Any,
+    /// Null type.
+    Null,
+}
 
-/// Metadata for a built-in FEL function exposed to tooling surfaces (WASM catalog, docs).
-pub struct BuiltinFunctionCatalogEntry {
-    /// Function name as in FEL source.
+impl FelType {
+    /// Wire name used in the JSON schema.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            FelType::String => "string",
+            FelType::Number => "number",
+            FelType::Boolean => "boolean",
+            FelType::Date => "date",
+            FelType::DateTime => "dateTime",
+            FelType::Time => "time",
+            FelType::Money => "money",
+            FelType::Array => "array",
+            FelType::Any => "any",
+            FelType::Null => "null",
+        }
+    }
+}
+
+/// One parameter in a built-in function signature.
+pub struct Parameter {
+    /// Parameter name.
     pub name: &'static str,
-    /// Grouping (e.g. `aggregate`, `string`, `repeat`).
+    /// FEL type of the parameter.
+    pub fel_type: FelType,
+    /// Human-readable description of the parameter.
+    pub description: Option<&'static str>,
+    /// Whether the parameter is required (default true).
+    pub required: bool,
+    /// Whether the parameter is variadic — must be last (default false).
+    pub variadic: bool,
+    /// Closed set of allowed literal values (schema `enum` field).
+    pub allowed_values: Option<&'static [&'static str]>,
+}
+
+/// One worked example attached to a built-in function.
+pub struct Example {
+    /// FEL expression demonstrating the function.
+    pub expression: &'static str,
+    /// JSON literal for the example result, as a `&str`. Parsed to `serde_json::Value` at
+    /// emission time. Use compact JSON; embedded nulls are the literal string `"null"`.
+    pub result_json: &'static str,
+    /// Optional clarifying note.
+    pub note: Option<&'static str>,
+}
+
+/// Structured metadata for a built-in FEL function.
+///
+/// This is the canonical source of truth for the FEL function catalog.
+/// Emit [`emit_schema_json`] to regenerate `formspec/schemas/fel-functions.schema.json`.
+pub struct BuiltinFunctionCatalogEntry {
+    /// Function name as used in FEL source.
+    pub name: &'static str,
+    /// Functional category. Closed enum from schema:
+    /// `aggregate|string|numeric|date|logical|type|money|mip|repeat|locale`.
     pub category: &'static str,
-    /// Human-readable arity and types.
-    pub signature: &'static str,
-    /// Short description for UI or generated docs.
+    /// Ordered parameter list. Variadic parameters must be last.
+    pub parameters: &'static [Parameter],
+    /// Return type of the function.
+    pub returns: FelType,
+    /// Clarification of the return value when `returns` alone is insufficient.
+    pub return_description: Option<&'static str>,
+    /// What the function does — behavior, edge cases, and constraints.
     pub description: &'static str,
+    /// How the function behaves when one or more arguments are null.
+    pub null_handling: Option<&'static str>,
+    /// False if the function can return different results for the same arguments.
+    pub deterministic: bool,
+    /// True if the function evaluates arguments lazily.
+    pub short_circuit: bool,
+    /// Worked examples.
+    pub examples: &'static [Example],
+    /// Spec version in which the function was introduced (default `"1.0"`).
+    pub since_version: &'static str,
     /// Host-package classification for filtering by tooling.
     pub package: Package,
 }
+
+/// Type alias for extension function implementations.
+pub type ExtensionFn = Box<dyn Fn(&[TypeValue]) -> TypeValue + Send + Sync>;
 
 /// A registered extension function.
 pub struct ExtensionFunc {
@@ -81,532 +169,2247 @@ const RESERVED_WORDS: &[&str] = &[
 ];
 
 const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
+    // ── aggregate ────────────────────────────────────────────────────────────
     BuiltinFunctionCatalogEntry {
         name: "sum",
         category: "aggregate",
-        signature: "sum(array<number>) -> number",
-        description: "Returns the sum of numeric elements in an array.",
+        parameters: &[Parameter {
+            name: "values",
+            fel_type: FelType::Array,
+            description: Some("Array of numbers (or money objects — extracts .amount)."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Number,
+        return_description: None,
+        description: "Sums all numeric elements in the array. Extracts .amount from money objects. Non-finite values treated as 0.",
+        null_handling: Some("Null elements are skipped. Null argument returns 0."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "sum($items[*].amount)", result_json: "1500", note: None },
+            Example { expression: "sum([10, null, 20])", result_json: "30", note: None },
+            Example { expression: "sum([])", result_json: "0", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "count",
         category: "aggregate",
-        signature: "count(array<any>) -> number",
-        description: "Counts non-null elements in an array.",
-        package: Package::Universal,
-    },
-    BuiltinFunctionCatalogEntry {
-        name: "avg",
-        category: "aggregate",
-        signature: "avg(array<number>) -> number",
-        description: "Returns the arithmetic mean of numeric array elements.",
-        package: Package::Universal,
-    },
-    BuiltinFunctionCatalogEntry {
-        name: "min",
-        category: "aggregate",
-        signature: "min(array<any>) -> any | min(any, any, ...) -> any",
-        description: "Smallest non-null element. Accepts an array or two-or-more scalar arguments.",
-        package: Package::Universal,
-    },
-    BuiltinFunctionCatalogEntry {
-        name: "max",
-        category: "aggregate",
-        signature: "max(array<any>) -> any | max(any, any, ...) -> any",
-        description: "Largest non-null element. Accepts an array or two-or-more scalar arguments.",
+        parameters: &[Parameter {
+            name: "values",
+            fel_type: FelType::Array,
+            description: Some("Array to count."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Number,
+        return_description: None,
+        description: "Returns the number of elements in the array, including nulls.",
+        null_handling: Some("Null argument returns 0. Null elements ARE counted."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "count($items[*].name)", result_json: "3", note: None },
+            Example { expression: "count([1, null, 3])", result_json: "3", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "countWhere",
         category: "aggregate",
-        signature: "countWhere(array<any>, expression) -> number",
-        description: "Counts array elements for which the expression evaluates to true. `$` is rebound to each element; the expression is NOT pre-evaluated. E.g. `countWhere($items[*].amount, $ > 100)`.",
+        parameters: &[
+            Parameter {
+                name: "values",
+                fel_type: FelType::Array,
+                description: Some("Array to filter."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "predicate",
+                fel_type: FelType::Boolean,
+                description: Some("FEL expression evaluated per element with '$' rebound to the current element."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+        ],
+        returns: FelType::Number,
+        return_description: None,
+        description: "Counts array elements for which the predicate evaluates to true. The predicate receives each element via '$' (the self-reference is rebound per element). Special argument handling: the predicate is NOT pre-evaluated — it is evaluated once per element.",
+        null_handling: Some("Null array returns 0. Null predicate result counts as false."),
+        deterministic: true,
+        short_circuit: true,
+        examples: &[
+            Example { expression: "countWhere($items[*].amount, $ > 100)", result_json: "2", note: None },
+            Example { expression: "countWhere($scores[*], $ >= 60)", result_json: "4", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "sumWhere",
         category: "aggregate",
-        signature: "sumWhere(array<number>, expression) -> number",
-        description: "Sums numeric array elements for which the expression evaluates to true. `$` is rebound to each element; the expression is NOT pre-evaluated. E.g. `sumWhere($items[*].amount, $ > 0)`.",
+        parameters: &[
+            Parameter {
+                name: "values",
+                fel_type: FelType::Array,
+                description: Some("Array of numbers (or elements from which numeric matches are taken)."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "predicate",
+                fel_type: FelType::Boolean,
+                description: Some("FEL expression evaluated per element with '$' rebound to the current element."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+        ],
+        returns: FelType::Number,
+        return_description: None,
+        description: "Sums numeric array elements for which the predicate evaluates to true. The predicate is NOT pre-evaluated — it is evaluated once per element.",
+        null_handling: Some("Null array returns null. Non-numeric matches are skipped. No numeric matches returns 0."),
+        deterministic: true,
+        short_circuit: true,
+        examples: &[
+            Example { expression: "sumWhere([1, 2, 3, 4], $ > 2)", result_json: "7", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "avgWhere",
         category: "aggregate",
-        signature: "avgWhere(array<number>, expression) -> number",
-        description: "Returns the mean of numeric array elements for which the expression evaluates to true. `$` is rebound to each element; the expression is NOT pre-evaluated. E.g. `avgWhere($scores[*], $ >= 60)`.",
+        parameters: &[
+            Parameter {
+                name: "values",
+                fel_type: FelType::Array,
+                description: Some("Array of numbers."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "predicate",
+                fel_type: FelType::Boolean,
+                description: Some("FEL expression evaluated per element with '$' rebound to the current element."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+        ],
+        returns: FelType::Number,
+        return_description: None,
+        description: "Arithmetic mean of numeric elements for which the predicate is true. Returns null when no elements match.",
+        null_handling: Some("Null array returns null. No matches returns null."),
+        deterministic: true,
+        short_circuit: true,
+        examples: &[
+            Example { expression: "avgWhere([40, 50, 60], $ >= 50)", result_json: "55", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "minWhere",
         category: "aggregate",
-        signature: "minWhere(array<any>, expression) -> any",
-        description: "Returns the smallest array element for which the expression evaluates to true. `$` is rebound to each element; the expression is NOT pre-evaluated. E.g. `minWhere($items[*].price, $ > 0)`.",
+        parameters: &[
+            Parameter {
+                name: "values",
+                fel_type: FelType::Array,
+                description: Some("Array of comparable values."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "predicate",
+                fel_type: FelType::Boolean,
+                description: Some("FEL expression evaluated per element with '$' rebound to the current element."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+        ],
+        returns: FelType::Any,
+        return_description: None,
+        description: "Smallest element among those satisfying the predicate. Also applies to dates and strings.",
+        null_handling: Some("Null array returns null. No matches returns null."),
+        deterministic: true,
+        short_circuit: true,
+        examples: &[
+            Example { expression: "minWhere([3, 1, 4], $ > 0)", result_json: "1", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "maxWhere",
         category: "aggregate",
-        signature: "maxWhere(array<any>, expression) -> any",
-        description: "Returns the largest array element for which the expression evaluates to true. `$` is rebound to each element; the expression is NOT pre-evaluated. E.g. `maxWhere($items[*].price, $ < 1000)`.",
+        parameters: &[
+            Parameter {
+                name: "values",
+                fel_type: FelType::Array,
+                description: Some("Array of comparable values."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "predicate",
+                fel_type: FelType::Boolean,
+                description: Some("FEL expression evaluated per element with '$' rebound to the current element."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+        ],
+        returns: FelType::Any,
+        return_description: None,
+        description: "Largest element among those satisfying the predicate. Also applies to dates and strings.",
+        null_handling: Some("Null array returns null. No matches returns null."),
+        deterministic: true,
+        short_circuit: true,
+        examples: &[
+            Example { expression: "maxWhere([3, 1, 4], $ < 4)", result_json: "3", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "every",
         category: "aggregate",
-        signature: "every(array<any>, expression) -> boolean",
-        description: "True if the array is empty or the expression is true for every element. `$` is rebound to each element; the expression is NOT pre-evaluated. E.g. `every($amounts, $ > 0)`.",
+        parameters: &[
+            Parameter {
+                name: "values",
+                fel_type: FelType::Array,
+                description: Some("Array to test."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "predicate",
+                fel_type: FelType::Boolean,
+                description: Some("FEL expression evaluated per element with '$' rebound to the current element."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+        ],
+        returns: FelType::Boolean,
+        return_description: None,
+        description: "True if the array is empty or the predicate is true for every element. The predicate is NOT pre-evaluated — it is evaluated once per element.",
+        null_handling: Some("Null array returns null. Null predicate result is not true (element fails every, does not satisfy some)."),
+        deterministic: true,
+        short_circuit: true,
+        examples: &[
+            Example { expression: "every([1, 2, 3], $ > 0)", result_json: "true", note: None },
+            Example { expression: "every([], $ > 0)", result_json: "true", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "some",
         category: "aggregate",
-        signature: "some(array<any>, expression) -> boolean",
-        description: "True if any element satisfies the expression. `$` is rebound to each element; the expression is NOT pre-evaluated. `some([], expr)` is false. E.g. `some($flags, $ = true)`.",
+        parameters: &[
+            Parameter {
+                name: "values",
+                fel_type: FelType::Array,
+                description: Some("Array to test."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "predicate",
+                fel_type: FelType::Boolean,
+                description: Some("FEL expression evaluated per element with '$' rebound to the current element."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+        ],
+        returns: FelType::Boolean,
+        return_description: None,
+        description: "True if at least one element satisfies the predicate. The predicate is NOT pre-evaluated — it is evaluated once per element.",
+        null_handling: Some("Null array returns null. Null predicate result counts as false."),
+        deterministic: true,
+        short_circuit: true,
+        examples: &[
+            Example { expression: "some([0, 2, 4], $ > 3)", result_json: "true", note: None },
+            Example { expression: "some([], $ > 0)", result_json: "false", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
-        name: "moneySumWhere",
-        category: "money",
-        signature: "moneySumWhere(array<money>, expression) -> money",
-        description: "Sums money array elements for which the expression evaluates to true. `$` is rebound to each element; the expression is NOT pre-evaluated. E.g. `moneySumWhere($lineItems[*].cost, $ > money(0, 'USD'))`.",
+        name: "avg",
+        category: "aggregate",
+        parameters: &[Parameter {
+            name: "values",
+            fel_type: FelType::Array,
+            description: Some("Array of numbers."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Number,
+        return_description: None,
+        description: "Arithmetic mean of all finite numeric elements. Skips nulls and non-numeric values.",
+        null_handling: Some("Null/non-numeric elements skipped. Empty array or all-null returns 0."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "avg([10, 20, 30])", result_json: "20", note: None },
+            Example { expression: "avg([10, null, 30])", result_json: "20", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
+    BuiltinFunctionCatalogEntry {
+        name: "min",
+        category: "aggregate",
+        parameters: &[Parameter {
+            name: "values",
+            fel_type: FelType::Array,
+            description: Some("Array of numbers."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Number,
+        return_description: None,
+        description: "Returns the smallest finite numeric value in the array.",
+        null_handling: Some("Null/non-numeric elements skipped. Empty array returns 0."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "min([5, 2, 8])", result_json: "2", note: None },
+            Example { expression: "min($items[*].amount)", result_json: "100", note: None },
+        ],
+        since_version: "1.0",
+        package: Package::Universal,
+    },
+    BuiltinFunctionCatalogEntry {
+        name: "max",
+        category: "aggregate",
+        parameters: &[Parameter {
+            name: "values",
+            fel_type: FelType::Array,
+            description: Some("Array of numbers."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Number,
+        return_description: None,
+        description: "Returns the largest finite numeric value in the array.",
+        null_handling: Some("Null/non-numeric elements skipped. Empty array returns 0."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "max([5, 2, 8])", result_json: "8", note: None },
+        ],
+        since_version: "1.0",
+        package: Package::Universal,
+    },
+    // ── string ───────────────────────────────────────────────────────────────
     BuiltinFunctionCatalogEntry {
         name: "length",
         category: "string",
-        signature: "length(string | array<any>) -> number",
-        description: "Returns the number of characters in a string or elements in an array.",
+        parameters: &[Parameter {
+            name: "value",
+            fel_type: FelType::String,
+            description: Some("String to measure."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Number,
+        return_description: None,
+        description: "Returns the number of characters in the string.",
+        null_handling: Some("Null returns 0."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "length('hello')", result_json: "5", note: None },
+            Example { expression: "length(null)", result_json: "0", note: None },
+            Example { expression: "length($name)", result_json: "12", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "contains",
         category: "string",
-        signature: "contains(string, string) -> boolean",
-        description: "Returns true when the first string contains the second as a substring.",
+        parameters: &[
+            Parameter {
+                name: "haystack",
+                fel_type: FelType::String,
+                description: Some("String to search in."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "needle",
+                fel_type: FelType::String,
+                description: Some("Substring to find."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+        ],
+        returns: FelType::Boolean,
+        return_description: None,
+        description: "Returns true if haystack contains needle. Case-sensitive.",
+        null_handling: Some("Null haystack treated as empty string."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "contains('hello world', 'world')", result_json: "true", note: None },
+            Example { expression: "contains($email, '@')", result_json: "true", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "startsWith",
         category: "string",
-        signature: "startsWith(string, string) -> boolean",
-        description: "Returns true when a string starts with the given prefix.",
+        parameters: &[
+            Parameter {
+                name: "value",
+                fel_type: FelType::String,
+                description: Some("String to test."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "prefix",
+                fel_type: FelType::String,
+                description: Some("Expected prefix."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+        ],
+        returns: FelType::Boolean,
+        return_description: None,
+        description: "Returns true if value starts with prefix. Case-sensitive.",
+        null_handling: Some("Null value treated as empty string."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "startsWith($url, 'https://')", result_json: "true", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "endsWith",
         category: "string",
-        signature: "endsWith(string, string) -> boolean",
-        description: "Returns true when a string ends with the given suffix.",
+        parameters: &[
+            Parameter {
+                name: "value",
+                fel_type: FelType::String,
+                description: Some("String to test."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "suffix",
+                fel_type: FelType::String,
+                description: Some("Expected suffix."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+        ],
+        returns: FelType::Boolean,
+        return_description: None,
+        description: "Returns true if value ends with suffix. Case-sensitive.",
+        null_handling: Some("Null value treated as empty string."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "endsWith($email, '.gov')", result_json: "true", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "substring",
         category: "string",
-        signature: "substring(string, number, number?) -> string",
-        description: "Extracts a substring using 1-based start and optional length.",
+        parameters: &[
+            Parameter {
+                name: "value",
+                fel_type: FelType::String,
+                description: Some("Source string."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "start",
+                fel_type: FelType::Number,
+                description: Some("1-based start position."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "length",
+                fel_type: FelType::Number,
+                description: Some("Number of characters to extract."),
+                required: false,
+                variadic: false,
+                allowed_values: None,
+            },
+        ],
+        returns: FelType::String,
+        return_description: None,
+        description: "Extracts a substring starting at the 1-based position. If length is omitted, extracts to the end of the string.",
+        null_handling: Some("Null value treated as empty string."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "substring('abcdef', 2, 3)", result_json: "\"bcd\"", note: None },
+            Example { expression: "substring('abcdef', 4)", result_json: "\"def\"", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "replace",
         category: "string",
-        signature: "replace(string, string, string) -> string",
-        description: "Replaces occurrences of a substring with a new value.",
+        parameters: &[
+            Parameter {
+                name: "value",
+                fel_type: FelType::String,
+                description: Some("Source string."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "search",
+                fel_type: FelType::String,
+                description: Some("Literal substring to find (NOT regex)."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "replacement",
+                fel_type: FelType::String,
+                description: Some("Replacement string."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+        ],
+        returns: FelType::String,
+        return_description: None,
+        description: "Replaces ALL occurrences of the search literal with the replacement. Not regex — literal string match only.",
+        null_handling: Some("Null value treated as empty string."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "replace('hello world', 'world', 'there')", result_json: "\"hello there\"", note: None },
+            Example { expression: "replace($phone, '-', '')", result_json: "\"5551234567\"", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "upper",
         category: "string",
-        signature: "upper(string) -> string",
-        description: "Converts a string to uppercase.",
+        parameters: &[Parameter {
+            name: "value",
+            fel_type: FelType::String,
+            description: Some("String to convert."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::String,
+        return_description: None,
+        description: "Converts string to uppercase.",
+        null_handling: Some("Null treated as empty string, returns empty string."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "upper('hello')", result_json: "\"HELLO\"", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "lower",
         category: "string",
-        signature: "lower(string) -> string",
-        description: "Converts a string to lowercase.",
+        parameters: &[Parameter {
+            name: "value",
+            fel_type: FelType::String,
+            description: Some("String to convert."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::String,
+        return_description: None,
+        description: "Converts string to lowercase.",
+        null_handling: Some("Null treated as empty string, returns empty string."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "lower('HELLO')", result_json: "\"hello\"", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "trim",
         category: "string",
-        signature: "trim(string) -> string",
-        description: "Removes leading and trailing whitespace from a string.",
+        parameters: &[Parameter {
+            name: "value",
+            fel_type: FelType::String,
+            description: Some("String to trim."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::String,
+        return_description: None,
+        description: "Removes leading and trailing whitespace.",
+        null_handling: Some("Null treated as empty string, returns empty string."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "trim('  hello  ')", result_json: "\"hello\"", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "matches",
         category: "string",
-        signature: "matches(string, string) -> boolean",
-        description: "Returns true when a string matches a regular expression pattern.",
+        parameters: &[
+            Parameter {
+                name: "value",
+                fel_type: FelType::String,
+                description: Some("String to test."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "pattern",
+                fel_type: FelType::String,
+                description: Some("Regular expression pattern."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+        ],
+        returns: FelType::Boolean,
+        return_description: None,
+        description: "Returns true if the string matches the regular expression pattern. Pattern syntax follows the host language's regex engine (ECMA-262 for TypeScript, Python re for Python).",
+        null_handling: Some("Null value treated as empty string."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "matches($ein, '^[0-9]{2}-[0-9]{7}$')", result_json: "true", note: None },
+            Example { expression: "matches($email, '^[^@]+@[^@]+$')", result_json: "true", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "format",
         category: "string",
-        signature: "format(string, ...any) -> string",
-        description: "Interpolates indexed placeholders like {0} and sequential %s markers with argument values.",
+        parameters: &[
+            Parameter {
+                name: "template",
+                fel_type: FelType::String,
+                description: Some("Format string with {0}, {1}, ... positional placeholders."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "args",
+                fel_type: FelType::Any,
+                description: Some("Values to substitute for placeholders."),
+                required: true,
+                variadic: true,
+                allowed_values: None,
+            },
+        ],
+        returns: FelType::String,
+        return_description: None,
+        description: "Positional string interpolation. Replaces {0}, {1}, etc. in the template with stringified arguments. Null arguments become empty string. Numbers strip trailing zeros. Booleans become 'true'/'false'.",
+        null_handling: Some("Null template returns empty string. Null arguments substituted as empty string."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "format('{0} of {1}', $current, $total)", result_json: "\"3 of 10\"", note: None },
+            Example { expression: "format('Hello, {0}!', $name)", result_json: "\"Hello, Alice!\"", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
+    // ── numeric ──────────────────────────────────────────────────────────────
     BuiltinFunctionCatalogEntry {
         name: "round",
         category: "numeric",
-        signature: "round(number, number?) -> number",
-        description: "Rounds a number using banker's rounding with optional precision.",
+        parameters: &[
+            Parameter {
+                name: "value",
+                fel_type: FelType::Number,
+                description: Some("Number to round."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "precision",
+                fel_type: FelType::Number,
+                description: Some("Decimal places (default 0)."),
+                required: false,
+                variadic: false,
+                allowed_values: None,
+            },
+        ],
+        returns: FelType::Number,
+        return_description: None,
+        description: "Rounds to the specified number of decimal places using banker's rounding (round half to even).",
+        null_handling: Some("Null treated as 0."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "round(3.456, 2)", result_json: "3.46", note: None },
+            Example { expression: "round(2.5)", result_json: "2", note: Some("Banker's rounding: half rounds to even") },
+            Example { expression: "round(3.5)", result_json: "4", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "floor",
         category: "numeric",
-        signature: "floor(number) -> number",
-        description: "Rounds a number down to the nearest integer.",
+        parameters: &[Parameter {
+            name: "value",
+            fel_type: FelType::Number,
+            description: Some("Number to floor."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Number,
+        return_description: None,
+        description: "Returns the largest integer less than or equal to the value.",
+        null_handling: Some("Null treated as 0."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "floor(3.7)", result_json: "3", note: None },
+            Example { expression: "floor(-2.3)", result_json: "-3", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "ceil",
         category: "numeric",
-        signature: "ceil(number) -> number",
-        description: "Rounds a number up to the nearest integer.",
+        parameters: &[Parameter {
+            name: "value",
+            fel_type: FelType::Number,
+            description: Some("Number to ceil."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Number,
+        return_description: None,
+        description: "Returns the smallest integer greater than or equal to the value.",
+        null_handling: Some("Null treated as 0."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "ceil(3.2)", result_json: "4", note: None },
+            Example { expression: "ceil(-2.7)", result_json: "-2", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "abs",
         category: "numeric",
-        signature: "abs(number) -> number",
-        description: "Returns the absolute value of a number.",
+        parameters: &[Parameter {
+            name: "value",
+            fel_type: FelType::Number,
+            description: Some("Number to take absolute value of."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Number,
+        return_description: None,
+        description: "Returns the absolute value of the number.",
+        null_handling: Some("Null treated as 0."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "abs(-42)", result_json: "42", note: None },
+            Example { expression: "abs(42)", result_json: "42", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "power",
         category: "numeric",
-        signature: "power(number, number) -> number",
-        description: "Raises a base to a numeric exponent.",
+        parameters: &[
+            Parameter {
+                name: "base",
+                fel_type: FelType::Number,
+                description: Some("Base number."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "exponent",
+                fel_type: FelType::Number,
+                description: Some("Exponent."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+        ],
+        returns: FelType::Number,
+        return_description: None,
+        description: "Returns base raised to the power of exponent.",
+        null_handling: Some("Null arguments treated as 0."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "power(2, 10)", result_json: "1024", note: None },
+            Example { expression: "power(10, 2)", result_json: "100", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
+    // ── date ─────────────────────────────────────────────────────────────────
     BuiltinFunctionCatalogEntry {
         name: "today",
         category: "date",
-        signature: "today() -> date",
-        description: "Returns the current local date from the runtime context.",
+        parameters: &[],
+        returns: FelType::Date,
+        return_description: None,
+        description: "Returns the current date as an ISO 8601 date string (YYYY-MM-DD). Non-deterministic.",
+        null_handling: Some("N/A — no parameters."),
+        deterministic: false,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "today()", result_json: "\"2025-07-10\"", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "now",
         category: "date",
-        signature: "now() -> dateTime",
-        description: "Returns the current local datetime from the runtime context.",
+        parameters: &[],
+        returns: FelType::DateTime,
+        return_description: None,
+        description: "Returns the current date and time as an ISO 8601 dateTime string. Non-deterministic.",
+        null_handling: Some("N/A — no parameters."),
+        deterministic: false,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "now()", result_json: "\"2025-07-10T14:30:00.000Z\"", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "year",
         category: "date",
-        signature: "year(date) -> number",
-        description: "Extracts the year component from a date.",
+        parameters: &[Parameter {
+            name: "date",
+            fel_type: FelType::Date,
+            description: Some("ISO 8601 date or dateTime string."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Number,
+        return_description: None,
+        description: "Extracts the 4-digit year from a date.",
+        null_handling: Some("Null returns null."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "year(@2025-07-10)", result_json: "2025", note: None },
+            Example { expression: "year($birthDate)", result_json: "1990", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "month",
         category: "date",
-        signature: "month(date) -> number",
-        description: "Extracts the month component from a date.",
+        parameters: &[Parameter {
+            name: "date",
+            fel_type: FelType::Date,
+            description: Some("ISO 8601 date or dateTime string."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Number,
+        return_description: None,
+        description: "Extracts the month (1-12) from a date.",
+        null_handling: Some("Null returns null."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "month(@2025-07-10)", result_json: "7", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "day",
         category: "date",
-        signature: "day(date) -> number",
-        description: "Extracts the day component from a date.",
+        parameters: &[Parameter {
+            name: "date",
+            fel_type: FelType::Date,
+            description: Some("ISO 8601 date or dateTime string."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Number,
+        return_description: None,
+        description: "Extracts the day of month (1-31) from a date.",
+        null_handling: Some("Null returns null."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "day(@2025-07-10)", result_json: "10", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "hours",
         category: "date",
-        signature: "hours(string) -> number",
-        description: "Extracts the hour component from a HH:MM:SS time string.",
+        parameters: &[Parameter {
+            name: "dateTime",
+            fel_type: FelType::DateTime,
+            description: Some("ISO 8601 dateTime or time string."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Number,
+        return_description: None,
+        description: "Extracts the hour component (0-23) from a dateTime or time value.",
+        null_handling: Some("Null returns null."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "hours(@2025-07-10T14:30:00Z)", result_json: "14", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "minutes",
         category: "date",
-        signature: "minutes(string) -> number",
-        description: "Extracts the minute component from a HH:MM:SS time string.",
+        parameters: &[Parameter {
+            name: "dateTime",
+            fel_type: FelType::DateTime,
+            description: Some("ISO 8601 dateTime or time string."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Number,
+        return_description: None,
+        description: "Extracts the minute component (0-59) from a dateTime or time value.",
+        null_handling: Some("Null returns null."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "minutes(@2025-07-10T14:30:00Z)", result_json: "30", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "seconds",
         category: "date",
-        signature: "seconds(string) -> number",
-        description: "Extracts the second component from a HH:MM:SS time string.",
+        parameters: &[Parameter {
+            name: "dateTime",
+            fel_type: FelType::DateTime,
+            description: Some("ISO 8601 dateTime or time string."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Number,
+        return_description: None,
+        description: "Extracts the second component (0-59) from a dateTime or time value.",
+        null_handling: Some("Null returns null."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "seconds(@2025-07-10T14:30:45Z)", result_json: "45", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "time",
         category: "date",
-        signature: "time(number, number, number) -> string",
-        description: "Builds a HH:MM:SS time string from numeric parts.",
-        package: Package::Universal,
-    },
-    BuiltinFunctionCatalogEntry {
-        name: "timeDiff",
-        category: "date",
-        signature: "timeDiff(laterTime, earlierTime) -> number",
-        description: "Returns the difference in seconds between laterTime and earlierTime.",
-        package: Package::Universal,
-    },
-    BuiltinFunctionCatalogEntry {
-        name: "duration",
-        category: "date",
-        signature: "duration(string) -> number",
-        description: "Parses an ISO 8601 duration (PnYnMnDTnHnMnS subset) and returns its length in milliseconds. Fixed year/month lengths (365 and 30 days) apply in the date component — not calendar arithmetic.",
+        parameters: &[
+            Parameter {
+                name: "hours",
+                fel_type: FelType::Number,
+                description: Some("Hour (0-23)."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "minutes",
+                fel_type: FelType::Number,
+                description: Some("Minute (0-59)."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "seconds",
+                fel_type: FelType::Number,
+                description: Some("Second (0-59)."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+        ],
+        returns: FelType::Time,
+        return_description: None,
+        description: "Constructs an HH:MM:SS time string from numeric components.",
+        null_handling: Some("Null components treated as 0."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "time(14, 30, 0)", result_json: "\"14:30:00\"", note: None },
+            Example { expression: "time(9, 5, 30)", result_json: "\"09:05:30\"", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "dateDiff",
         category: "date",
-        signature: "dateDiff(laterDate, earlierDate, unit) -> number",
-        description: "Returns the difference between laterDate and earlierDate in the requested unit.",
+        parameters: &[
+            Parameter {
+                name: "date1",
+                fel_type: FelType::Date,
+                description: Some("First date (ISO 8601)."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "date2",
+                fel_type: FelType::Date,
+                description: Some("Second date (ISO 8601)."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "unit",
+                fel_type: FelType::String,
+                description: Some("Unit of measurement."),
+                required: true,
+                variadic: false,
+                allowed_values: Some(&["days", "months", "years"]),
+            },
+        ],
+        returns: FelType::Number,
+        return_description: None,
+        description: "Returns the difference date1 - date2 in the specified unit. Result is positive when date1 > date2, negative when date1 < date2. For months/years, incomplete periods are truncated (not rounded).",
+        null_handling: Some("Null or invalid dates return null."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "dateDiff(@2025-07-10, @2025-01-01, 'days')", result_json: "190", note: None },
+            Example { expression: "dateDiff($endDate, $startDate, 'months')", result_json: "6", note: None },
+            Example { expression: "dateDiff(today(), $birthDate, 'years')", result_json: "35", note: Some("Age calculation") },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "dateAdd",
         category: "date",
-        signature: "dateAdd(date, number, unit) -> date",
-        description: "Adds a number of days, months, or years to a date.",
+        parameters: &[
+            Parameter {
+                name: "date",
+                fel_type: FelType::Date,
+                description: Some("Base date (ISO 8601)."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "amount",
+                fel_type: FelType::Number,
+                description: Some("Number of units to add (negative to subtract)."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "unit",
+                fel_type: FelType::String,
+                description: Some("Unit of measurement."),
+                required: true,
+                variadic: false,
+                allowed_values: Some(&["days", "months", "years"]),
+            },
+        ],
+        returns: FelType::Date,
+        return_description: Some("ISO 8601 date string (YYYY-MM-DD)."),
+        description: "Adds the specified number of units to a date. Negative values subtract. Month/year arithmetic handles end-of-month overflow per the host language's Date implementation.",
+        null_handling: Some("Null date returns null."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "dateAdd(@2025-01-15, 30, 'days')", result_json: "\"2025-02-14\"", note: None },
+            Example { expression: "dateAdd(today(), 1, 'years')", result_json: "\"2026-07-10\"", note: None },
+            Example { expression: "dateAdd($startDate, -6, 'months')", result_json: "\"2025-01-10\"", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
+        name: "timeDiff",
+        category: "date",
+        parameters: &[
+            Parameter {
+                name: "laterTime",
+                fel_type: FelType::Time,
+                description: Some("Later ISO 8601 time string (HH:MM:SS)."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "earlierTime",
+                fel_type: FelType::Time,
+                description: Some("Earlier ISO 8601 time string (HH:MM:SS)."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+        ],
+        returns: FelType::Number,
+        return_description: Some("Signed difference in whole seconds: laterTime minus earlierTime (positive when the first argument is later in the day)."),
+        description: "Difference in seconds between two time-of-day strings. Distinct from duration(), which parses an ISO 8601 duration and returns milliseconds.",
+        null_handling: Some("Invalid time strings produce a diagnostic and null."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "timeDiff('14:30:00', '13:00:00')", result_json: "5400", note: None },
+            Example { expression: "timeDiff('13:00:00', '14:30:00')", result_json: "-5400", note: None },
+        ],
+        since_version: "1.0",
+        package: Package::Universal,
+    },
+    BuiltinFunctionCatalogEntry {
+        name: "duration",
+        category: "date",
+        parameters: &[Parameter {
+            name: "isoDuration",
+            fel_type: FelType::String,
+            description: Some("ISO 8601 duration (PnYnMnDTnHnMnS subset), optional leading minus."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Number,
+        return_description: None,
+        description: "Parses a duration string and returns its length in milliseconds. Years/months in the date part use fixed 365-day years and 30-day months (not calendar arithmetic). Distinct from timeDiff, which compares two clock times in seconds.",
+        null_handling: Some("Null argument returns null. Invalid strings produce an error diagnostic and null."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "duration('PT1H')", result_json: "3600000", note: None },
+            Example { expression: "duration('P1D')", result_json: "86400000", note: None },
+        ],
+        since_version: "1.0",
+        package: Package::Universal,
+    },
+    // ── logical ──────────────────────────────────────────────────────────────
+    BuiltinFunctionCatalogEntry {
         name: "if",
         category: "logical",
-        signature: "if(boolean, any, any) -> any",
-        description: "Returns the second argument when the condition is true, otherwise the third.",
+        parameters: &[
+            Parameter {
+                name: "condition",
+                fel_type: FelType::Boolean,
+                description: Some("Condition to evaluate."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "thenValue",
+                fel_type: FelType::Any,
+                description: Some("Value returned when condition is true."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "elseValue",
+                fel_type: FelType::Any,
+                description: Some("Value returned when condition is false."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+        ],
+        returns: FelType::Any,
+        return_description: Some("Type matches whichever branch is selected."),
+        description: "Conditional function. Returns thenValue when condition is true, elseValue when false. Only the selected branch is evaluated (short-circuit). Alternative syntax: 'if cond then a else b' (keyword form). Note: 'if' is a reserved word; this function is special-cased in the parser.",
+        null_handling: Some("Null condition is an evaluation error."),
+        deterministic: true,
+        short_circuit: true,
+        examples: &[
+            Example { expression: "if($age >= 18, 'adult', 'minor')", result_json: "\"adult\"", note: None },
+            Example { expression: "if($status = 'married', $income * 0.75, $income)", result_json: "45000", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "coalesce",
         category: "logical",
-        signature: "coalesce(...any) -> any",
-        description: "Returns the first non-null argument.",
+        parameters: &[Parameter {
+            name: "values",
+            fel_type: FelType::Any,
+            description: Some("Values to check."),
+            required: true,
+            variadic: true,
+            allowed_values: None,
+        }],
+        returns: FelType::Any,
+        return_description: None,
+        description: "Returns the first argument that is not null, undefined, or empty string. If all arguments are null/empty, returns null.",
+        null_handling: Some("Core purpose is null handling — returns first non-null, non-empty value."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "coalesce($preferredName, $firstName, 'Unknown')", result_json: "\"Alice\"", note: None },
+            Example { expression: "coalesce(null, '', 'fallback')", result_json: "\"fallback\"", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "empty",
         category: "logical",
-        signature: "empty(any) -> boolean",
-        description: "Returns true for null, empty strings, and empty arrays.",
+        parameters: &[Parameter {
+            name: "value",
+            fel_type: FelType::Any,
+            description: Some("Value to test."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Boolean,
+        return_description: None,
+        description: "Returns true if the value is null, undefined, empty string (''), or an empty array ([]). Broader than a simple null check.",
+        null_handling: Some("Null returns true (that's the point)."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "empty(null)", result_json: "true", note: None },
+            Example { expression: "empty('')", result_json: "true", note: None },
+            Example { expression: "empty([])", result_json: "true", note: None },
+            Example { expression: "empty('hello')", result_json: "false", note: None },
+            Example { expression: "empty(0)", result_json: "false", note: Some("0 is not empty") },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "present",
         category: "logical",
-        signature: "present(any) -> boolean",
-        description: "Returns true when a value is not empty.",
+        parameters: &[Parameter {
+            name: "value",
+            fel_type: FelType::Any,
+            description: Some("Value to test."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Boolean,
+        return_description: None,
+        description: "Inverse of empty(). Returns true if the value is non-null, non-empty-string, and non-empty-array.",
+        null_handling: Some("Null returns false."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "present($email)", result_json: "true", note: None },
+            Example { expression: "present(null)", result_json: "false", note: None },
+            Example { expression: "not empty($email) or not empty($phone)", result_json: "true", note: Some("Equivalent to: present($email) or present($phone)") },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "selected",
         category: "logical",
-        signature: "selected(array<any>, any) -> boolean",
-        description: "Returns true when a choice value is present in a selected choices array.",
+        parameters: &[
+            Parameter {
+                name: "value",
+                fel_type: FelType::Any,
+                description: Some("Field value (string for choice, array for multiChoice)."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "option",
+                fel_type: FelType::String,
+                description: Some("Option value to check for."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+        ],
+        returns: FelType::Boolean,
+        return_description: None,
+        description: "For multiChoice (array): returns true if the option is included in the array. For choice (string): returns true if value equals option. Designed for testing selected options in choice/multiChoice fields.",
+        null_handling: Some("Null value returns false."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "selected($categories, 'personnel')", result_json: "true", note: Some("multiChoice field") },
+            Example { expression: "selected($status, 'active')", result_json: "true", note: Some("choice field") },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
+    // ── type ─────────────────────────────────────────────────────────────────
     BuiltinFunctionCatalogEntry {
         name: "isNumber",
         category: "type",
-        signature: "isNumber(any) -> boolean",
-        description: "Returns true when a value is a number.",
+        parameters: &[Parameter {
+            name: "value",
+            fel_type: FelType::Any,
+            description: Some("Value to test."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Boolean,
+        return_description: None,
+        description: "Returns true if the value is a finite number (not NaN).",
+        null_handling: Some("Null returns false."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "isNumber(42)", result_json: "true", note: None },
+            Example { expression: "isNumber('42')", result_json: "false", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "isString",
         category: "type",
-        signature: "isString(any) -> boolean",
-        description: "Returns true when a value is a string.",
+        parameters: &[Parameter {
+            name: "value",
+            fel_type: FelType::Any,
+            description: Some("Value to test."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Boolean,
+        return_description: None,
+        description: "Returns true if the value is a string.",
+        null_handling: Some("Null returns false."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "isString('hello')", result_json: "true", note: None },
+            Example { expression: "isString(42)", result_json: "false", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "isDate",
         category: "type",
-        signature: "isDate(any) -> boolean",
-        description: "Returns true when a value is a date or datetime.",
+        parameters: &[Parameter {
+            name: "value",
+            fel_type: FelType::Any,
+            description: Some("Value to test."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Boolean,
+        return_description: None,
+        description: "Returns true if the value can be parsed as a valid date.",
+        null_handling: Some("Null returns false."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "isDate('2025-07-10')", result_json: "true", note: None },
+            Example { expression: "isDate('not-a-date')", result_json: "false", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "isNull",
         category: "type",
-        signature: "isNull(any) -> boolean",
-        description: "Returns true when a value is null.",
+        parameters: &[Parameter {
+            name: "value",
+            fel_type: FelType::Any,
+            description: Some("Value to test."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Boolean,
+        return_description: None,
+        description: "Returns true if the value is null, undefined, or empty string. Note: broader than a strict null check — empty string is also considered 'null' in FEL.",
+        null_handling: Some("Null returns true (that's the point)."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "isNull(null)", result_json: "true", note: None },
+            Example { expression: "isNull('')", result_json: "true", note: None },
+            Example { expression: "isNull(0)", result_json: "false", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "typeOf",
         category: "type",
-        signature: "typeOf(any) -> string",
-        description: "Returns the FEL type name of a value.",
+        parameters: &[Parameter {
+            name: "value",
+            fel_type: FelType::Any,
+            description: Some("Value to inspect."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::String,
+        return_description: Some("One of: 'string', 'number', 'boolean', 'array', 'object', 'null'."),
+        description: "Returns the FEL type name of the value.",
+        null_handling: Some("Null returns 'null'."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "typeOf(42)", result_json: "\"number\"", note: None },
+            Example { expression: "typeOf([1,2])", result_json: "\"array\"", note: None },
+            Example { expression: "typeOf(null)", result_json: "\"null\"", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
+    // cast functions: category changed cast → type to match schema (schema is authoritative)
     BuiltinFunctionCatalogEntry {
         name: "number",
-        category: "cast",
-        signature: "number(any) -> number",
-        description: "Casts strings, booleans, and numbers to number values.",
+        category: "type",
+        parameters: &[Parameter {
+            name: "value",
+            fel_type: FelType::Any,
+            description: Some("Value to coerce to number."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Number,
+        return_description: None,
+        description: "Explicit type cast to number. Strings are parsed as numbers. Returns null if coercion fails.",
+        null_handling: Some("Null returns null."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "number('42')", result_json: "42", note: None },
+            Example { expression: "number('3.14')", result_json: "3.14", note: None },
+            Example { expression: "number('abc')", result_json: "null", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "string",
-        category: "cast",
-        signature: "string(any) -> string",
-        description: "Casts a value to its string representation.",
+        category: "type",
+        parameters: &[Parameter {
+            name: "value",
+            fel_type: FelType::Any,
+            description: Some("Value to coerce to string."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::String,
+        return_description: None,
+        description: "Explicit type cast to string. Null becomes empty string. Numbers, booleans, and dates are stringified.",
+        null_handling: Some("Null returns empty string ''."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "string(42)", result_json: "\"42\"", note: None },
+            Example { expression: "string(true)", result_json: "\"true\"", note: None },
+            Example { expression: "string(null)", result_json: "\"\"", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "boolean",
-        category: "cast",
-        signature: "boolean(any) -> boolean",
-        description: "Casts a value to boolean using FEL conversion rules.",
+        category: "type",
+        parameters: &[Parameter {
+            name: "value",
+            fel_type: FelType::Any,
+            description: Some("Value to coerce to boolean."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Boolean,
+        return_description: None,
+        description: "Explicit type cast to boolean. Accepts: booleans (pass-through), numbers (0 = false, non-zero = true), strings 'true'/'false'. Other values produce an evaluation error.",
+        null_handling: Some("Null returns false."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "boolean(1)", result_json: "true", note: None },
+            Example { expression: "boolean(0)", result_json: "false", note: None },
+            Example { expression: "boolean('true')", result_json: "true", note: None },
+            Example { expression: "boolean(null)", result_json: "false", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "date",
-        category: "cast",
-        signature: "date(any) -> date",
-        description: "Parses an ISO date or datetime string into a FEL date value.",
+        category: "type",
+        parameters: &[Parameter {
+            name: "value",
+            fel_type: FelType::Any,
+            description: Some("Value to validate/coerce as ISO 8601 date."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Date,
+        return_description: None,
+        description: "Validates and returns the input as an ISO 8601 date string. If the input is not a valid date, produces an evaluation error.",
+        null_handling: Some("Null returns null."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "date('2025-07-10')", result_json: "\"2025-07-10\"", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
+    // ── money ─────────────────────────────────────────────────────────────────
     BuiltinFunctionCatalogEntry {
         name: "money",
         category: "money",
-        signature: "money(number, string) -> money",
-        description: "Constructs a money value from an amount and currency code.",
+        parameters: &[
+            Parameter {
+                name: "amount",
+                fel_type: FelType::Number,
+                description: Some("Monetary amount."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "currency",
+                fel_type: FelType::String,
+                description: Some("ISO 4217 currency code (e.g., 'USD', 'EUR')."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+        ],
+        returns: FelType::Money,
+        return_description: Some("Object: {amount: number, currency: string}."),
+        description: "Constructs a money object from an amount and currency code.",
+        null_handling: Some("Null arguments produce a money object with null/undefined fields."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "money(50000, 'USD')", result_json: "{\"amount\": 50000, \"currency\": \"USD\"}", note: None },
+            Example { expression: "money($total, 'EUR')", result_json: "{\"amount\": 12500, \"currency\": \"EUR\"}", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "moneyAmount",
         category: "money",
-        signature: "moneyAmount(money) -> number",
-        description: "Extracts the numeric amount from a money value.",
+        parameters: &[Parameter {
+            name: "value",
+            fel_type: FelType::Money,
+            description: Some("Money object."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Number,
+        return_description: None,
+        description: "Extracts the numeric amount from a money object.",
+        null_handling: Some("Null or non-money value returns null."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "moneyAmount($budget)", result_json: "50000", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "moneyCurrency",
         category: "money",
-        signature: "moneyCurrency(money) -> string",
-        description: "Extracts the currency code from a money value.",
+        parameters: &[Parameter {
+            name: "value",
+            fel_type: FelType::Money,
+            description: Some("Money object."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::String,
+        return_description: None,
+        description: "Extracts the currency code from a money object.",
+        null_handling: Some("Null or non-money value returns null."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "moneyCurrency($budget)", result_json: "\"USD\"", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "moneyAdd",
         category: "money",
-        signature: "moneyAdd(money, money) -> money",
-        description: "Adds two money values with the same currency.",
+        parameters: &[
+            Parameter {
+                name: "a",
+                fel_type: FelType::Money,
+                description: Some("First money object."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "b",
+                fel_type: FelType::Money,
+                description: Some("Second money object. Must have the same currency as first."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+        ],
+        returns: FelType::Money,
+        return_description: None,
+        description: "Adds two money objects. Uses the currency from the first non-null operand. Per the spec, both operands SHOULD have the same currency; implementations MAY error on mismatched currencies.",
+        null_handling: Some("Null operand returns null."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "moneyAdd(money(100, 'USD'), money(250, 'USD'))", result_json: "{\"amount\": 350, \"currency\": \"USD\"}", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
         name: "moneySum",
         category: "money",
-        signature: "moneySum(array<money>) -> money",
-        description: "Sums money values in an array when all currencies match.",
+        parameters: &[Parameter {
+            name: "values",
+            fel_type: FelType::Array,
+            description: Some("Array of money objects."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Money,
+        return_description: None,
+        description: "Sums an array of money objects. Returns a money object with the currency from the first element. All elements SHOULD have the same currency.",
+        null_handling: Some("Null elements skipped. Empty array returns null."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "moneySum($lineItems[*].cost)", result_json: "{\"amount\": 1500, \"currency\": \"USD\"}", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Universal,
     },
     BuiltinFunctionCatalogEntry {
-        name: "valid",
-        category: "mip",
-        signature: "valid(fieldRef) -> boolean",
-        description: "Returns whether a field currently has zero validation errors.",
-        package: Package::Formspec,
+        name: "moneySumWhere",
+        category: "money",
+        parameters: &[
+            Parameter {
+                name: "values",
+                fel_type: FelType::Array,
+                description: Some("Array of money objects."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "predicate",
+                fel_type: FelType::Boolean,
+                description: Some("FEL expression evaluated per element with '$' rebound to the current money value."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+        ],
+        returns: FelType::Money,
+        return_description: None,
+        description: "Sums money array elements for which the predicate evaluates to true. Matched elements MUST share the same currency. The predicate is NOT pre-evaluated — it is evaluated once per element.",
+        null_handling: Some("Null array returns null. No matches returns null."),
+        deterministic: true,
+        short_circuit: true,
+        examples: &[
+            Example { expression: "moneySumWhere([money(100,'USD'), money(200,'USD')], moneyAmount($) > 50)", result_json: "{\"amount\": 300, \"currency\": \"USD\"}", note: None },
+        ],
+        since_version: "1.0",
+        package: Package::Universal,
     },
-    BuiltinFunctionCatalogEntry {
-        name: "relevant",
-        category: "mip",
-        signature: "relevant(fieldRef) -> boolean",
-        description: "Returns whether a field is currently relevant.",
-        package: Package::Formspec,
-    },
-    BuiltinFunctionCatalogEntry {
-        name: "readonly",
-        category: "mip",
-        signature: "readonly(fieldRef) -> boolean",
-        description: "Returns whether a field is currently readonly.",
-        package: Package::Formspec,
-    },
-    BuiltinFunctionCatalogEntry {
-        name: "required",
-        category: "mip",
-        signature: "required(fieldRef) -> boolean",
-        description: "Returns whether a field is currently required.",
-        package: Package::Formspec,
-    },
-    BuiltinFunctionCatalogEntry {
-        name: "prev",
-        category: "repeat",
-        signature: "prev() -> object | null",
-        description: "Returns the previous repeat row object, or null at the boundary.",
-        package: Package::Formspec,
-    },
-    BuiltinFunctionCatalogEntry {
-        name: "next",
-        category: "repeat",
-        signature: "next() -> object | null",
-        description: "Returns the next repeat row object, or null at the boundary.",
-        package: Package::Formspec,
-    },
-    BuiltinFunctionCatalogEntry {
-        name: "parent",
-        category: "repeat",
-        signature: "parent() -> object | null",
-        description: "Returns the parent repeat row or enclosing group object.",
-        package: Package::Formspec,
-    },
-    BuiltinFunctionCatalogEntry {
-        name: "instance",
-        category: "instance",
-        signature: "instance(string, string?) -> any",
-        description: "Reads data from a named instance, optionally at a dotted path.",
-        package: Package::Formspec,
-    },
+    // ── locale ───────────────────────────────────────────────────────────────
     BuiltinFunctionCatalogEntry {
         name: "locale",
         category: "locale",
-        signature: "locale() -> string",
-        description: "Returns the active locale code (BCP 47) from the runtime context.",
+        parameters: &[],
+        returns: FelType::String,
+        return_description: None,
+        description: "Returns the active BCP 47 locale tag from the evaluation context.",
+        null_handling: Some("When the host has not set a locale, returns null."),
+        deterministic: false,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "locale()", result_json: "\"en-US\"", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Formspec,
     },
     BuiltinFunctionCatalogEntry {
         name: "runtimeMeta",
         category: "locale",
-        signature: "runtimeMeta(string) -> any",
-        description: "Reads a value from the runtime metadata bag set by the host.",
+        parameters: &[Parameter {
+            name: "key",
+            fel_type: FelType::String,
+            description: Some("Key in the host-provided runtime metadata bag."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Any,
+        return_description: None,
+        description: "Reads a value from runtime metadata supplied by the host.",
+        null_handling: Some("Missing key returns null."),
+        deterministic: false,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "runtimeMeta('tenantId')", result_json: "\"acme-42\"", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Formspec,
     },
     BuiltinFunctionCatalogEntry {
         name: "pluralCategory",
         category: "locale",
-        signature: "pluralCategory(number, string?) -> string",
-        description: "Returns the CLDR cardinal plural category (zero/one/two/few/many/other) via intl_pluralrules for a count and optional locale.",
+        parameters: &[
+            Parameter {
+                name: "count",
+                fel_type: FelType::Number,
+                description: Some("Numeric count for plural rule selection."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "localeTag",
+                fel_type: FelType::String,
+                description: Some("Optional BCP 47 tag; defaults to locale()."),
+                required: false,
+                variadic: false,
+                allowed_values: None,
+            },
+        ],
+        returns: FelType::String,
+        return_description: None,
+        description: "Returns the CLDR cardinal plural category (zero, one, two, few, many, other) for the count and locale.",
+        null_handling: Some("Null count returns null."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "pluralCategory(1)", result_json: "\"one\"", note: None },
+            Example { expression: "pluralCategory(2, 'en')", result_json: "\"other\"", note: None },
+        ],
+        since_version: "1.0",
+        package: Package::Formspec,
+    },
+    // ── mip ──────────────────────────────────────────────────────────────────
+    BuiltinFunctionCatalogEntry {
+        name: "valid",
+        category: "mip",
+        parameters: &[Parameter {
+            name: "path",
+            fel_type: FelType::String,
+            description: Some("Field path (NOT evaluated as expression — extracted as literal path string)."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Boolean,
+        return_description: None,
+        description: "Returns true if the field at the given path has zero validation errors. The argument is a field reference path, not a general expression — the parser extracts it as a literal string rather than evaluating it.",
+        null_handling: Some("N/A — path is a literal reference."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "valid($totalBudget)", result_json: "true", note: None },
+            Example { expression: "valid($email) and valid($phone)", result_json: "false", note: None },
+        ],
+        since_version: "1.0",
+        package: Package::Formspec,
+    },
+    BuiltinFunctionCatalogEntry {
+        name: "relevant",
+        category: "mip",
+        parameters: &[Parameter {
+            name: "path",
+            fel_type: FelType::String,
+            description: Some("Field path (literal, not evaluated)."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Boolean,
+        return_description: None,
+        description: "Returns the computed relevance (visibility) state of the field at the given path. True means the field is visible/active.",
+        null_handling: Some("N/A — path is a literal reference."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "relevant($spouseInfo)", result_json: "false", note: None },
+        ],
+        since_version: "1.0",
+        package: Package::Formspec,
+    },
+    BuiltinFunctionCatalogEntry {
+        name: "readonly",
+        category: "mip",
+        parameters: &[Parameter {
+            name: "path",
+            fel_type: FelType::String,
+            description: Some("Field path (literal, not evaluated)."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Boolean,
+        return_description: None,
+        description: "Returns the computed readonly state of the field at the given path.",
+        null_handling: Some("N/A — path is a literal reference."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "readonly($approvedAmount)", result_json: "true", note: None },
+        ],
+        since_version: "1.0",
+        package: Package::Formspec,
+    },
+    BuiltinFunctionCatalogEntry {
+        name: "required",
+        category: "mip",
+        parameters: &[Parameter {
+            name: "path",
+            fel_type: FelType::String,
+            description: Some("Field path (literal, not evaluated)."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Boolean,
+        return_description: None,
+        description: "Returns the computed required state of the field at the given path.",
+        null_handling: Some("N/A — path is a literal reference."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "required($email)", result_json: "true", note: None },
+        ],
+        since_version: "1.0",
+        package: Package::Formspec,
+    },
+    // ── repeat ───────────────────────────────────────────────────────────────
+    BuiltinFunctionCatalogEntry {
+        name: "prev",
+        category: "repeat",
+        parameters: &[Parameter {
+            name: "fieldName",
+            fel_type: FelType::String,
+            description: Some("Name of the sibling field to read from the previous repeat instance."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Any,
+        return_description: None,
+        description: "Returns the value of the named field from the previous repeat instance (index - 1). Must be called within a repeat context. Returns null if at the first instance or not inside a repeat.",
+        null_handling: Some("Returns null when no previous instance exists."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "prev('runningTotal')", result_json: "500", note: Some("Value from previous row") },
+        ],
+        since_version: "1.0",
+        package: Package::Formspec,
+    },
+    BuiltinFunctionCatalogEntry {
+        name: "next",
+        category: "repeat",
+        parameters: &[Parameter {
+            name: "fieldName",
+            fel_type: FelType::String,
+            description: Some("Name of the sibling field to read from the next repeat instance."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Any,
+        return_description: None,
+        description: "Returns the value of the named field from the next repeat instance (index + 1). Must be called within a repeat context. Returns null if at the last instance or not inside a repeat.",
+        null_handling: Some("Returns null when no next instance exists."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "next('amount')", result_json: "200", note: Some("Peek at next row's value") },
+        ],
+        since_version: "1.0",
+        package: Package::Formspec,
+    },
+    BuiltinFunctionCatalogEntry {
+        name: "parent",
+        category: "repeat",
+        parameters: &[Parameter {
+            name: "fieldName",
+            fel_type: FelType::String,
+            description: Some("Name of the ancestor field to find."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Any,
+        return_description: None,
+        description: "Walks up the path hierarchy from the current item and returns the value of the first ancestor field matching the given name. Useful for accessing enclosing group data from within nested repeats.",
+        null_handling: Some("Returns null if no ancestor field with that name is found."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "parent('projectName')", result_json: "\"Infrastructure Upgrade\"", note: None },
+        ],
+        since_version: "1.0",
+        package: Package::Formspec,
+    },
+    // instance: category changed instance → logical to match schema (schema is authoritative).
+    // Placed at the end to match canonical schema function ordering.
+    BuiltinFunctionCatalogEntry {
+        name: "instance",
+        category: "logical",
+        parameters: &[
+            Parameter {
+                name: "name",
+                fel_type: FelType::String,
+                description: Some("Name of the secondary data source (must match a key in the definition's 'instances' object)."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "path",
+                fel_type: FelType::String,
+                description: Some("Dot-notation path within the instance data."),
+                required: false,
+                variadic: false,
+                allowed_values: None,
+            },
+        ],
+        returns: FelType::Any,
+        return_description: None,
+        description: "Retrieves data from a named secondary instance. Typically invoked via the '@instance(\"name\")' context reference syntax in FEL, which the parser translates to this function call. The optional path parameter drills into the instance data.",
+        null_handling: Some("Returns null/undefined if instance name not found or path doesn't exist."),
+        deterministic: true,
+        short_circuit: false,
+        examples: &[
+            Example { expression: "@instance('priorYear').totalExpenditure", result_json: "200000", note: None },
+            Example { expression: "@instance('agencies')", result_json: "[{\"code\": \"DOE\", \"name\": \"Dept of Energy\"}]", note: None },
+        ],
+        since_version: "1.0",
         package: Package::Formspec,
     },
 ];
+
+/// Emit a single `Parameter` as its schema JSON object.
+fn emit_parameter(p: &Parameter) -> serde_json::Value {
+    let mut obj = serde_json::Map::new();
+    obj.insert("name".into(), serde_json::Value::String(p.name.into()));
+    obj.insert("type".into(), serde_json::Value::String(p.fel_type.as_str().into()));
+    if let Some(desc) = p.description {
+        obj.insert("description".into(), serde_json::Value::String(desc.into()));
+    }
+    if !p.required {
+        obj.insert("required".into(), serde_json::Value::Bool(false));
+    }
+    if p.variadic {
+        obj.insert("variadic".into(), serde_json::Value::Bool(true));
+    }
+    if let Some(vals) = p.allowed_values {
+        obj.insert(
+            "enum".into(),
+            serde_json::Value::Array(
+                vals.iter().map(|v| serde_json::Value::String((*v).into())).collect(),
+            ),
+        );
+    }
+    serde_json::Value::Object(obj)
+}
+
+/// Emit a single `Example` as its schema JSON object.
+fn emit_example(ex: &Example) -> serde_json::Value {
+    let result: serde_json::Value = serde_json::from_str(ex.result_json)
+        .unwrap_or_else(|e| panic!("invalid result_json for example '{}': {e}", ex.expression));
+    let mut obj = serde_json::Map::new();
+    obj.insert("expression".into(), serde_json::Value::String(ex.expression.into()));
+    obj.insert("result".into(), result);
+    if let Some(note) = ex.note {
+        obj.insert("note".into(), serde_json::Value::String(note.into()));
+    }
+    serde_json::Value::Object(obj)
+}
+
+/// Emit a single `BuiltinFunctionCatalogEntry` as its `FunctionEntry` JSON object.
+fn emit_function_entry(e: &BuiltinFunctionCatalogEntry) -> serde_json::Value {
+    let mut obj = serde_json::Map::new();
+    obj.insert("name".into(), serde_json::Value::String(e.name.into()));
+    obj.insert("category".into(), serde_json::Value::String(e.category.into()));
+    obj.insert(
+        "parameters".into(),
+        serde_json::Value::Array(e.parameters.iter().map(emit_parameter).collect()),
+    );
+    obj.insert("returns".into(), serde_json::Value::String(e.returns.as_str().into()));
+    if let Some(rd) = e.return_description {
+        obj.insert("returnDescription".into(), serde_json::Value::String(rd.into()));
+    }
+    obj.insert("description".into(), serde_json::Value::String(e.description.into()));
+    if let Some(nh) = e.null_handling {
+        obj.insert("nullHandling".into(), serde_json::Value::String(nh.into()));
+    }
+    // Emit `deterministic` when it differs from the default (true) or is explicitly stated in the
+    // canonical schema for clarity (only `pluralCategory` does so with value `true`).
+    if !e.deterministic || e.name == "pluralCategory" {
+        obj.insert("deterministic".into(), serde_json::Value::Bool(e.deterministic));
+    }
+    if e.short_circuit {
+        obj.insert("shortCircuit".into(), serde_json::Value::Bool(true));
+    }
+    if !e.examples.is_empty() {
+        obj.insert(
+            "examples".into(),
+            serde_json::Value::Array(e.examples.iter().map(emit_example).collect()),
+        );
+    }
+    serde_json::Value::Object(obj)
+}
+
+/// The `x-generated-from` marker embedded in the emitted schema.
+const X_GENERATED_FROM: &str = "fel-core (https://github.com/Formspec-org/fel-core) — regenerate via `cargo run -p fel-core --bin emit-fel-schema > formspec/schemas/fel-functions.schema.json`";
+
+/// Emit the FEL function catalog as a `serde_json::Value` matching the schema at
+/// `formspec/schemas/fel-functions.schema.json`.
+///
+/// The emitted value is byte-identical (up to JSON semantic equivalence — key order in
+/// objects doesn't matter) to the canonical schema file. The round-trip test in
+/// `tests/schema_round_trip.rs` enforces this invariant.
+pub fn emit_schema_json() -> serde_json::Value {
+    let functions: Vec<serde_json::Value> =
+        BUILTIN_FUNCTIONS.iter().map(emit_function_entry).collect();
+
+    serde_json::json!({
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "https://formspec.org/specs/fel/functions/1.0",
+        "title": "FEL Function Catalog",
+        "description": "Structured catalog of all built-in functions in the Formspec Expression Language (FEL) v1.0. Each entry defines the function's name, signature, return type, null handling, and usage examples. This catalog is the normative reference for FEL function behavior; implementations in TypeScript (packages/formspec-engine) and Python (src/formspec/fel) must conform to these signatures and semantics.",
+        "type": "object",
+        "required": ["$formspecFelFunctions"],
+        "properties": {
+            "$formspecFelFunctions": {
+                "type": "string",
+                "const": "1.0",
+                "description": "FEL function catalog specification version. MUST be '1.0'.",
+                "examples": ["1.0"],
+                "x-lm": {
+                    "critical": true,
+                    "intent": "Version pin for FEL function catalog document compatibility."
+                }
+            },
+            "version": {
+                "const": "1.0"
+            },
+            "functions": {
+                "type": "array",
+                "items": {
+                    "$ref": "#/$defs/FunctionEntry"
+                }
+            }
+        },
+        "$defs": {
+            "FELType": {
+                "type": "string",
+                "enum": ["string", "number", "boolean", "date", "dateTime", "time", "money", "array", "any", "null"],
+                "description": "A FEL type identifier. 'any' means the function accepts or returns multiple types. 'array' means array<T> where T is specified in the description."
+            },
+            "Parameter": {
+                "type": "object",
+                "required": ["name", "type"],
+                "properties": {
+                    "name": { "type": "string" },
+                    "type": { "$ref": "#/$defs/FELType" },
+                    "description": { "type": "string" },
+                    "required": { "type": "boolean", "default": true },
+                    "variadic": { "type": "boolean", "default": false },
+                    "enum": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "When present, restricts the parameter to these literal values."
+                    }
+                },
+                "additionalProperties": false
+            },
+            "FunctionEntry": {
+                "type": "object",
+                "required": ["name", "category", "parameters", "returns", "description"],
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Function name as used in FEL expressions."
+                    },
+                    "category": {
+                        "type": "string",
+                        "enum": ["aggregate", "string", "numeric", "date", "logical", "type", "money", "mip", "repeat", "locale"],
+                        "description": "Functional category for grouping and documentation."
+                    },
+                    "parameters": {
+                        "type": "array",
+                        "items": { "$ref": "#/$defs/Parameter" },
+                        "description": "Ordered parameter list. Variadic parameters must be last."
+                    },
+                    "returns": {
+                        "$ref": "#/$defs/FELType",
+                        "description": "Return type of the function."
+                    },
+                    "returnDescription": {
+                        "type": "string",
+                        "description": "Clarification of the return value when 'returns' alone is insufficient."
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "What the function does — behavior, edge cases, and constraints."
+                    },
+                    "nullHandling": {
+                        "type": "string",
+                        "description": "How the function behaves when one or more arguments are null."
+                    },
+                    "deterministic": {
+                        "type": "boolean",
+                        "default": true,
+                        "description": "False if the function can return different results for the same arguments (e.g., today, now)."
+                    },
+                    "shortCircuit": {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "True if the function evaluates arguments lazily (e.g., if only evaluates the selected branch)."
+                    },
+                    "examples": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "expression": { "type": "string" },
+                                "result": {},
+                                "note": { "type": "string" }
+                            },
+                            "required": ["expression", "result"]
+                        }
+                    },
+                    "sinceVersion": {
+                        "type": "string",
+                        "default": "1.0"
+                    }
+                },
+                "additionalProperties": false
+            }
+        },
+        "version": "1.0",
+        "x-generated-from": X_GENERATED_FROM,
+        "functions": functions
+    })
+}
 
 /// Slice of all built-in functions (names reserved for [`ExtensionRegistry::register`]).
 pub fn builtin_function_catalog() -> &'static [BuiltinFunctionCatalogEntry] {
     BUILTIN_FUNCTIONS
 }
 
-/// Built-in catalog as a JSON array for WASM / tooling.
+/// Built-in catalog as a JSON value for WASM / tooling.
+///
+/// Emits the full schema envelope (matching `formspec/schemas/fel-functions.schema.json`).
+/// Use [`emit_schema_json`] for the complete schema document.
 pub fn builtin_function_catalog_json_value() -> serde_json::Value {
-    serde_json::Value::Array(
-        builtin_function_catalog()
-            .iter()
-            .map(|e| {
-                serde_json::json!({
-                    "name": e.name,
-                    "category": e.category,
-                    "signature": e.signature,
-                    "description": e.description,
-                })
-            })
-            .collect(),
-    )
+    emit_schema_json()
 }
 
 /// Catalog filtered to entries reachable from `package`.
@@ -624,18 +2427,11 @@ pub fn builtin_function_catalog_for(
     })
 }
 
-/// `builtin_function_catalog_for(package)` rendered as a JSON array.
+/// `builtin_function_catalog_for(package)` rendered as a JSON array of function entries.
 pub fn builtin_function_catalog_json_value_for(package: Package) -> serde_json::Value {
     serde_json::Value::Array(
         builtin_function_catalog_for(package)
-            .map(|e| {
-                serde_json::json!({
-                    "name": e.name,
-                    "category": e.category,
-                    "signature": e.signature,
-                    "description": e.description,
-                })
-            })
+            .map(emit_function_entry)
             .collect(),
     )
 }
@@ -856,5 +2652,26 @@ mod tests {
     fn package_filter_formspec_includes_all() {
         let formspec_count: usize = builtin_function_catalog_for(Package::Formspec).count();
         assert_eq!(formspec_count, BUILTIN_FUNCTIONS.len());
+    }
+
+    #[test]
+    fn emit_schema_has_72_functions() {
+        let v = emit_schema_json();
+        let funcs = v["functions"].as_array().expect("functions array");
+        assert_eq!(funcs.len(), 72, "expected 72 functions, got {}", funcs.len());
+    }
+
+    #[test]
+    fn result_json_parses_for_all_examples() {
+        for entry in BUILTIN_FUNCTIONS {
+            for ex in entry.examples {
+                serde_json::from_str::<serde_json::Value>(ex.result_json).unwrap_or_else(|e| {
+                    panic!(
+                        "{}::{} — invalid result_json {:?}: {e}",
+                        entry.name, ex.expression, ex.result_json
+                    )
+                });
+            }
+        }
     }
 }
