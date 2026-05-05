@@ -8,7 +8,7 @@ repository = "https://github.com/Formspec-org/fel-core"
 
 # fel-core extracted from formspec/crates/fel-core/ to its own top-level repo
 # on 2026-05-04. Foundational substrate consumed cross-repo by formspec,
-# wos-spec, and flowspec-server via path = "../fel-core" sibling-coupling
+# wos-spec, and workspec-server via path = "../fel-core" sibling-coupling
 # under formspec-stack until hosted publication on crates.io.
 
 [dependencies]
