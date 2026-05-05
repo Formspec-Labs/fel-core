@@ -1,10 +1,15 @@
 [package]
 name = "fel-core"
-version.workspace = true
-edition.workspace = true
-license.workspace = true
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
 description = "Formspec Expression Language — parser, evaluator, and dependency analysis"
-repository = "https://github.com/Formspec-org/formspec"
+repository = "https://github.com/Formspec-org/fel-core"
+
+# fel-core extracted from formspec/crates/fel-core/ to its own top-level repo
+# on 2026-05-04. Foundational substrate consumed cross-repo by formspec,
+# wos-spec, and flowspec-server via path = "../fel-core" sibling-coupling
+# under formspec-stack until hosted publication on crates.io.
 
 [dependencies]
 intl_pluralrules = "7.0.2"
