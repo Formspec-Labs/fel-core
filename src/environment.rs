@@ -9,7 +9,7 @@ use rust_decimal::Decimal;
 use std::collections::HashMap;
 
 use crate::evaluator::Environment;
-use crate::types::{FelDate, FelValue, parse_datetime_literal};
+use crate::types::{Date as FelDate, Value as FelValue, parse_datetime_literal};
 
 // ── Data structures ─────────────────────────────────────────────
 

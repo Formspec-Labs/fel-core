@@ -9,7 +9,7 @@ use rust_decimal::Decimal;
 use rust_decimal::prelude::*;
 use serde_json::Value;
 
-use crate::types::{FelMoney, FelValue};
+use crate::types::{Money as FelMoney, Value as FelValue};
 
 /// JSON object → flat field map for FEL `MapEnvironment` (`{}` / empty → empty map).
 pub fn json_object_to_field_map(val: &Value) -> HashMap<String, FelValue> {
@@ -181,6 +181,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::approx_constant)]
     fn float_roundtrip() {
         let val = json_to_fel(&json!(3.14));
         let back = fel_to_json(&val);
@@ -309,8 +310,8 @@ mod tests {
 
     #[test]
     fn date_to_json_iso_string() {
-        use crate::types::FelDate;
-        let date = FelValue::Date(FelDate::Date {
+        use crate::types::Date;
+        let date = FelValue::Date(Date::Date {
             year: 2025,
             month: 6,
             day: 15,
@@ -320,8 +321,8 @@ mod tests {
 
     #[test]
     fn datetime_to_json_iso_string() {
-        use crate::types::FelDate;
-        let dt = FelValue::Date(FelDate::DateTime {
+        use crate::types::Date;
+        let dt = FelValue::Date(Date::DateTime {
             year: 2025,
             month: 6,
             day: 15,

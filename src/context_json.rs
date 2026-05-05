@@ -6,7 +6,7 @@
 use serde_json::{Map, Value};
 
 use crate::convert::json_to_fel;
-use crate::types::FelValue;
+use crate::types::Value as FelValue;
 use crate::{FormspecEnvironment, MipState};
 
 fn push_repeat_context(env: &mut FormspecEnvironment, repeat: &Value, depth: u8) {
@@ -126,7 +126,7 @@ mod tests {
     use rust_decimal::Decimal;
     use serde_json::json;
 
-    use crate::types::FelValue;
+    use crate::types::Value as FelValue;
 
     use super::*;
 

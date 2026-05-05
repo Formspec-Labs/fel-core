@@ -1,6 +1,7 @@
 //! FEL source normalization before host evaluation (parity with TS `normalizeExpressionForWasmEvaluation`).
 //!
 //! Rewrites bare `$`, qualified repeat group refs (`$group.field`), and repeat row aliases into wildcard paths.
+#![allow(clippy::missing_docs_in_private_items)]
 
 use std::collections::{HashMap, HashSet};
 use std::sync::LazyLock;
@@ -19,9 +20,9 @@ static RE_INDEX_BRACKET: LazyLock<Regex> =
 static RE_REPEAT_ALIAS: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^(.*)\[(\d+)\]\.([^\[.\]]+)$").expect("valid regex"));
 
-/// Inputs for [`prepare_fel_expression_for_host`], mirroring the engine WASM prepass.
+/// Inputs for [`prepare_for_host`], mirroring the engine WASM prepass.
 #[derive(Debug, Clone)]
-pub struct PrepareFelHostInput<'a> {
+pub struct PrepareHostInput<'a> {
     /// Raw FEL expression.
     pub expression: &'a str,
     /// Dotted path of the item being evaluated (may include `[n]` indices).
@@ -129,7 +130,7 @@ fn build_repeat_aliases_sorted(paths: &[String]) -> Vec<String> {
             }
         }
     }
-    aliases.sort_by(|a, b| b.len().cmp(&a.len()));
+    aliases.sort_by_key(|a| std::cmp::Reverse(a.len()));
     aliases
 }
 
@@ -284,9 +285,9 @@ fn apply_repeat_alias_pass(expr: &str, alias: &str, wildcard_with_dollar: &str) 
     replace_explicit_dollar_repeat_alias(&after_implicit, alias, wildcard_with_dollar)
 }
 
-/// Owned inputs for [`prepare_fel_expression_owned`] after JSON / host parsing.
+/// Owned inputs for [`prepare`] after JSON / host parsing.
 #[derive(Debug, Clone)]
-pub struct PrepareFelHostOptionsOwned {
+pub struct PrepareHostOptions {
     /// Raw FEL expression.
     pub expression: String,
     /// Item path for repeat / self-ref normalization.
@@ -300,9 +301,9 @@ pub struct PrepareFelHostOptionsOwned {
 }
 
 /// Parses prepare-FEL options from a JSON object (WASM / Python hosts).
-pub fn prepare_fel_host_options_from_json_map(
+pub fn host_options_from_json(
     obj: &Map<String, Value>,
-) -> Result<PrepareFelHostOptionsOwned, String> {
+) -> Result<PrepareHostOptions, String> {
     let expression = obj
         .get("expression")
         .and_then(|x| x.as_str())
@@ -330,10 +331,9 @@ pub fn prepare_fel_host_options_from_json_map(
             if let Some(n) = val
                 .as_u64()
                 .or_else(|| val.as_i64().filter(|&i| i >= 0).map(|i| i as u64))
+                && n <= u32::MAX as u64
             {
-                if n <= u32::MAX as u64 {
-                    repeat_counts.insert(k.clone(), n as u32);
-                }
+                repeat_counts.insert(k.clone(), n as u32);
             }
         }
     }
@@ -357,7 +357,7 @@ pub fn prepare_fel_host_options_from_json_map(
         field_paths.extend(vmap.keys().cloned());
     }
 
-    Ok(PrepareFelHostOptionsOwned {
+    Ok(PrepareHostOptions {
         expression,
         current_item_path,
         replace_self_ref,
@@ -366,9 +366,9 @@ pub fn prepare_fel_host_options_from_json_map(
     })
 }
 
-/// Normalizes using owned options (convenience after [`prepare_fel_host_options_from_json_map`]).
-pub fn prepare_fel_expression_owned(opts: &PrepareFelHostOptionsOwned) -> String {
-    prepare_fel_expression_for_host(PrepareFelHostInput {
+/// Normalizes using owned options (convenience after [`host_options_from_json`]).
+pub fn prepare(opts: &PrepareHostOptions) -> String {
+    prepare_for_host(PrepareHostInput {
         expression: &opts.expression,
         current_item_path: &opts.current_item_path,
         replace_self_ref: opts.replace_self_ref,
@@ -378,7 +378,7 @@ pub fn prepare_fel_expression_owned(opts: &PrepareFelHostOptionsOwned) -> String
 }
 
 /// Applies the same normalization pass the TypeScript engine runs before WASM FEL evaluation.
-pub fn prepare_fel_expression_for_host(input: PrepareFelHostInput<'_>) -> String {
+pub fn prepare_for_host(input: PrepareHostInput<'_>) -> String {
     let leaf = current_field_leaf(input.current_item_path);
     let mut normalized = input.expression.to_string();
     if input.replace_self_ref && !leaf.is_empty() {
@@ -407,7 +407,7 @@ mod tests {
     ) -> String {
         let rc: HashMap<String, u32> = repeats.iter().map(|(k, v)| (k.to_string(), *v)).collect();
         let fp: Vec<String> = paths.iter().map(|s| (*s).to_string()).collect();
-        prepare_fel_expression_for_host(PrepareFelHostInput {
+        prepare_for_host(PrepareHostInput {
             expression: expr,
             current_item_path: path,
             replace_self_ref: replace,

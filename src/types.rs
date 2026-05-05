@@ -5,21 +5,21 @@ use std::fmt;
 /// Runtime value for FEL evaluation (mirrors JSON + dates + money).
 #[allow(missing_docs)]
 #[derive(Debug, Clone)]
-pub enum FelValue {
+pub enum Value {
     Null,
     Boolean(bool),
     Number(Decimal),
     String(String),
-    Date(FelDate),
-    Array(Vec<FelValue>),
-    Object(Vec<(String, FelValue)>),
-    Money(FelMoney),
+    Date(Date),
+    Array(Vec<Value>),
+    Object(Vec<(String, Value)>),
+    Money(Money),
 }
 
 /// Calendar date or date-time (no timezone model; used by date functions).
 #[allow(missing_docs)]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum FelDate {
+pub enum Date {
     Date {
         year: i32,
         month: u32,
@@ -37,7 +37,7 @@ pub enum FelDate {
 
 /// Monetary value with ISO currency code.
 #[derive(Debug, Clone)]
-pub struct FelMoney {
+pub struct Money {
     /// Decimal amount (base-10).
     pub amount: Decimal,
     /// ISO 4217 currency code (e.g. `USD`).
@@ -45,57 +45,57 @@ pub struct FelMoney {
 }
 
 #[allow(missing_docs)]
-impl PartialEq for FelValue {
+impl PartialEq for Value {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (FelValue::Null, FelValue::Null) => true,
-            (FelValue::Boolean(a), FelValue::Boolean(b)) => a == b,
-            (FelValue::Number(a), FelValue::Number(b)) => a == b,
-            (FelValue::String(a), FelValue::String(b)) => a == b,
-            (FelValue::Date(a), FelValue::Date(b)) => a == b,
-            (FelValue::Array(a), FelValue::Array(b)) => a == b,
-            (FelValue::Money(a), FelValue::Money(b)) => a == b,
-            (FelValue::Object(a), FelValue::Object(b)) => a == b,
+            (Value::Null, Value::Null) => true,
+            (Value::Boolean(a), Value::Boolean(b)) => a == b,
+            (Value::Number(a), Value::Number(b)) => a == b,
+            (Value::String(a), Value::String(b)) => a == b,
+            (Value::Date(a), Value::Date(b)) => a == b,
+            (Value::Array(a), Value::Array(b)) => a == b,
+            (Value::Money(a), Value::Money(b)) => a == b,
+            (Value::Object(a), Value::Object(b)) => a == b,
             _ => false,
         }
     }
 }
 
 #[allow(missing_docs)]
-impl PartialEq for FelMoney {
+impl PartialEq for Money {
     fn eq(&self, other: &Self) -> bool {
         self.currency == other.currency && self.amount == other.amount
     }
 }
 
-impl FelValue {
+impl Value {
     /// Lowercase FEL type name for error messages.
     pub fn type_name(&self) -> &'static str {
         match self {
-            FelValue::Null => "null",
-            FelValue::Boolean(_) => "boolean",
-            FelValue::Number(_) => "number",
-            FelValue::String(_) => "string",
-            FelValue::Date(_) => "date",
-            FelValue::Array(_) => "array",
-            FelValue::Object(_) => "object",
-            FelValue::Money(_) => "money",
+            Value::Null => "null",
+            Value::Boolean(_) => "boolean",
+            Value::Number(_) => "number",
+            Value::String(_) => "string",
+            Value::Date(_) => "date",
+            Value::Array(_) => "array",
+            Value::Object(_) => "object",
+            Value::Money(_) => "money",
         }
     }
 
-    /// True only for [`FelValue::Null`].
+    /// True only for [`Value::Null`].
     pub fn is_null(&self) -> bool {
-        matches!(self, FelValue::Null)
+        matches!(self, Value::Null)
     }
 
     /// Loose truth test (not FEL `and`/`or` typing — used by some builtins).
     pub fn is_truthy(&self) -> bool {
         match self {
-            FelValue::Null => false,
-            FelValue::Boolean(b) => *b,
-            FelValue::Number(n) => !n.is_zero(),
-            FelValue::String(s) => !s.is_empty(),
-            FelValue::Array(a) => !a.is_empty(),
+            Value::Null => false,
+            Value::Boolean(b) => *b,
+            Value::Number(n) => !n.is_zero(),
+            Value::String(s) => !s.is_empty(),
+            Value::Array(a) => !a.is_empty(),
             _ => true,
         }
     }
@@ -103,7 +103,7 @@ impl FelValue {
     /// Extract number or `None`.
     pub fn as_number(&self) -> Option<Decimal> {
         match self {
-            FelValue::Number(n) => Some(*n),
+            Value::Number(n) => Some(*n),
             _ => None,
         }
     }
@@ -111,7 +111,7 @@ impl FelValue {
     /// Borrow string or `None`.
     pub fn as_string(&self) -> Option<&str> {
         match self {
-            FelValue::String(s) => Some(s),
+            Value::String(s) => Some(s),
             _ => None,
         }
     }
@@ -119,55 +119,55 @@ impl FelValue {
     /// Extract boolean or `None`.
     pub fn as_bool(&self) -> Option<bool> {
         match self {
-            FelValue::Boolean(b) => Some(*b),
+            Value::Boolean(b) => Some(*b),
             _ => None,
         }
     }
 
     /// Borrow date/datetime or `None`.
-    pub fn as_date(&self) -> Option<&FelDate> {
+    pub fn as_date(&self) -> Option<&Date> {
         match self {
-            FelValue::Date(d) => Some(d),
+            Value::Date(d) => Some(d),
             _ => None,
         }
     }
 
     /// Borrow array or `None`.
-    pub fn as_array(&self) -> Option<&Vec<FelValue>> {
+    pub fn as_array(&self) -> Option<&Vec<Value>> {
         match self {
-            FelValue::Array(a) => Some(a),
+            Value::Array(a) => Some(a),
             _ => None,
         }
     }
 
     /// Borrow money or `None`.
-    pub fn as_money(&self) -> Option<&FelMoney> {
+    pub fn as_money(&self) -> Option<&Money> {
         match self {
-            FelValue::Money(m) => Some(m),
+            Value::Money(m) => Some(m),
             _ => None,
         }
     }
 }
 
-impl FelDate {
+impl Date {
     /// Calendar year component.
     pub fn year(&self) -> i32 {
         match self {
-            FelDate::Date { year, .. } | FelDate::DateTime { year, .. } => *year,
+            Date::Date { year, .. } | Date::DateTime { year, .. } => *year,
         }
     }
 
     /// Month 1–12.
     pub fn month(&self) -> u32 {
         match self {
-            FelDate::Date { month, .. } | FelDate::DateTime { month, .. } => *month,
+            Date::Date { month, .. } | Date::DateTime { month, .. } => *month,
         }
     }
 
     /// Day of month.
     pub fn day(&self) -> u32 {
         match self {
-            FelDate::Date { day, .. } | FelDate::DateTime { day, .. } => *day,
+            Date::Date { day, .. } | Date::DateTime { day, .. } => *day,
         }
     }
 
@@ -184,8 +184,8 @@ impl FelDate {
     /// Full ordinal including time (seconds from epoch) for DateTime ordering.
     pub fn ordinal(&self) -> i64 {
         match self {
-            FelDate::Date { .. } => self.ordinal_days() * 86400,
-            FelDate::DateTime {
+            Date::Date { .. } => self.ordinal_days() * 86400,
+            Date::DateTime {
                 hour,
                 minute,
                 second,
@@ -202,10 +202,10 @@ impl FelDate {
     /// `YYYY-MM-DD` or `YYYY-MM-DDTHH:MM:SS` (no timezone suffix).
     pub fn format_iso(&self) -> String {
         match self {
-            FelDate::Date { year, month, day } => {
+            Date::Date { year, month, day } => {
                 format!("{year:04}-{month:02}-{day:02}")
             }
-            FelDate::DateTime {
+            Date::DateTime {
                 year,
                 month,
                 day,
@@ -258,8 +258,8 @@ pub fn days_in_month(year: i32, month: u32) -> u32 {
     }
 }
 
-/// Parse "@YYYY-MM-DD" into FelDate.
-pub fn parse_date_literal(s: &str) -> Option<FelDate> {
+/// Parse "@YYYY-MM-DD" into Date.
+pub fn parse_date_literal(s: &str) -> Option<Date> {
     let s = s.strip_prefix('@')?;
     let parts: Vec<&str> = s.split('-').collect();
     if parts.len() != 3 {
@@ -271,11 +271,11 @@ pub fn parse_date_literal(s: &str) -> Option<FelDate> {
     if !(1..=12).contains(&month) || day < 1 || day > days_in_month(year, month) {
         return None;
     }
-    Some(FelDate::Date { year, month, day })
+    Some(Date::Date { year, month, day })
 }
 
-/// Parse "@YYYY-MM-DDTHH:MM:SS..." into FelDate.
-pub fn parse_datetime_literal(s: &str) -> Option<FelDate> {
+/// Parse "@YYYY-MM-DDTHH:MM:SS..." into Date.
+pub fn parse_datetime_literal(s: &str) -> Option<Date> {
     let s = s.strip_prefix('@')?;
     // Strip timezone suffix
     let s = s.trim_end_matches('Z');
@@ -298,7 +298,7 @@ pub fn parse_datetime_literal(s: &str) -> Option<FelDate> {
     if hour >= 24 || minute >= 60 || second >= 60 {
         return None;
     }
-    Some(FelDate::DateTime {
+    Some(Date::DateTime {
         year,
         month,
         day,
@@ -309,13 +309,13 @@ pub fn parse_datetime_literal(s: &str) -> Option<FelDate> {
 }
 
 /// Add days to a date.
-pub fn date_add_days(d: &FelDate, n: i64) -> FelDate {
+pub fn date_add_days(d: &Date, n: i64) -> Date {
     let total_days = d.ordinal_days() + n;
     civil_from_days(total_days)
 }
 
 /// Convert days since epoch back to civil date.
-fn civil_from_days(z: i64) -> FelDate {
+fn civil_from_days(z: i64) -> Date {
     let z = z + 719468;
     let era = if z >= 0 { z } else { z - 146096 } / 146097;
     let doe = (z - era * 146097) as u64;
@@ -326,15 +326,15 @@ fn civil_from_days(z: i64) -> FelDate {
     let d = doy - (153 * mp + 2) / 5 + 1;
     let m = if mp < 10 { mp + 3 } else { mp - 9 };
     let y = if m <= 2 { y + 1 } else { y };
-    FelDate::Date {
+    Date::Date {
         year: y as i32,
         month: m as u32,
         day: d as u32,
     }
 }
 
-/// Convert days since the internal FEL epoch (2000-01-01) to a [`FelDate`] (date-only).
-pub fn civil_from_days_pub(z: i64) -> FelDate {
+/// Convert days since the internal FEL epoch (2000-01-01) to a [`Date`] (date-only).
+pub fn civil_from_days_pub(z: i64) -> Date {
     civil_from_days(z)
 }
 
@@ -344,15 +344,15 @@ pub fn format_number(n: Decimal) -> String {
 }
 
 #[allow(missing_docs)]
-impl fmt::Display for FelValue {
+impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            FelValue::Null => write!(f, "null"),
-            FelValue::Boolean(b) => write!(f, "{b}"),
-            FelValue::Number(n) => write!(f, "{}", format_number(*n)),
-            FelValue::String(s) => write!(f, "{s}"),
-            FelValue::Date(d) => write!(f, "{}", d.format_iso()),
-            FelValue::Array(a) => {
+            Value::Null => write!(f, "null"),
+            Value::Boolean(b) => write!(f, "{b}"),
+            Value::Number(n) => write!(f, "{}", format_number(*n)),
+            Value::String(s) => write!(f, "{s}"),
+            Value::Date(d) => write!(f, "{}", d.format_iso()),
+            Value::Array(a) => {
                 write!(f, "[")?;
                 for (i, v) in a.iter().enumerate() {
                     if i > 0 {
@@ -362,7 +362,7 @@ impl fmt::Display for FelValue {
                 }
                 write!(f, "]")
             }
-            FelValue::Object(entries) => {
+            Value::Object(entries) => {
                 write!(f, "{{")?;
                 for (i, (k, v)) in entries.iter().enumerate() {
                     if i > 0 {
@@ -372,7 +372,7 @@ impl fmt::Display for FelValue {
                 }
                 write!(f, "}}")
             }
-            FelValue::Money(m) => write!(f, "{} {}", format_number(m.amount), m.currency),
+            Value::Money(m) => write!(f, "{} {}", format_number(m.amount), m.currency),
         }
     }
 }
@@ -470,7 +470,7 @@ mod tests {
         let d = parse_date_literal("@2024-06-15").unwrap();
         assert_eq!(
             d,
-            FelDate::Date {
+            Date::Date {
                 year: 2024,
                 month: 6,
                 day: 15
@@ -492,7 +492,7 @@ mod tests {
             (2026, 3, 19), // today
         ];
         for (year, month, day) in test_dates {
-            let date = FelDate::Date { year, month, day };
+            let date = Date::Date { year, month, day };
             let days = date.ordinal_days();
             let reconstructed = civil_from_days_pub(days);
             assert_eq!(

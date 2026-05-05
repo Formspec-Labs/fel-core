@@ -21,7 +21,7 @@ use rust_decimal::prelude::*;
 use std::collections::HashSet;
 
 use crate::ast::*;
-use crate::error::FelError;
+use crate::error::Error as FelError;
 use crate::lexer::{Lexer, SpannedToken, Token};
 
 /// Recursive-descent parser over a [`SpannedToken`] stream (use [`parse`] to build from source).

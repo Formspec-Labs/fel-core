@@ -5,13 +5,13 @@ use rust_decimal::prelude::*;
 
 // ── Helpers ─────────────────────────────────────────────────────
 
-fn eval(input: &str) -> FelValue {
+fn eval(input: &str) -> Value {
     let expr = parse(input).unwrap();
     let env = MapEnvironment::new();
     evaluate(&expr, &env).value
 }
 
-fn eval_fields(input: &str, fields: Vec<(&str, FelValue)>) -> FelValue {
+fn eval_fields(input: &str, fields: Vec<(&str, Value)>) -> Value {
     let expr = parse(input).unwrap();
     let env = MapEnvironment::with_fields(
         fields
@@ -22,20 +22,20 @@ fn eval_fields(input: &str, fields: Vec<(&str, FelValue)>) -> FelValue {
     evaluate(&expr, &env).value
 }
 
-fn num(n: impl Into<Decimal>) -> FelValue {
-    FelValue::Number(n.into())
+fn num(n: impl Into<Decimal>) -> Value {
+    Value::Number(n.into())
 }
 
-fn dec(v: &str) -> FelValue {
-    FelValue::Number(Decimal::from_str(v).unwrap())
+fn dec(v: &str) -> Value {
+    Value::Number(Decimal::from_str(v).unwrap())
 }
 
-fn s(v: &str) -> FelValue {
-    FelValue::String(v.to_string())
+fn s(v: &str) -> Value {
+    Value::String(v.to_string())
 }
 
-fn arr(vals: Vec<FelValue>) -> FelValue {
-    FelValue::Array(vals)
+fn arr(vals: Vec<Value>) -> Value {
+    Value::Array(vals)
 }
 
 // ── Literals ────────────────────────────────────────────────────
@@ -57,13 +57,13 @@ fn test_string_literals() {
 
 #[test]
 fn test_boolean_literals() {
-    assert_eq!(eval("true"), FelValue::Boolean(true));
-    assert_eq!(eval("false"), FelValue::Boolean(false));
+    assert_eq!(eval("true"), Value::Boolean(true));
+    assert_eq!(eval("false"), Value::Boolean(false));
 }
 
 #[test]
 fn test_null_literal() {
-    assert_eq!(eval("null"), FelValue::Null);
+    assert_eq!(eval("null"), Value::Null);
 }
 
 #[test]
@@ -71,7 +71,7 @@ fn test_date_literal() {
     let result = eval("@2024-01-15");
     assert!(matches!(
         result,
-        FelValue::Date(FelDate::Date {
+        Value::Date(Date::Date {
             year: 2024,
             month: 1,
             day: 15
@@ -84,7 +84,7 @@ fn test_datetime_literal() {
     let result = eval("@2024-01-15T10:30:00");
     assert!(matches!(
         result,
-        FelValue::Date(FelDate::DateTime {
+        Value::Date(Date::DateTime {
             year: 2024,
             month: 1,
             day: 15,
@@ -115,8 +115,8 @@ fn test_arithmetic_precedence() {
 
 #[test]
 fn test_division_by_zero() {
-    assert_eq!(eval("1 / 0"), FelValue::Null);
-    assert_eq!(eval("1 % 0"), FelValue::Null);
+    assert_eq!(eval("1 / 0"), Value::Null);
+    assert_eq!(eval("1 % 0"), Value::Null);
 }
 
 #[test]
@@ -129,63 +129,63 @@ fn test_unary_negation() {
 
 #[test]
 fn test_equality() {
-    assert_eq!(eval("1 = 1"), FelValue::Boolean(true));
-    assert_eq!(eval("1 = 2"), FelValue::Boolean(false));
-    assert_eq!(eval("'a' = 'a'"), FelValue::Boolean(true));
-    assert_eq!(eval("null = null"), FelValue::Boolean(true));
-    assert_eq!(eval("null = 1"), FelValue::Boolean(false));
-    assert_eq!(eval("1 != 2"), FelValue::Boolean(true));
-    assert_eq!(eval("1 != 1"), FelValue::Boolean(false));
+    assert_eq!(eval("1 = 1"), Value::Boolean(true));
+    assert_eq!(eval("1 = 2"), Value::Boolean(false));
+    assert_eq!(eval("'a' = 'a'"), Value::Boolean(true));
+    assert_eq!(eval("null = null"), Value::Boolean(true));
+    assert_eq!(eval("null = 1"), Value::Boolean(false));
+    assert_eq!(eval("1 != 2"), Value::Boolean(true));
+    assert_eq!(eval("1 != 1"), Value::Boolean(false));
 }
 
 #[test]
 fn test_ordering() {
-    assert_eq!(eval("1 < 2"), FelValue::Boolean(true));
-    assert_eq!(eval("2 > 1"), FelValue::Boolean(true));
-    assert_eq!(eval("1 <= 1"), FelValue::Boolean(true));
-    assert_eq!(eval("1 >= 2"), FelValue::Boolean(false));
-    assert_eq!(eval("'a' < 'b'"), FelValue::Boolean(true));
+    assert_eq!(eval("1 < 2"), Value::Boolean(true));
+    assert_eq!(eval("2 > 1"), Value::Boolean(true));
+    assert_eq!(eval("1 <= 1"), Value::Boolean(true));
+    assert_eq!(eval("1 >= 2"), Value::Boolean(false));
+    assert_eq!(eval("'a' < 'b'"), Value::Boolean(true));
 }
 
 // ── Logical ─────────────────────────────────────────────────────
 
 #[test]
 fn test_logical_and_or() {
-    assert_eq!(eval("true and true"), FelValue::Boolean(true));
-    assert_eq!(eval("true and false"), FelValue::Boolean(false));
-    assert_eq!(eval("false or true"), FelValue::Boolean(true));
-    assert_eq!(eval("false or false"), FelValue::Boolean(false));
+    assert_eq!(eval("true and true"), Value::Boolean(true));
+    assert_eq!(eval("true and false"), Value::Boolean(false));
+    assert_eq!(eval("false or true"), Value::Boolean(true));
+    assert_eq!(eval("false or false"), Value::Boolean(false));
 }
 
 #[test]
 fn test_short_circuit_and() {
-    assert_eq!(eval("false and (1/0 = 1)"), FelValue::Boolean(false));
+    assert_eq!(eval("false and (1/0 = 1)"), Value::Boolean(false));
 }
 
 #[test]
 fn test_short_circuit_or() {
-    assert_eq!(eval("true or (1/0 = 1)"), FelValue::Boolean(true));
+    assert_eq!(eval("true or (1/0 = 1)"), Value::Boolean(true));
 }
 
 #[test]
 fn test_logical_not() {
-    assert_eq!(eval("not true"), FelValue::Boolean(false));
-    assert_eq!(eval("not false"), FelValue::Boolean(true));
+    assert_eq!(eval("not true"), Value::Boolean(false));
+    assert_eq!(eval("not false"), Value::Boolean(true));
 }
 
 #[test]
 fn test_null_propagation_logical() {
-    assert_eq!(eval("null and true"), FelValue::Null);
-    assert_eq!(eval("null or true"), FelValue::Null);
-    assert_eq!(eval("not null"), FelValue::Null);
+    assert_eq!(eval("null and true"), Value::Null);
+    assert_eq!(eval("null or true"), Value::Null);
+    assert_eq!(eval("not null"), Value::Null);
 }
 
 #[test]
 fn test_bang_prefix_not_null_propagation() {
-    assert_eq!(eval("!(null > 25)"), FelValue::Null);
+    assert_eq!(eval("!(null > 25)"), Value::Null);
     assert_eq!(
-        eval_fields("!($amount > 25)", vec![("amount", FelValue::Null)]),
-        FelValue::Null
+        eval_fields("!($amount > 25)", vec![("amount", Value::Null)]),
+        Value::Null
     );
 }
 
@@ -209,9 +209,9 @@ fn test_null_coalesce() {
 
 #[test]
 fn test_in_operator() {
-    assert_eq!(eval("1 in [1, 2, 3]"), FelValue::Boolean(true));
-    assert_eq!(eval("4 in [1, 2, 3]"), FelValue::Boolean(false));
-    assert_eq!(eval("'a' not in ['b', 'c']"), FelValue::Boolean(true));
+    assert_eq!(eval("1 in [1, 2, 3]"), Value::Boolean(true));
+    assert_eq!(eval("4 in [1, 2, 3]"), Value::Boolean(false));
+    assert_eq!(eval("'a' not in ['b', 'c']"), Value::Boolean(true));
 }
 
 // ── Ternary and if/then/else ────────────────────────────────────
@@ -263,7 +263,7 @@ fn test_field_ref() {
 
 #[test]
 fn test_nested_field_ref() {
-    let addr = FelValue::Object(vec![("city".to_string(), s("NYC"))]);
+    let addr = Value::Object(vec![("city".to_string(), s("NYC"))]);
     let result = eval_fields("$address.city", vec![("address", addr)]);
     assert_eq!(result, s("NYC"));
 }
@@ -271,9 +271,9 @@ fn test_nested_field_ref() {
 #[test]
 fn test_wildcard_projection() {
     let items = arr(vec![
-        FelValue::Object(vec![("qty".to_string(), num(2))]),
-        FelValue::Object(vec![("qty".to_string(), num(5))]),
-        FelValue::Object(vec![("qty".to_string(), num(3))]),
+        Value::Object(vec![("qty".to_string(), num(2))]),
+        Value::Object(vec![("qty".to_string(), num(5))]),
+        Value::Object(vec![("qty".to_string(), num(3))]),
     ]);
     let result = eval_fields("$items[*].qty", vec![("items", items)]);
     assert_eq!(result, arr(vec![num(2), num(5), num(3)]));
@@ -336,10 +336,10 @@ fn test_string_functions() {
     assert_eq!(eval("length('hello')"), num(5));
     assert_eq!(
         eval("contains('hello world', 'world')"),
-        FelValue::Boolean(true)
+        Value::Boolean(true)
     );
-    assert_eq!(eval("startsWith('hello', 'hel')"), FelValue::Boolean(true));
-    assert_eq!(eval("endsWith('hello', 'llo')"), FelValue::Boolean(true));
+    assert_eq!(eval("startsWith('hello', 'hel')"), Value::Boolean(true));
+    assert_eq!(eval("endsWith('hello', 'llo')"), Value::Boolean(true));
     assert_eq!(eval("upper('hello')"), s("HELLO"));
     assert_eq!(eval("lower('HELLO')"), s("hello"));
     assert_eq!(eval("trim('  hi  ')"), s("hi"));
@@ -381,7 +381,7 @@ fn test_date_add() {
     // Jan 31 + 1 month → Feb 29 (2024 is leap year, day clamped)
     assert!(matches!(
         result,
-        FelValue::Date(FelDate::Date {
+        Value::Date(Date::Date {
             year: 2024,
             month: 2,
             day: 29
@@ -410,23 +410,23 @@ fn test_coalesce() {
 
 #[test]
 fn test_empty_present() {
-    assert_eq!(eval("empty(null)"), FelValue::Boolean(true));
-    assert_eq!(eval("empty('')"), FelValue::Boolean(true));
-    assert_eq!(eval("empty([])"), FelValue::Boolean(true));
-    assert_eq!(eval("empty('x')"), FelValue::Boolean(false));
-    assert_eq!(eval("present('hello')"), FelValue::Boolean(true));
-    assert_eq!(eval("present(null)"), FelValue::Boolean(false));
+    assert_eq!(eval("empty(null)"), Value::Boolean(true));
+    assert_eq!(eval("empty('')"), Value::Boolean(true));
+    assert_eq!(eval("empty([])"), Value::Boolean(true));
+    assert_eq!(eval("empty('x')"), Value::Boolean(false));
+    assert_eq!(eval("present('hello')"), Value::Boolean(true));
+    assert_eq!(eval("present(null)"), Value::Boolean(false));
 }
 
 #[test]
 fn test_selected() {
     assert_eq!(
         eval("selected(['a', 'b', 'c'], 'b')"),
-        FelValue::Boolean(true)
+        Value::Boolean(true)
     );
     assert_eq!(
         eval("selected(['a', 'b', 'c'], 'd')"),
-        FelValue::Boolean(false)
+        Value::Boolean(false)
     );
 }
 
@@ -434,11 +434,11 @@ fn test_selected() {
 
 #[test]
 fn test_type_functions() {
-    assert_eq!(eval("isNumber(42)"), FelValue::Boolean(true));
-    assert_eq!(eval("isNumber('x')"), FelValue::Boolean(false));
-    assert_eq!(eval("isString('x')"), FelValue::Boolean(true));
-    assert_eq!(eval("isNull(null)"), FelValue::Boolean(true));
-    assert_eq!(eval("isNull(0)"), FelValue::Boolean(false));
+    assert_eq!(eval("isNumber(42)"), Value::Boolean(true));
+    assert_eq!(eval("isNumber('x')"), Value::Boolean(false));
+    assert_eq!(eval("isString('x')"), Value::Boolean(true));
+    assert_eq!(eval("isNull(null)"), Value::Boolean(true));
+    assert_eq!(eval("isNull(0)"), Value::Boolean(false));
     assert_eq!(eval("typeOf(42)"), s("number"));
     assert_eq!(eval("typeOf('x')"), s("string"));
     assert_eq!(eval("typeOf(null)"), s("null"));
@@ -452,9 +452,9 @@ fn test_casting() {
     assert_eq!(eval("number(true)"), num(1));
     assert_eq!(eval("string(42)"), s("42"));
     assert_eq!(eval("string(null)"), s(""));
-    assert_eq!(eval("boolean('true')"), FelValue::Boolean(true));
-    assert_eq!(eval("boolean(0)"), FelValue::Boolean(false));
-    assert_eq!(eval("boolean(1)"), FelValue::Boolean(true));
+    assert_eq!(eval("boolean('true')"), Value::Boolean(true));
+    assert_eq!(eval("boolean(0)"), Value::Boolean(false));
+    assert_eq!(eval("boolean(1)"), Value::Boolean(true));
 }
 
 // ── Money functions ─────────────────────────────────────────────
@@ -462,7 +462,7 @@ fn test_casting() {
 #[test]
 fn test_money() {
     let result = eval("money(100.50, 'USD')");
-    assert!(matches!(result, FelValue::Money(FelMoney { .. })));
+    assert!(matches!(result, Value::Money(Money { .. })));
 
     assert_eq!(eval("moneyAmount(money(100.50, 'USD'))"), dec("100.50"));
     assert_eq!(eval("moneyCurrency(money(100.50, 'USD'))"), s("USD"));
@@ -472,7 +472,7 @@ fn test_money() {
 fn test_money_add() {
     let result = eval("moneyAdd(money(100, 'USD'), money(50, 'USD'))");
     match result {
-        FelValue::Money(m) => {
+        Value::Money(m) => {
             assert_eq!(m.amount, Decimal::from(150));
             assert_eq!(m.currency, "USD");
         }
@@ -484,7 +484,7 @@ fn test_money_add() {
 fn test_money_currency_mismatch() {
     assert_eq!(
         eval("moneyAdd(money(100, 'USD'), money(50, 'EUR'))"),
-        FelValue::Null
+        Value::Null
     );
 }
 
@@ -492,19 +492,19 @@ fn test_money_currency_mismatch() {
 
 #[test]
 fn test_null_propagation() {
-    assert_eq!(eval("null + 1"), FelValue::Null);
-    assert_eq!(eval("1 + null"), FelValue::Null);
-    assert_eq!(eval("null * 5"), FelValue::Null);
-    assert_eq!(eval("null < 1"), FelValue::Null);
+    assert_eq!(eval("null + 1"), Value::Null);
+    assert_eq!(eval("1 + null"), Value::Null);
+    assert_eq!(eval("null * 5"), Value::Null);
+    assert_eq!(eval("null < 1"), Value::Null);
 }
 
 #[test]
 fn test_equality_no_propagation() {
     // Equality does NOT propagate null — spec §3
-    assert_eq!(eval("null = null"), FelValue::Boolean(true));
-    assert_eq!(eval("null = 1"), FelValue::Boolean(false));
-    assert_eq!(eval("1 = null"), FelValue::Boolean(false));
-    assert_eq!(eval("null != 1"), FelValue::Boolean(true));
+    assert_eq!(eval("null = null"), Value::Boolean(true));
+    assert_eq!(eval("null = 1"), Value::Boolean(false));
+    assert_eq!(eval("1 = null"), Value::Boolean(false));
+    assert_eq!(eval("null != 1"), Value::Boolean(true));
 }
 
 // ── Format function ─────────────────────────────────────────────
@@ -522,11 +522,11 @@ fn test_format() {
 #[test]
 fn test_complex_expression() {
     let items = arr(vec![
-        FelValue::Object(vec![
+        Value::Object(vec![
             ("qty".to_string(), num(3)),
             ("price".to_string(), num(10)),
         ]),
-        FelValue::Object(vec![
+        Value::Object(vec![
             ("qty".to_string(), num(2)),
             ("price".to_string(), num(25)),
         ]),
@@ -555,7 +555,7 @@ fn test_undefined_function() {
     let expr = parse("unknownFunc(1)").unwrap();
     let env = MapEnvironment::new();
     let result = evaluate(&expr, &env);
-    assert_eq!(result.value, FelValue::Null);
+    assert_eq!(result.value, Value::Null);
     assert!(!result.diagnostics.is_empty());
 }
 
@@ -563,10 +563,10 @@ fn test_undefined_function() {
 
 #[test]
 fn test_mip_defaults() {
-    assert_eq!(eval("valid($name)"), FelValue::Boolean(true));
-    assert_eq!(eval("relevant($name)"), FelValue::Boolean(true));
-    assert_eq!(eval("readonly($name)"), FelValue::Boolean(false));
-    assert_eq!(eval("required($name)"), FelValue::Boolean(false));
+    assert_eq!(eval("valid($name)"), Value::Boolean(true));
+    assert_eq!(eval("relevant($name)"), Value::Boolean(true));
+    assert_eq!(eval("readonly($name)"), Value::Boolean(false));
+    assert_eq!(eval("required($name)"), Value::Boolean(false));
 }
 
 // ── countWhere ──────────────────────────────────────────────────
@@ -581,16 +581,16 @@ fn test_count_where() {
 
 #[test]
 fn test_every_some_basic() {
-    assert_eq!(eval("every([1, 2, 3], $ > 0)"), FelValue::Boolean(true));
-    assert_eq!(eval("every([1, 0, 3], $ > 0)"), FelValue::Boolean(false));
-    assert_eq!(eval("some([0, 2, 0], $ > 1)"), FelValue::Boolean(true));
-    assert_eq!(eval("some([0, 1], $ > 5)"), FelValue::Boolean(false));
+    assert_eq!(eval("every([1, 2, 3], $ > 0)"), Value::Boolean(true));
+    assert_eq!(eval("every([1, 0, 3], $ > 0)"), Value::Boolean(false));
+    assert_eq!(eval("some([0, 2, 0], $ > 1)"), Value::Boolean(true));
+    assert_eq!(eval("some([0, 1], $ > 5)"), Value::Boolean(false));
 }
 
 #[test]
 fn test_every_some_empty_array() {
-    assert_eq!(eval("every([], $ > 0)"), FelValue::Boolean(true));
-    assert_eq!(eval("some([], $ > 0)"), FelValue::Boolean(false));
+    assert_eq!(eval("every([], $ > 0)"), Value::Boolean(true));
+    assert_eq!(eval("some([], $ > 0)"), Value::Boolean(false));
 }
 
 #[test]
@@ -633,11 +633,11 @@ fn test_duration_invalid_vs_out_of_range_diagnostics() {
 fn test_quantifier_predicates_with_object_elements() {
     assert_eq!(
         eval("every([{amount: 1}, {amount: 2}], $.amount > 0)"),
-        FelValue::Boolean(true)
+        Value::Boolean(true)
     );
     assert_eq!(
         eval("some([{ok: false}, {ok: true}], $.ok)"),
-        FelValue::Boolean(true)
+        Value::Boolean(true)
     );
     assert_eq!(eval("countWhere([{v: 10}, {v: 20}], $.v > 15)"), num(1));
 }
@@ -662,7 +662,7 @@ fn test_avg_empty_array() {
     let expr = parse("avg([])").unwrap();
     let env = MapEnvironment::new();
     let result = evaluate(&expr, &env);
-    assert_eq!(result.value, FelValue::Null, "avg([]) must return null");
+    assert_eq!(result.value, Value::Null, "avg([]) must return null");
     assert!(
         !result.diagnostics.is_empty(),
         "avg([]) must produce a diagnostic"
@@ -672,13 +672,13 @@ fn test_avg_empty_array() {
 /// Spec: core/spec.md §3.5.1 — min([]) must return null.
 #[test]
 fn test_min_empty_array() {
-    assert_eq!(eval("min([])"), FelValue::Null);
+    assert_eq!(eval("min([])"), Value::Null);
 }
 
 /// Spec: core/spec.md §3.5.1 — max([]) must return null.
 #[test]
 fn test_max_empty_array() {
-    assert_eq!(eval("max([])"), FelValue::Null);
+    assert_eq!(eval("max([])"), Value::Null);
 }
 
 // ── Arity checks on aggregate functions (spec §3.10) ────────────
@@ -691,7 +691,7 @@ fn test_aggregate_arity_sum_no_args() {
     let env = MapEnvironment::new();
     let result = evaluate(&expr, &env);
     // sum with no args evaluates with a missing arg (null) → null
-    assert_eq!(result.value, FelValue::Null);
+    assert_eq!(result.value, Value::Null);
 }
 
 /// Spec: core/spec.md §3.10 — countWhere requires exactly 2 arguments.
@@ -702,7 +702,7 @@ fn test_count_where_wrong_arity() {
     let result = evaluate(&expr, &env);
     assert_eq!(
         result.value,
-        FelValue::Null,
+        Value::Null,
         "countWhere with 1 arg must fail"
     );
     assert!(
@@ -721,7 +721,7 @@ fn test_number_cast_invalid_string() {
     let result = evaluate(&expr, &env);
     assert_eq!(
         result.value,
-        FelValue::Null,
+        Value::Null,
         "number('abc') must return null"
     );
     assert!(
@@ -738,7 +738,7 @@ fn test_date_cast_invalid_string() {
     let result = evaluate(&expr, &env);
     assert_eq!(
         result.value,
-        FelValue::Null,
+        Value::Null,
         "date('not-a-date') must return null"
     );
     assert!(
@@ -765,7 +765,7 @@ fn test_decimal_exact_money_arithmetic() {
     // Classic floating point failure: 0.1 + 0.2 != 0.3 in f64
     // With Decimal: exact
     assert_eq!(eval("0.1 + 0.2"), dec("0.3"));
-    assert_eq!(eval("0.1 + 0.2 = 0.3"), FelValue::Boolean(true));
+    assert_eq!(eval("0.1 + 0.2 = 0.3"), Value::Boolean(true));
 }
 
 #[test]
@@ -784,99 +784,99 @@ fn test_bankers_rounding_decimal() {
 fn test_matches_literal_substring() {
     assert_eq!(
         eval("matches('hello world', 'world')"),
-        FelValue::Boolean(true)
+        Value::Boolean(true)
     );
     assert_eq!(
         eval("matches('hello world', 'xyz')"),
-        FelValue::Boolean(false)
+        Value::Boolean(false)
     );
 }
 
 #[test]
 fn test_matches_anchored() {
-    assert_eq!(eval("matches('hello', '^hello$')"), FelValue::Boolean(true));
+    assert_eq!(eval("matches('hello', '^hello$')"), Value::Boolean(true));
     assert_eq!(
         eval("matches('hello world', '^hello$')"),
-        FelValue::Boolean(false)
+        Value::Boolean(false)
     );
     assert_eq!(
         eval("matches('hello world', '^hello')"),
-        FelValue::Boolean(true)
+        Value::Boolean(true)
     );
     assert_eq!(
         eval("matches('hello world', 'world$')"),
-        FelValue::Boolean(true)
+        Value::Boolean(true)
     );
 }
 
 #[test]
 fn test_matches_character_classes_with_quantifiers() {
     // These were broken by the off-by-two bug in the hand-rolled engine
-    assert_eq!(eval(r"matches('abc123', '\\d+')"), FelValue::Boolean(true));
-    assert_eq!(eval(r"matches('abc', '\\d+')"), FelValue::Boolean(false));
+    assert_eq!(eval(r"matches('abc123', '\\d+')"), Value::Boolean(true));
+    assert_eq!(eval(r"matches('abc', '\\d+')"), Value::Boolean(false));
     assert_eq!(
         eval(r"matches('hello_world', '\\w+')"),
-        FelValue::Boolean(true)
+        Value::Boolean(true)
     );
     assert_eq!(
         eval(r"matches('hello world', '\\s+')"),
-        FelValue::Boolean(true)
+        Value::Boolean(true)
     );
-    assert_eq!(eval(r"matches('abc', '\\s+')"), FelValue::Boolean(false));
+    assert_eq!(eval(r"matches('abc', '\\s+')"), Value::Boolean(false));
 }
 
 #[test]
 fn test_matches_character_class_star() {
-    assert_eq!(eval(r"matches('', '\\d*')"), FelValue::Boolean(true));
-    assert_eq!(eval(r"matches('123', '\\d*')"), FelValue::Boolean(true));
-    assert_eq!(eval(r"matches('abc', '\\w*')"), FelValue::Boolean(true));
+    assert_eq!(eval(r"matches('', '\\d*')"), Value::Boolean(true));
+    assert_eq!(eval(r"matches('123', '\\d*')"), Value::Boolean(true));
+    assert_eq!(eval(r"matches('abc', '\\w*')"), Value::Boolean(true));
 }
 
 #[test]
 fn test_matches_character_class_question() {
-    assert_eq!(eval(r"matches('a', '\\d?a')"), FelValue::Boolean(true));
-    assert_eq!(eval(r"matches('1a', '\\d?a')"), FelValue::Boolean(true));
+    assert_eq!(eval(r"matches('a', '\\d?a')"), Value::Boolean(true));
+    assert_eq!(eval(r"matches('1a', '\\d?a')"), Value::Boolean(true));
 }
 
 #[test]
 fn test_matches_full_anchored_digit_pattern() {
     // Full string must be digits only
-    assert_eq!(eval(r"matches('12345', '^\\d+$')"), FelValue::Boolean(true));
+    assert_eq!(eval(r"matches('12345', '^\\d+$')"), Value::Boolean(true));
     assert_eq!(
         eval(r"matches('123abc', '^\\d+$')"),
-        FelValue::Boolean(false)
+        Value::Boolean(false)
     );
 }
 
 #[test]
 fn test_matches_alternation() {
-    assert_eq!(eval("matches('cat', 'cat|dog')"), FelValue::Boolean(true));
-    assert_eq!(eval("matches('dog', 'cat|dog')"), FelValue::Boolean(true));
-    assert_eq!(eval("matches('fish', 'cat|dog')"), FelValue::Boolean(false));
+    assert_eq!(eval("matches('cat', 'cat|dog')"), Value::Boolean(true));
+    assert_eq!(eval("matches('dog', 'cat|dog')"), Value::Boolean(true));
+    assert_eq!(eval("matches('fish', 'cat|dog')"), Value::Boolean(false));
 }
 
 #[test]
 fn test_matches_grouping() {
-    assert_eq!(eval("matches('abcabc', '(abc)+')"), FelValue::Boolean(true));
+    assert_eq!(eval("matches('abcabc', '(abc)+')"), Value::Boolean(true));
 }
 
 #[test]
 fn test_matches_character_set() {
-    assert_eq!(eval("matches('a', '[abc]')"), FelValue::Boolean(true));
-    assert_eq!(eval("matches('d', '[abc]')"), FelValue::Boolean(false));
+    assert_eq!(eval("matches('a', '[abc]')"), Value::Boolean(true));
+    assert_eq!(eval("matches('d', '[abc]')"), Value::Boolean(false));
 }
 
 #[test]
 fn test_matches_dot_wildcard() {
-    assert_eq!(eval("matches('abc', 'a.c')"), FelValue::Boolean(true));
-    assert_eq!(eval("matches('aXc', 'a.c')"), FelValue::Boolean(true));
-    assert_eq!(eval("matches('ac', 'a.c')"), FelValue::Boolean(false));
+    assert_eq!(eval("matches('abc', 'a.c')"), Value::Boolean(true));
+    assert_eq!(eval("matches('aXc', 'a.c')"), Value::Boolean(true));
+    assert_eq!(eval("matches('ac', 'a.c')"), Value::Boolean(false));
 }
 
 #[test]
 fn test_matches_null_propagation() {
-    assert_eq!(eval("matches(null, 'abc')"), FelValue::Null);
-    assert_eq!(eval("matches('abc', null)"), FelValue::Null);
+    assert_eq!(eval("matches(null, 'abc')"), Value::Null);
+    assert_eq!(eval("matches('abc', null)"), Value::Null);
 }
 
 #[test]
@@ -884,7 +884,7 @@ fn test_matches_invalid_regex_returns_null_with_diagnostic() {
     let expr = parse("matches('abc', '[invalid')").unwrap();
     let env = MapEnvironment::new();
     let result = evaluate(&expr, &env);
-    assert_eq!(result.value, FelValue::Null);
+    assert_eq!(result.value, Value::Null);
     assert!(!result.diagnostics.is_empty());
     assert!(result.diagnostics[0].message.contains("invalid regex"));
 }
@@ -897,7 +897,7 @@ fn test_money_number_comparison_returns_null_with_diagnostic() {
     let expr = parse("money(100, 'USD') < 200").unwrap();
     let env = MapEnvironment::new();
     let result = evaluate(&expr, &env);
-    assert_eq!(result.value, FelValue::Null);
+    assert_eq!(result.value, Value::Null);
     assert!(!result.diagnostics.is_empty(), "should have diagnostic");
     assert!(
         result.diagnostics[0]
@@ -919,7 +919,7 @@ fn test_number_money_comparison_returns_null_with_diagnostic() {
     let expr = parse("200 > money(100, 'USD')").unwrap();
     let env = MapEnvironment::new();
     let result = evaluate(&expr, &env);
-    assert_eq!(result.value, FelValue::Null);
+    assert_eq!(result.value, Value::Null);
     assert!(!result.diagnostics.is_empty());
     assert!(
         result.diagnostics[0].message.contains("moneyAmount("),
@@ -934,7 +934,7 @@ fn test_money_money_ordering_returns_null_with_diagnostic() {
     let expr = parse("money(200, 'USD') > money(100, 'USD')").unwrap();
     let env = MapEnvironment::new();
     let result = evaluate(&expr, &env);
-    assert_eq!(result.value, FelValue::Null);
+    assert_eq!(result.value, Value::Null);
     assert!(
         !result.diagnostics.is_empty(),
         "should have diagnostic for money ordering"
@@ -967,7 +967,7 @@ fn test_avg_where() {
 #[test]
 fn test_avg_where_no_match() {
     // avgWhere with no matching elements should return null (no values to average)
-    assert_eq!(eval("avgWhere([1, 2, 3], $ > 100)"), FelValue::Null);
+    assert_eq!(eval("avgWhere([1, 2, 3], $ > 100)"), Value::Null);
 }
 
 #[test]
@@ -977,7 +977,7 @@ fn test_min_where() {
 
 #[test]
 fn test_min_where_no_match() {
-    assert_eq!(eval("minWhere([1, 2, 3], $ > 100)"), FelValue::Null);
+    assert_eq!(eval("minWhere([1, 2, 3], $ > 100)"), Value::Null);
 }
 
 #[test]
@@ -987,7 +987,7 @@ fn test_max_where() {
 
 #[test]
 fn test_max_where_no_match() {
-    assert_eq!(eval("maxWhere([1, 2, 3], $ > 100)"), FelValue::Null);
+    assert_eq!(eval("maxWhere([1, 2, 3], $ > 100)"), Value::Null);
 }
 
 #[test]
@@ -996,7 +996,7 @@ fn test_money_sum_where() {
         eval(
             "moneySumWhere([money(100, 'USD'), money(200, 'USD'), money(300, 'USD')], moneyAmount($) > 150)"
         ),
-        FelValue::Money(FelMoney {
+        Value::Money(Money {
             amount: Decimal::from(500),
             currency: "USD".to_string()
         })
@@ -1007,7 +1007,7 @@ fn test_money_sum_where() {
 fn test_money_sum_where_no_match() {
     assert_eq!(
         eval("moneySumWhere([money(100, 'USD'), money(200, 'USD')], moneyAmount($) > 1000)"),
-        FelValue::Null
+        Value::Null
     );
 }
 
@@ -1025,7 +1025,7 @@ fn test_where_functions_require_two_args() {
         let result = evaluate(&expr, &env);
         assert_eq!(
             result.value,
-            FelValue::Null,
+            Value::Null,
             "{func} with 1 arg should return Null"
         );
         assert!(

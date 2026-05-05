@@ -14,7 +14,7 @@
 /// which consumes \d but ignores the trailing quantifier.
 use fel_core::*;
 
-fn eval(input: &str) -> FelValue {
+fn eval(input: &str) -> Value {
     let expr = parse(input).unwrap();
     let env = MapEnvironment::new();
     evaluate(&expr, &env).value
@@ -24,7 +24,7 @@ fn matches_true(text: &str, pattern: &str) {
     let expr = format!("matches('{text}', '{pattern}')");
     assert_eq!(
         eval(&expr),
-        FelValue::Boolean(true),
+        Value::Boolean(true),
         "expected matches('{text}', '{pattern}') = true"
     );
 }
@@ -33,7 +33,7 @@ fn matches_false(text: &str, pattern: &str) {
     let expr = format!("matches('{text}', '{pattern}')");
     assert_eq!(
         eval(&expr),
-        FelValue::Boolean(false),
+        Value::Boolean(false),
         "expected matches('{text}', '{pattern}') = false"
     );
 }
@@ -154,7 +154,7 @@ fn empty_pattern_with_anchors() {
 fn backslash_d_matches_single_digit() {
     // In FEL strings, \\ becomes \, so the pattern is \d
     let result = eval(r#"matches('a1b', '\\d')"#);
-    assert_eq!(result, FelValue::Boolean(true));
+    assert_eq!(result, Value::Boolean(true));
 }
 
 /// Correctness: \\d does not match non-digit (without quantifier)
@@ -162,17 +162,17 @@ fn backslash_d_matches_single_digit() {
 fn backslash_d_rejects_non_digit_single() {
     // "^\\d$" — single digit anchored — no quantifier, works fine
     let result = eval(r#"matches('a', '^\\d$')"#);
-    assert_eq!(result, FelValue::Boolean(false));
+    assert_eq!(result, Value::Boolean(false));
 
     let result = eval(r#"matches('5', '^\\d$')"#);
-    assert_eq!(result, FelValue::Boolean(true));
+    assert_eq!(result, Value::Boolean(true));
 }
 
 /// Correctness: \\s matches single whitespace
 #[test]
 fn backslash_s_matches_single_whitespace() {
     let result = eval(r#"matches(' ', '^\\s$')"#);
-    assert_eq!(result, FelValue::Boolean(true));
+    assert_eq!(result, Value::Boolean(true));
 }
 
 // ── Escape sequences WITH quantifiers — known BUG ───────────────
@@ -184,7 +184,7 @@ fn backslash_s_matches_single_whitespace() {
 fn backslash_d_plus() {
     assert_eq!(
         eval(r#"matches('abc123', '\\d+')"#),
-        FelValue::Boolean(true)
+        Value::Boolean(true)
     );
 }
 
@@ -193,32 +193,32 @@ fn backslash_d_plus() {
 fn backslash_w_plus() {
     assert_eq!(
         eval(r#"matches('hello_123', '^\\w+$')"#),
-        FelValue::Boolean(true)
+        Value::Boolean(true)
     );
 }
 
 /// \\D+ matches non-digits
 #[test]
 fn backslash_upper_d_plus() {
-    assert_eq!(eval(r#"matches('abc', '^\\D+$')"#), FelValue::Boolean(true));
+    assert_eq!(eval(r#"matches('abc', '^\\D+$')"#), Value::Boolean(true));
 }
 
 /// \\W+ matches non-word chars
 #[test]
 fn backslash_upper_w_plus() {
-    assert_eq!(eval(r#"matches('!@#', '^\\W+$')"#), FelValue::Boolean(true));
+    assert_eq!(eval(r#"matches('!@#', '^\\W+$')"#), Value::Boolean(true));
 }
 
 /// \\S+ matches non-whitespace
 #[test]
 fn backslash_upper_s_plus() {
-    assert_eq!(eval(r#"matches('abc', '^\\S+$')"#), FelValue::Boolean(true));
+    assert_eq!(eval(r#"matches('abc', '^\\S+$')"#), Value::Boolean(true));
 }
 
 /// \\d* matches zero or more digits
 #[test]
 fn backslash_d_star() {
-    assert_eq!(eval(r#"matches('', '^\\d*$')"#), FelValue::Boolean(true));
+    assert_eq!(eval(r#"matches('', '^\\d*$')"#), Value::Boolean(true));
 }
 
 /// Email-like pattern with \\w+
@@ -226,7 +226,7 @@ fn backslash_d_star() {
 fn email_like_pattern() {
     assert_eq!(
         eval(r#"matches('user@example.com', '\\w+@\\w+')"#),
-        FelValue::Boolean(true)
+        Value::Boolean(true)
     );
 }
 
@@ -235,7 +235,7 @@ fn email_like_pattern() {
 fn anchored_digit_pattern() {
     assert_eq!(
         eval(r#"matches('12345', '^\\d+$')"#),
-        FelValue::Boolean(true)
+        Value::Boolean(true)
     );
 }
 
@@ -245,14 +245,14 @@ fn anchored_digit_pattern() {
 #[test]
 fn escaped_dot_matches_literal_dot() {
     let result = eval(r#"matches('a.b', 'a\\.b')"#);
-    assert_eq!(result, FelValue::Boolean(true));
+    assert_eq!(result, Value::Boolean(true));
 }
 
 /// Correctness: escaped dot should not match arbitrary char
 #[test]
 fn escaped_dot_rejects_non_dot() {
     let result = eval(r#"matches('axb', '^a\\.b$')"#);
-    assert_eq!(result, FelValue::Boolean(false));
+    assert_eq!(result, Value::Boolean(false));
 }
 
 // ── Edge cases ──────────────────────────────────────────────────
@@ -282,13 +282,13 @@ fn dot_star_matches_anything() {
 /// Spec: core/spec.llm.md L250 — "Evaluation errors... produce null + diagnostic"
 #[test]
 fn matches_null_text_returns_null() {
-    assert_eq!(eval("matches(null, 'abc')"), FelValue::Null);
+    assert_eq!(eval("matches(null, 'abc')"), Value::Null);
 }
 
 /// Correctness: null pattern returns null
 #[test]
 fn matches_null_pattern_returns_null() {
-    assert_eq!(eval("matches('abc', null)"), FelValue::Null);
+    assert_eq!(eval("matches('abc', null)"), Value::Null);
 }
 
 // ── Combined patterns (no escape quantifiers) ───────────────────

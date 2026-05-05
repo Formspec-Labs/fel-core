@@ -8,12 +8,12 @@ use fel_core::*;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::*;
 
-fn num(n: i64) -> FelValue {
-    FelValue::Number(Decimal::from(n))
+fn num(n: i64) -> Value {
+    Value::Number(Decimal::from(n))
 }
 
-fn s(v: &str) -> FelValue {
-    FelValue::String(v.to_string())
+fn s(v: &str) -> Value {
+    Value::String(v.to_string())
 }
 
 fn eval_with_env(input: &str, env: &FormspecEnvironment) -> EvalResult {
@@ -21,7 +21,7 @@ fn eval_with_env(input: &str, env: &FormspecEnvironment) -> EvalResult {
     evaluate(&expr, env)
 }
 
-fn eval_value(input: &str, env: &FormspecEnvironment) -> FelValue {
+fn eval_value(input: &str, env: &FormspecEnvironment) -> Value {
     eval_with_env(input, env).value
 }
 
@@ -42,7 +42,7 @@ fn mip_valid_returns_false_for_invalid_field() {
         },
     );
 
-    assert_eq!(eval_value("valid($email)", &env), FelValue::Boolean(false));
+    assert_eq!(eval_value("valid($email)", &env), Value::Boolean(false));
 }
 
 /// Spec: core/spec.llm.md L226 — relevant() queries MIP state
@@ -61,7 +61,7 @@ fn mip_relevant_returns_configured_state() {
 
     assert_eq!(
         eval_value("relevant($hiddenField)", &env),
-        FelValue::Boolean(false)
+        Value::Boolean(false)
     );
 }
 
@@ -81,7 +81,7 @@ fn mip_readonly_returns_configured_state() {
 
     assert_eq!(
         eval_value("readonly($lockedField)", &env),
-        FelValue::Boolean(true)
+        Value::Boolean(true)
     );
 }
 
@@ -99,7 +99,7 @@ fn mip_required_returns_configured_state() {
         },
     );
 
-    assert_eq!(eval_value("required($name)", &env), FelValue::Boolean(true));
+    assert_eq!(eval_value("required($name)", &env), Value::Boolean(true));
 }
 
 /// Correctness: MIP defaults for unknown fields
@@ -107,18 +107,18 @@ fn mip_required_returns_configured_state() {
 fn mip_defaults_for_unknown_field() {
     let env = FormspecEnvironment::new();
 
-    assert_eq!(eval_value("valid($unknown)", &env), FelValue::Boolean(true));
+    assert_eq!(eval_value("valid($unknown)", &env), Value::Boolean(true));
     assert_eq!(
         eval_value("relevant($unknown)", &env),
-        FelValue::Boolean(true)
+        Value::Boolean(true)
     );
     assert_eq!(
         eval_value("readonly($unknown)", &env),
-        FelValue::Boolean(false)
+        Value::Boolean(false)
     );
     assert_eq!(
         eval_value("required($unknown)", &env),
-        FelValue::Boolean(false)
+        Value::Boolean(false)
     );
 }
 
@@ -164,7 +164,7 @@ fn repeat_context_current_index_count() {
 #[test]
 fn repeat_context_with_object_current() {
     let mut env = FormspecEnvironment::new();
-    let item = FelValue::Object(vec![
+    let item = Value::Object(vec![
         ("name".to_string(), s("Alice")),
         ("age".to_string(), num(30)),
     ]);
@@ -192,7 +192,7 @@ fn repeat_prev_at_first_returns_null() {
     let items = vec![num(10), num(20)];
     env.push_repeat(num(10), 1, 2, items);
 
-    assert_eq!(eval_value("prev()", &env), FelValue::Null);
+    assert_eq!(eval_value("prev()", &env), Value::Null);
 }
 
 /// Correctness: next() at last item returns null
@@ -202,7 +202,7 @@ fn repeat_next_at_last_returns_null() {
     let items = vec![num(10), num(20)];
     env.push_repeat(num(20), 2, 2, items);
 
-    assert_eq!(eval_value("next()", &env), FelValue::Null);
+    assert_eq!(eval_value("next()", &env), Value::Null);
 }
 
 /// Correctness: nested repeat — parent() returns outer current
@@ -239,13 +239,13 @@ fn variable_resolution() {
     let mut env = FormspecEnvironment::new();
     env.set_variable(
         "taxRate",
-        FelValue::Number(Decimal::from_str("0.08").unwrap()),
+        Value::Number(Decimal::from_str("0.08").unwrap()),
     );
     env.set_field("subtotal", num(100));
 
     assert_eq!(
         eval_value("$subtotal * @taxRate", &env),
-        FelValue::Number(Decimal::from_str("8.00").unwrap())
+        Value::Number(Decimal::from_str("8.00").unwrap())
     );
 }
 
@@ -253,14 +253,14 @@ fn variable_resolution() {
 #[test]
 fn undefined_variable_returns_null() {
     let env = FormspecEnvironment::new();
-    assert_eq!(eval_value("@undefinedVar", &env), FelValue::Null);
+    assert_eq!(eval_value("@undefinedVar", &env), Value::Null);
 }
 
 /// Correctness: variable with object value and dot access
 #[test]
 fn variable_with_nested_object() {
     let mut env = FormspecEnvironment::new();
-    let config = FelValue::Object(vec![
+    let config = Value::Object(vec![
         ("maxItems".to_string(), num(10)),
         ("label".to_string(), s("Settings")),
     ]);
@@ -276,7 +276,7 @@ fn variable_with_nested_object() {
 #[test]
 fn named_instance_resolution() {
     let mut env = FormspecEnvironment::new();
-    let lookup = FelValue::Object(vec![
+    let lookup = Value::Object(vec![
         ("us".to_string(), s("United States")),
         ("uk".to_string(), s("United Kingdom")),
     ]);
@@ -292,7 +292,7 @@ fn named_instance_resolution() {
 #[test]
 fn unknown_instance_returns_null() {
     let env = FormspecEnvironment::new();
-    assert_eq!(eval_value("@instance('missing')", &env), FelValue::Null);
+    assert_eq!(eval_value("@instance('missing')", &env), Value::Null);
 }
 
 // ── Field resolution with FormspecEnvironment ────────────────────
@@ -310,7 +310,7 @@ fn field_resolution_basic() {
 #[test]
 fn field_resolution_nested_object() {
     let mut env = FormspecEnvironment::new();
-    let addr = FelValue::Object(vec![
+    let addr = Value::Object(vec![
         ("city".to_string(), s("NYC")),
         ("zip".to_string(), s("10001")),
     ]);
@@ -332,7 +332,7 @@ fn field_resolution_flat_dotted_key() {
 #[test]
 fn missing_field_returns_null() {
     let env = FormspecEnvironment::new();
-    assert_eq!(eval_value("$missing", &env), FelValue::Null);
+    assert_eq!(eval_value("$missing", &env), Value::Null);
 }
 
 /// Correctness: bare $ in repeat context returns current

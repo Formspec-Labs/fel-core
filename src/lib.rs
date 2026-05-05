@@ -38,7 +38,7 @@ pub use dependencies::{
 };
 pub use environment::{FormspecEnvironment, MipState, RepeatContext};
 pub use error::{
-    Diagnostic, FelError, Severity, has_error_diagnostics, reject_undefined_functions,
+    Diagnostic, Error, Severity, has_error_diagnostics, reject_undefined_functions,
     undefined_function_names_from_diagnostics,
 };
 pub use evaluator::{
@@ -53,13 +53,12 @@ pub use iso_duration::{IsoDurationParse, parse_iso8601_duration, parse_iso8601_d
 pub use lexer::{is_valid_fel_identifier, sanitize_fel_identifier};
 pub use parser::parse;
 pub use prepare_host::{
-    PrepareFelHostInput, PrepareFelHostOptionsOwned, prepare_fel_expression_for_host,
-    prepare_fel_expression_owned, prepare_fel_host_options_from_json_map,
+    PrepareHostInput, PrepareHostOptions, host_options_from_json, prepare, prepare_for_host,
 };
 pub use printer::print_expr;
 pub use rust_decimal::Decimal;
 pub use trace::{Trace, TraceStep};
-pub use types::{FelDate, FelMoney, FelValue, parse_date_literal, parse_datetime_literal};
+pub use types::{Date, Money, Value, parse_date_literal, parse_datetime_literal};
 pub use wire_style::JsonWireStyle;
 
 /// One lexeme from [`tokenize`] for host bindings and tooling (stable type names + source span).
@@ -183,8 +182,8 @@ pub fn fel_diagnostics_to_json_value(diagnostics: &[Diagnostic]) -> serde_json::
 /// Parse and evaluate a FEL expression with a flat field map.
 pub fn eval_with_fields(
     input: &str,
-    fields: std::collections::HashMap<String, FelValue>,
-) -> Result<EvalResult, FelError> {
+    fields: std::collections::HashMap<String, Value>,
+) -> Result<EvalResult, Error> {
     let expr = parse(input)?;
     let env = MapEnvironment::with_fields(fields);
     Ok(evaluate(&expr, &env))

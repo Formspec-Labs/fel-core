@@ -7,12 +7,12 @@
 use fel_core::*;
 use rust_decimal::Decimal;
 
-fn num(n: i64) -> FelValue {
-    FelValue::Number(Decimal::from(n))
+fn num(n: i64) -> Value {
+    Value::Number(Decimal::from(n))
 }
 
-fn s(v: &str) -> FelValue {
-    FelValue::String(v.to_string())
+fn s(v: &str) -> Value {
+    Value::String(v.to_string())
 }
 
 fn eval_with_env(input: &str, env: &FormspecEnvironment) -> EvalResult {
@@ -20,7 +20,7 @@ fn eval_with_env(input: &str, env: &FormspecEnvironment) -> EvalResult {
     evaluate(&expr, env)
 }
 
-fn eval_value(input: &str, env: &FormspecEnvironment) -> FelValue {
+fn eval_value(input: &str, env: &FormspecEnvironment) -> Value {
     eval_with_env(input, env).value
 }
 
@@ -36,7 +36,7 @@ fn locale_returns_active_locale_string() {
 #[test]
 fn locale_returns_null_when_not_set() {
     let env = FormspecEnvironment::new();
-    assert_eq!(eval_value("locale()", &env), FelValue::Null);
+    assert_eq!(eval_value("locale()", &env), Value::Null);
 }
 
 #[test]
@@ -66,24 +66,24 @@ fn runtime_meta_returns_number_value() {
 #[test]
 fn runtime_meta_returns_boolean_value() {
     let mut env = FormspecEnvironment::new();
-    env.set_meta("isAdmin", FelValue::Boolean(true));
+    env.set_meta("isAdmin", Value::Boolean(true));
     assert_eq!(
         eval_value("runtimeMeta('isAdmin')", &env),
-        FelValue::Boolean(true)
+        Value::Boolean(true)
     );
 }
 
 #[test]
 fn runtime_meta_returns_null_for_missing_key() {
     let env = FormspecEnvironment::new();
-    assert_eq!(eval_value("runtimeMeta('missing')", &env), FelValue::Null);
+    assert_eq!(eval_value("runtimeMeta('missing')", &env), Value::Null);
 }
 
 #[test]
 fn runtime_meta_null_propagation_on_null_key() {
     let env = FormspecEnvironment::new();
     // runtimeMeta(null) should return null
-    assert_eq!(eval_value("runtimeMeta(null)", &env), FelValue::Null);
+    assert_eq!(eval_value("runtimeMeta(null)", &env), Value::Null);
 }
 
 // ── pluralCategory(count, locale?) ────────────────────────────────
@@ -240,14 +240,14 @@ fn plural_category_truncates_fractional_count() {
 fn plural_category_null_propagation() {
     let mut env = FormspecEnvironment::new();
     env.set_locale("en");
-    assert_eq!(eval_value("pluralCategory(null)", &env), FelValue::Null);
+    assert_eq!(eval_value("pluralCategory(null)", &env), Value::Null);
 }
 
 #[test]
 fn plural_category_no_locale_returns_null() {
     // No locale set and no explicit locale param — return null
     let env = FormspecEnvironment::new();
-    assert_eq!(eval_value("pluralCategory(1)", &env), FelValue::Null);
+    assert_eq!(eval_value("pluralCategory(1)", &env), Value::Null);
 }
 
 // ── context_json: locale and meta from JSON ───────────────────────

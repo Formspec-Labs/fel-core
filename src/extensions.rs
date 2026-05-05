@@ -7,7 +7,7 @@
 #![allow(clippy::missing_docs_in_private_items)]
 use std::collections::HashMap;
 
-use crate::types::FelValue;
+use crate::types::Value as FelValue;
 
 /// Type alias for extension function implementations.
 pub type ExtensionFn = Box<dyn Fn(&[FelValue]) -> FelValue + Send + Sync>;

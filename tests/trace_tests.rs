@@ -3,12 +3,12 @@
 //! These tests assert on the shape of emitted [`TraceStep`]s for small FEL
 //! programs. They are the contract for the v0 trace API and the regression
 //! guard for the non-tracing hot path.
-use fel_core::{FelValue, MapEnvironment, Trace, TraceStep, evaluate, evaluate_with_trace, parse};
+use fel_core::{Value, MapEnvironment, Trace, TraceStep, evaluate, evaluate_with_trace, parse};
 use rust_decimal::Decimal;
 use serde_json::json;
 use std::collections::HashMap;
 
-fn env_with(fields: &[(&str, FelValue)]) -> MapEnvironment {
+fn env_with(fields: &[(&str, Value)]) -> MapEnvironment {
     let mut map = HashMap::new();
     for (k, v) in fields {
         map.insert((*k).to_string(), v.clone());
@@ -24,7 +24,7 @@ fn trace_for(source: &str, env: &MapEnvironment) -> Trace {
 
 #[test]
 fn field_ref_emits_single_field_resolved_step() {
-    let env = env_with(&[("foo", FelValue::Number(Decimal::from(42)))]);
+    let env = env_with(&[("foo", Value::Number(Decimal::from(42)))]);
     let trace = trace_for("$foo", &env);
 
     assert_eq!(trace.steps.len(), 1);
@@ -40,8 +40,8 @@ fn field_ref_emits_single_field_resolved_step() {
 #[test]
 fn addition_of_two_fields_emits_two_resolutions_and_one_binary_op() {
     let env = env_with(&[
-        ("a", FelValue::Number(Decimal::from(3))),
-        ("b", FelValue::Number(Decimal::from(4))),
+        ("a", Value::Number(Decimal::from(3))),
+        ("b", Value::Number(Decimal::from(4))),
     ]);
     let trace = trace_for("$a + $b", &env);
 
@@ -78,7 +78,7 @@ fn addition_of_two_fields_emits_two_resolutions_and_one_binary_op() {
 
 #[test]
 fn if_call_records_comparison_and_then_branch() {
-    let env = env_with(&[("x", FelValue::Number(Decimal::from(5)))]);
+    let env = env_with(&[("x", Value::Number(Decimal::from(5)))]);
     let trace = trace_for("if($x > 0, 'pos', 'neg')", &env);
 
     let kinds: Vec<&'static str> = trace
@@ -142,8 +142,8 @@ fn sum_emits_function_called_step() {
 #[test]
 fn eager_function_with_field_ref_args_does_not_duplicate_sub_steps() {
     let env = env_with(&[
-        ("x", FelValue::Number(Decimal::from(5))),
-        ("y", FelValue::Number(Decimal::from(3))),
+        ("x", Value::Number(Decimal::from(5))),
+        ("y", Value::Number(Decimal::from(3))),
     ]);
     let trace = trace_for("sum([$x, $y])", &env);
 
@@ -236,19 +236,19 @@ fn short_circuit_or_skips_right_operand() {
 #[test]
 fn tracing_and_non_tracing_paths_agree_on_result() {
     let env = env_with(&[
-        ("a", FelValue::Number(Decimal::from(7))),
-        ("b", FelValue::Number(Decimal::from(11))),
-        ("n", FelValue::Number(Decimal::from(4))),
+        ("a", Value::Number(Decimal::from(7))),
+        ("b", Value::Number(Decimal::from(11))),
+        ("n", Value::Number(Decimal::from(4))),
         (
             "items",
-            FelValue::Array(vec![
-                FelValue::Number(Decimal::from(1)),
-                FelValue::Number(Decimal::from(2)),
-                FelValue::Number(Decimal::from(3)),
+            Value::Array(vec![
+                Value::Number(Decimal::from(1)),
+                Value::Number(Decimal::from(2)),
+                Value::Number(Decimal::from(3)),
             ]),
         ),
-        ("maybe", FelValue::Null),
-        ("fallback", FelValue::Number(Decimal::from(99))),
+        ("maybe", Value::Null),
+        ("fallback", Value::Number(Decimal::from(99))),
     ]);
 
     // Exercise every expression kind the evaluator supports: the ones that
@@ -292,7 +292,7 @@ fn tracing_and_non_tracing_paths_agree_on_result() {
 
 #[test]
 fn else_branch_of_ternary_is_recorded() {
-    let env = env_with(&[("x", FelValue::Number(Decimal::from(-3)))]);
+    let env = env_with(&[("x", Value::Number(Decimal::from(-3)))]);
     let trace = trace_for("if($x > 0, 'pos', 'neg')", &env);
     let branch = trace
         .steps

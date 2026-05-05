@@ -3,6 +3,7 @@
 //! Parses the `PnYnMnDTnHnMnS` form. Date-designator `M` is months; after `T`, `M` is minutes.
 //! Years and months in the date component use fixed lengths (365 days, 30 days) — not calendar
 //! arithmetic. See Core spec §3.5.4 `duration`.
+#![allow(clippy::missing_docs_in_private_items)]
 
 use regex::Regex;
 use std::sync::OnceLock;
@@ -128,52 +129,52 @@ pub fn parse_iso8601_duration(input: &str) -> IsoDurationParse {
         }
     }
 
-    if let Some(t) = time_str {
-        if !t.is_empty() {
-            let Some(caps) = time_part_re().captures(t) else {
-                return IsoDurationParse::Invalid;
-            };
-            if &caps[0] != t {
-                return IsoDurationParse::Invalid;
-            }
-            let h = match component_i128(&caps, 1) {
-                Some(v) => v,
-                None => return IsoDurationParse::Invalid,
-            };
-            let m = match component_i128(&caps, 2) {
-                Some(v) => v,
-                None => return IsoDurationParse::Invalid,
-            };
-            let s_whole = match component_i128(&caps, 3) {
-                Some(v) => v,
-                None => return IsoDurationParse::Invalid,
-            };
-            let frac_ms = caps
-                .get(4)
-                .map(|f| fractional_seconds_to_ms(f.as_str()))
-                .unwrap_or(0);
-            let frac_ms = i128::from(frac_ms);
-            let Some(dh) = h.checked_mul(MS_PER_HOUR) else {
-                return IsoDurationParse::OutOfRange;
-            };
-            if accumulate(&mut total, dh).is_err() {
-                return IsoDurationParse::OutOfRange;
-            }
-            let Some(dm) = m.checked_mul(MS_PER_MINUTE) else {
-                return IsoDurationParse::OutOfRange;
-            };
-            if accumulate(&mut total, dm).is_err() {
-                return IsoDurationParse::OutOfRange;
-            }
-            let Some(ds) = s_whole.checked_mul(MS_PER_SECOND) else {
-                return IsoDurationParse::OutOfRange;
-            };
-            if accumulate(&mut total, ds).is_err() {
-                return IsoDurationParse::OutOfRange;
-            }
-            if accumulate(&mut total, frac_ms).is_err() {
-                return IsoDurationParse::OutOfRange;
-            }
+    if let Some(t) = time_str
+        && !t.is_empty()
+    {
+        let Some(caps) = time_part_re().captures(t) else {
+            return IsoDurationParse::Invalid;
+        };
+        if &caps[0] != t {
+            return IsoDurationParse::Invalid;
+        }
+        let h = match component_i128(&caps, 1) {
+            Some(v) => v,
+            None => return IsoDurationParse::Invalid,
+        };
+        let m = match component_i128(&caps, 2) {
+            Some(v) => v,
+            None => return IsoDurationParse::Invalid,
+        };
+        let s_whole = match component_i128(&caps, 3) {
+            Some(v) => v,
+            None => return IsoDurationParse::Invalid,
+        };
+        let frac_ms = caps
+            .get(4)
+            .map(|f| fractional_seconds_to_ms(f.as_str()))
+            .unwrap_or(0);
+        let frac_ms = i128::from(frac_ms);
+        let Some(dh) = h.checked_mul(MS_PER_HOUR) else {
+            return IsoDurationParse::OutOfRange;
+        };
+        if accumulate(&mut total, dh).is_err() {
+            return IsoDurationParse::OutOfRange;
+        }
+        let Some(dm) = m.checked_mul(MS_PER_MINUTE) else {
+            return IsoDurationParse::OutOfRange;
+        };
+        if accumulate(&mut total, dm).is_err() {
+            return IsoDurationParse::OutOfRange;
+        }
+        let Some(ds) = s_whole.checked_mul(MS_PER_SECOND) else {
+            return IsoDurationParse::OutOfRange;
+        };
+        if accumulate(&mut total, ds).is_err() {
+            return IsoDurationParse::OutOfRange;
+        }
+        if accumulate(&mut total, frac_ms).is_err() {
+            return IsoDurationParse::OutOfRange;
         }
     }
 

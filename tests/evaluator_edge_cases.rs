@@ -9,7 +9,7 @@ use rust_decimal::Decimal;
 use rust_decimal::prelude::*;
 use std::collections::HashMap;
 
-fn eval(input: &str) -> FelValue {
+fn eval(input: &str) -> Value {
     let expr = parse(input).unwrap();
     let env = MapEnvironment::new();
     evaluate(&expr, &env).value
@@ -21,16 +21,16 @@ fn eval_result(input: &str) -> EvalResult {
     evaluate(&expr, &env)
 }
 
-fn num(n: i64) -> FelValue {
-    FelValue::Number(Decimal::from(n))
+fn num(n: i64) -> Value {
+    Value::Number(Decimal::from(n))
 }
 
-fn dec(v: &str) -> FelValue {
-    FelValue::Number(Decimal::from_str(v).unwrap())
+fn dec(v: &str) -> Value {
+    Value::Number(Decimal::from_str(v).unwrap())
 }
 
-fn s(v: &str) -> FelValue {
-    FelValue::String(v.to_string())
+fn s(v: &str) -> Value {
+    Value::String(v.to_string())
 }
 
 // ── eval_with_fields convenience function ───────────────────────
@@ -69,7 +69,7 @@ fn eval_with_fields_parse_error() {
 fn eval_with_fields_missing_field() {
     let fields = HashMap::new();
     let result = eval_with_fields("$missing", fields).unwrap();
-    assert_eq!(result.value, FelValue::Null);
+    assert_eq!(result.value, Value::Null);
 }
 
 /// Correctness: eval_with_fields with complex expression
@@ -90,7 +90,7 @@ fn eval_with_fields_complex() {
 fn money_subtraction() {
     let result = eval("money(100, 'USD') - money(30, 'USD')");
     match result {
-        FelValue::Money(m) => {
+        Value::Money(m) => {
             assert_eq!(m.amount, Decimal::from(70));
             assert_eq!(m.currency, "USD");
         }
@@ -103,7 +103,7 @@ fn money_subtraction() {
 fn money_multiply_by_scalar() {
     let result = eval("money(25, 'EUR') * 4");
     match result {
-        FelValue::Money(m) => {
+        Value::Money(m) => {
             assert_eq!(m.amount, Decimal::from(100));
             assert_eq!(m.currency, "EUR");
         }
@@ -116,7 +116,7 @@ fn money_multiply_by_scalar() {
 fn scalar_multiply_by_money() {
     let result = eval("3 * money(10, 'GBP')");
     match result {
-        FelValue::Money(m) => {
+        Value::Money(m) => {
             assert_eq!(m.amount, Decimal::from(30));
             assert_eq!(m.currency, "GBP");
         }
@@ -129,7 +129,7 @@ fn scalar_multiply_by_money() {
 fn money_divide_by_scalar() {
     let result = eval("money(100, 'USD') / 4");
     match result {
-        FelValue::Money(m) => {
+        Value::Money(m) => {
             assert_eq!(m.amount, Decimal::from(25));
             assert_eq!(m.currency, "USD");
         }
@@ -148,21 +148,21 @@ fn money_divide_by_money() {
 #[test]
 fn money_divide_by_money_currency_mismatch() {
     let result = eval("money(100, 'USD') / money(25, 'EUR')");
-    assert_eq!(result, FelValue::Null);
+    assert_eq!(result, Value::Null);
 }
 
 /// Correctness: money subtraction with currency mismatch
 #[test]
 fn money_subtraction_currency_mismatch() {
     let result = eval("money(100, 'USD') - money(30, 'EUR')");
-    assert_eq!(result, FelValue::Null);
+    assert_eq!(result, Value::Null);
 }
 
 /// Correctness: money division by zero
 #[test]
 fn money_divide_by_zero() {
     let result = eval("money(100, 'USD') / 0");
-    assert_eq!(result, FelValue::Null);
+    assert_eq!(result, Value::Null);
 }
 
 /// Correctness: moneySum across array
@@ -170,7 +170,7 @@ fn money_divide_by_zero() {
 fn money_sum_array() {
     let result = eval("moneySum([money(10, 'USD'), money(20, 'USD'), money(30, 'USD')])");
     match result {
-        FelValue::Money(m) => {
+        Value::Money(m) => {
             assert_eq!(m.amount, Decimal::from(60));
             assert_eq!(m.currency, "USD");
         }
@@ -183,7 +183,7 @@ fn money_sum_array() {
 fn money_sum_with_nulls() {
     let result = eval("moneySum([money(10, 'USD'), null, money(30, 'USD')])");
     match result {
-        FelValue::Money(m) => {
+        Value::Money(m) => {
             assert_eq!(m.amount, Decimal::from(40));
             assert_eq!(m.currency, "USD");
         }
@@ -195,14 +195,14 @@ fn money_sum_with_nulls() {
 #[test]
 fn money_sum_mixed_currencies() {
     let result = eval("moneySum([money(10, 'USD'), money(20, 'EUR')])");
-    assert_eq!(result, FelValue::Null);
+    assert_eq!(result, Value::Null);
 }
 
 /// Correctness: moneySum of empty array
 #[test]
 fn money_sum_empty_array() {
     let result = eval("moneySum([])");
-    assert_eq!(result, FelValue::Null);
+    assert_eq!(result, Value::Null);
 }
 
 // ── Date arithmetic edge cases ──────────────────────────────────
@@ -214,7 +214,7 @@ fn date_add_negative_months() {
     assert!(
         matches!(
             result,
-            FelValue::Date(FelDate::Date {
+            Value::Date(Date::Date {
                 year: 2024,
                 month: 2,
                 day: 15
@@ -231,7 +231,7 @@ fn date_add_negative_days() {
     assert!(
         matches!(
             result,
-            FelValue::Date(FelDate::Date {
+            Value::Date(Date::Date {
                 year: 2024,
                 month: 2,
                 day: 29
@@ -248,7 +248,7 @@ fn date_add_leap_year_feb29_plus_one_year() {
     assert!(
         matches!(
             result,
-            FelValue::Date(FelDate::Date {
+            Value::Date(Date::Date {
                 year: 2025,
                 month: 2,
                 day: 28
@@ -265,7 +265,7 @@ fn date_add_leap_year_feb29_plus_four_years() {
     assert!(
         matches!(
             result,
-            FelValue::Date(FelDate::Date {
+            Value::Date(Date::Date {
                 year: 2028,
                 month: 2,
                 day: 29
@@ -294,7 +294,7 @@ fn date_add_wraps_year() {
     assert!(
         matches!(
             result,
-            FelValue::Date(FelDate::Date {
+            Value::Date(Date::Date {
                 year: 2025,
                 month: 2,
                 day: 15
@@ -311,7 +311,7 @@ fn date_add_month_day_clamping() {
     assert!(
         matches!(
             result,
-            FelValue::Date(FelDate::Date {
+            Value::Date(Date::Date {
                 year: 2024,
                 month: 2,
                 day: 29
@@ -328,7 +328,7 @@ fn date_add_month_to_non_leap_feb() {
     assert!(
         matches!(
             result,
-            FelValue::Date(FelDate::Date {
+            Value::Date(Date::Date {
                 year: 2023,
                 month: 2,
                 day: 28
@@ -344,31 +344,31 @@ fn date_add_month_to_non_leap_feb() {
 /// Correctness: object equality — same keys and values → true
 #[test]
 fn object_equality_same() {
-    assert_eq!(eval("{a: 1, b: 2} = {a: 1, b: 2}"), FelValue::Boolean(true));
+    assert_eq!(eval("{a: 1, b: 2} = {a: 1, b: 2}"), Value::Boolean(true));
 }
 
 /// Correctness: object equality — different values → false
 #[test]
 fn object_equality_different_values() {
-    assert_eq!(eval("{a: 1} = {a: 2}"), FelValue::Boolean(false));
+    assert_eq!(eval("{a: 1} = {a: 2}"), Value::Boolean(false));
 }
 
 /// Correctness: object equality — different keys → false
 #[test]
 fn object_equality_different_keys() {
-    assert_eq!(eval("{a: 1} = {b: 1}"), FelValue::Boolean(false));
+    assert_eq!(eval("{a: 1} = {b: 1}"), Value::Boolean(false));
 }
 
 /// Correctness: object equality — different lengths → false
 #[test]
 fn object_equality_different_lengths() {
-    assert_eq!(eval("{a: 1} = {a: 1, b: 2}"), FelValue::Boolean(false));
+    assert_eq!(eval("{a: 1} = {a: 1, b: 2}"), Value::Boolean(false));
 }
 
 /// Correctness: nested object equality → true
 #[test]
 fn object_equality_nested() {
-    assert_eq!(eval("{a: {b: 1}} = {a: {b: 1}}"), FelValue::Boolean(true));
+    assert_eq!(eval("{a: {b: 1}} = {a: {b: 1}}"), Value::Boolean(true));
 }
 
 // ── today() and now() ───────────────────────────────────────────
@@ -378,7 +378,7 @@ fn object_equality_nested() {
 fn today_returns_date() {
     let result = eval("today()");
     assert!(
-        matches!(result, FelValue::Date(FelDate::Date { .. })),
+        matches!(result, Value::Date(Date::Date { .. })),
         "today() should return a Date, got: {result:?}"
     );
 }
@@ -388,7 +388,7 @@ fn today_returns_date() {
 fn now_returns_datetime() {
     let result = eval("now()");
     assert!(
-        matches!(result, FelValue::Date(FelDate::DateTime { .. })),
+        matches!(result, Value::Date(Date::DateTime { .. })),
         "now() should return a DateTime, got: {result:?}"
     );
 }
@@ -398,7 +398,7 @@ fn now_returns_datetime() {
 fn today_in_date_arithmetic() {
     let result = eval("dateAdd(today(), 1, 'days')");
     assert!(
-        matches!(result, FelValue::Date(FelDate::Date { .. })),
+        matches!(result, Value::Date(Date::Date { .. })),
         "dateAdd on today() should return a Date, got: {result:?}"
     );
 }
@@ -408,7 +408,7 @@ fn today_in_date_arithmetic() {
 fn today_date_parts() {
     // Since today() returns a hardcoded date, we can check its parts
     let result = eval("year(today())");
-    assert!(matches!(result, FelValue::Number(_)));
+    assert!(matches!(result, Value::Number(_)));
 }
 
 // ── Array equality ──────────────────────────────────────────────
@@ -416,25 +416,25 @@ fn today_date_parts() {
 /// Correctness: array equality
 #[test]
 fn array_equality_same() {
-    assert_eq!(eval("[1, 2, 3] = [1, 2, 3]"), FelValue::Boolean(true));
+    assert_eq!(eval("[1, 2, 3] = [1, 2, 3]"), Value::Boolean(true));
 }
 
 /// Correctness: array equality — different
 #[test]
 fn array_equality_different() {
-    assert_eq!(eval("[1, 2, 3] = [1, 2, 4]"), FelValue::Boolean(false));
+    assert_eq!(eval("[1, 2, 3] = [1, 2, 4]"), Value::Boolean(false));
 }
 
 /// Correctness: array equality — different lengths
 #[test]
 fn array_equality_different_lengths() {
-    assert_eq!(eval("[1, 2] = [1, 2, 3]"), FelValue::Boolean(false));
+    assert_eq!(eval("[1, 2] = [1, 2, 3]"), Value::Boolean(false));
 }
 
 /// Correctness: empty array equality
 #[test]
 fn empty_array_equality() {
-    assert_eq!(eval("[] = []"), FelValue::Boolean(true));
+    assert_eq!(eval("[] = []"), Value::Boolean(true));
 }
 
 // ── Cross-type comparisons ──────────────────────────────────────
@@ -444,7 +444,7 @@ fn empty_array_equality() {
 fn cross_type_equality_returns_null_with_diagnostic() {
     let r = eval_result("1 = 'one'");
     // Cross-type equality produces null + diagnostic
-    assert_eq!(r.value, FelValue::Null);
+    assert_eq!(r.value, Value::Null);
     assert!(!r.diagnostics.is_empty());
 }
 
@@ -452,7 +452,7 @@ fn cross_type_equality_returns_null_with_diagnostic() {
 #[test]
 fn cross_type_comparison_returns_null() {
     let r = eval_result("1 < 'abc'");
-    assert_eq!(r.value, FelValue::Null);
+    assert_eq!(r.value, Value::Null);
 }
 
 // ── Miscellaneous evaluator edge cases ──────────────────────────
@@ -488,7 +488,7 @@ fn let_binding_shadowing() {
 #[test]
 fn undefined_function_diagnostic() {
     let r = eval_result("fooBar(1, 2)");
-    assert_eq!(r.value, FelValue::Null);
+    assert_eq!(r.value, Value::Null);
     assert!(
         r.diagnostics
             .iter()
@@ -501,8 +501,8 @@ fn undefined_function_diagnostic() {
 /// Correctness: string concatenation with null propagation
 #[test]
 fn concat_with_null_propagates() {
-    assert_eq!(eval("'hello' & null"), FelValue::Null);
-    assert_eq!(eval("null & 'world'"), FelValue::Null);
+    assert_eq!(eval("'hello' & null"), Value::Null);
+    assert_eq!(eval("null & 'world'"), Value::Null);
 }
 
 /// Correctness: length of array
@@ -520,16 +520,16 @@ fn length_of_null() {
 /// Correctness: empty() on various types
 #[test]
 fn empty_edge_cases() {
-    assert_eq!(eval("empty(0)"), FelValue::Boolean(false));
-    assert_eq!(eval("empty(false)"), FelValue::Boolean(false));
+    assert_eq!(eval("empty(0)"), Value::Boolean(false));
+    assert_eq!(eval("empty(false)"), Value::Boolean(false));
 }
 
 /// Correctness: date comparison
 #[test]
 fn date_comparison() {
-    assert_eq!(eval("@2024-01-15 < @2024-06-15"), FelValue::Boolean(true));
-    assert_eq!(eval("@2024-06-15 > @2024-01-15"), FelValue::Boolean(true));
-    assert_eq!(eval("@2024-01-15 = @2024-01-15"), FelValue::Boolean(true));
+    assert_eq!(eval("@2024-01-15 < @2024-06-15"), Value::Boolean(true));
+    assert_eq!(eval("@2024-06-15 > @2024-01-15"), Value::Boolean(true));
+    assert_eq!(eval("@2024-01-15 = @2024-01-15"), Value::Boolean(true));
 }
 
 /// Correctness: date casting from string
@@ -539,7 +539,7 @@ fn date_cast_from_string() {
     assert!(
         matches!(
             result,
-            FelValue::Date(FelDate::Date {
+            Value::Date(Date::Date {
                 year: 2024,
                 month: 6,
                 day: 15
@@ -552,25 +552,25 @@ fn date_cast_from_string() {
 /// Correctness: isDate type check
 #[test]
 fn is_date_check() {
-    assert_eq!(eval("isDate(@2024-01-15)"), FelValue::Boolean(true));
-    assert_eq!(eval("isDate('not a date')"), FelValue::Boolean(false));
-    assert_eq!(eval("isDate(42)"), FelValue::Boolean(false));
+    assert_eq!(eval("isDate(@2024-01-15)"), Value::Boolean(true));
+    assert_eq!(eval("isDate('not a date')"), Value::Boolean(false));
+    assert_eq!(eval("isDate(42)"), Value::Boolean(false));
 }
 
 /// Correctness: number cast edge cases
 #[test]
 fn number_cast_invalid_string() {
     let r = eval_result("number('not_a_number')");
-    assert_eq!(r.value, FelValue::Null);
+    assert_eq!(r.value, Value::Null);
     assert!(!r.diagnostics.is_empty());
 }
 
 /// Correctness: boolean cast edge cases
 #[test]
 fn boolean_cast_edge_cases() {
-    assert_eq!(eval("boolean(null)"), FelValue::Boolean(false));
+    assert_eq!(eval("boolean(null)"), Value::Boolean(false));
     let r = eval_result("boolean('maybe')");
-    assert_eq!(r.value, FelValue::Null);
+    assert_eq!(r.value, Value::Null);
 }
 
 /// Correctness: money equality
@@ -578,15 +578,15 @@ fn boolean_cast_edge_cases() {
 fn money_equality() {
     assert_eq!(
         eval("money(100, 'USD') = money(100, 'USD')"),
-        FelValue::Boolean(true)
+        Value::Boolean(true)
     );
     assert_eq!(
         eval("money(100, 'USD') = money(100, 'EUR')"),
-        FelValue::Boolean(false)
+        Value::Boolean(false)
     );
     assert_eq!(
         eval("money(100, 'USD') = money(50, 'USD')"),
-        FelValue::Boolean(false)
+        Value::Boolean(false)
     );
 }
 
@@ -611,7 +611,7 @@ fn format_missing_args() {
 fn postfix_access_on_expression() {
     // coalesce returns first non-null; test dot access on result
     let mut fields = HashMap::new();
-    let obj = FelValue::Object(vec![("x".to_string(), num(42))]);
+    let obj = Value::Object(vec![("x".to_string(), num(42))]);
     fields.insert("data".to_string(), obj);
     let result = eval_with_fields("$data.x", fields).unwrap();
     assert_eq!(result.value, num(42));

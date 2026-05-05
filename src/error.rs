@@ -3,7 +3,7 @@ use std::fmt;
 
 /// Failure from [`crate::parse`] or fatal-style evaluation errors surfaced as `Err`.
 #[derive(Debug, Clone)]
-pub enum FelError {
+pub enum Error {
     /// Lex/parse failure (message from lexer or parser).
     Parse(String),
     /// Evaluation failure where the API returns `Err` instead of diagnostics.
@@ -11,17 +11,17 @@ pub enum FelError {
 }
 
 #[allow(missing_docs)]
-impl fmt::Display for FelError {
+impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            FelError::Parse(msg) => write!(f, "parse error: {msg}"),
-            FelError::Eval(msg) => write!(f, "evaluation error: {msg}"),
+            Error::Parse(msg) => write!(f, "parse error: {msg}"),
+            Error::Eval(msg) => write!(f, "evaluation error: {msg}"),
         }
     }
 }
 
 #[allow(missing_docs)]
-impl std::error::Error for FelError {}
+impl std::error::Error for Error {}
 
 /// A non-fatal diagnostic recorded during evaluation.
 #[derive(Debug, Clone)]
