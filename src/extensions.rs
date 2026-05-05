@@ -2273,6 +2273,28 @@ const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
 ];
 
 /// Emit a single `Parameter` as its schema JSON object.
+/// Synthesize a human-readable signature string from structured catalog data.
+///
+/// Format: `name(p1, p2?, ...p3) -> returnType`
+/// - Required parameter: `name`
+/// - Optional parameter: `name?`
+/// - Variadic parameter: `...name`
+fn synthesize_signature(name: &str, parameters: &[Parameter], returns: FelType) -> String {
+    let params: Vec<String> = parameters
+        .iter()
+        .map(|p| {
+            if p.variadic {
+                format!("...{}", p.name)
+            } else if !p.required {
+                format!("{}?", p.name)
+            } else {
+                p.name.to_string()
+            }
+        })
+        .collect();
+    format!("{}({}) -> {}", name, params.join(", "), returns.as_str())
+}
+
 fn emit_parameter(p: &Parameter) -> serde_json::Value {
     let mut obj = serde_json::Map::new();
     obj.insert("name".into(), serde_json::Value::String(p.name.into()));
@@ -2335,6 +2357,50 @@ fn emit_function_entry(e: &BuiltinFunctionCatalogEntry) -> serde_json::Value {
     }
     // Emit `deterministic` when it differs from the default (true) or when the entry opts in to
     // explicit emission for canonical-schema clarity (`emit_deterministic_explicitly`).
+    if !e.deterministic || e.emit_deterministic_explicitly {
+        obj.insert("deterministic".into(), serde_json::Value::Bool(e.deterministic));
+    }
+    if e.short_circuit {
+        obj.insert("shortCircuit".into(), serde_json::Value::Bool(true));
+    }
+    if !e.examples.is_empty() {
+        obj.insert(
+            "examples".into(),
+            serde_json::Value::Array(e.examples.iter().map(emit_example).collect()),
+        );
+    }
+    serde_json::Value::Object(obj)
+}
+
+/// Emit a single `BuiltinFunctionCatalogEntry` as its JSON object for UI-facing catalog
+/// consumers. Identical to [`emit_function_entry`] but inserts a synthesized `"signature"`
+/// string after `"category"` for display in autocomplete/highlight tooltips.
+fn emit_function_entry_catalog(e: &BuiltinFunctionCatalogEntry) -> serde_json::Value {
+    let mut obj = serde_json::Map::new();
+    obj.insert("name".into(), serde_json::Value::String(e.name.into()));
+    obj.insert("category".into(), serde_json::Value::String(e.category.into()));
+    obj.insert(
+        "signature".into(),
+        serde_json::Value::String(synthesize_signature(e.name, e.parameters, e.returns)),
+    );
+    obj.insert(
+        "parameters".into(),
+        serde_json::Value::Array(e.parameters.iter().map(emit_parameter).collect()),
+    );
+    obj.insert("returns".into(), serde_json::Value::String(e.returns.as_str().into()));
+    if let Some(rd) = e.return_description {
+        obj.insert("returnDescription".into(), serde_json::Value::String(rd.into()));
+    }
+    obj.insert("description".into(), serde_json::Value::String(e.description.into()));
+    if let Some(nh) = e.null_handling {
+        obj.insert("nullHandling".into(), serde_json::Value::String(nh.into()));
+    }
+    if e.since_version != "1.0" {
+        obj.insert(
+            "sinceVersion".into(),
+            serde_json::Value::String(e.since_version.to_string()),
+        );
+    }
     if !e.deterministic || e.emit_deterministic_explicitly {
         obj.insert("deterministic".into(), serde_json::Value::Bool(e.deterministic));
     }
@@ -2490,9 +2556,12 @@ pub fn builtin_function_catalog() -> &'static [BuiltinFunctionCatalogEntry] {
 }
 
 /// Returns a JSON array of all builtin function entries (compact form, suitable for tooling that
-/// iterates the catalog). For the full normative schema document, use [`emit_schema_json`].
+/// iterates the catalog). Each entry includes a synthesized `"signature"` string for UI display.
+/// For the full normative schema document, use [`emit_schema_json`].
 pub fn builtin_function_catalog_json_value() -> serde_json::Value {
-    serde_json::Value::Array(BUILTIN_FUNCTIONS.iter().map(emit_function_entry).collect())
+    serde_json::Value::Array(
+        BUILTIN_FUNCTIONS.iter().map(emit_function_entry_catalog).collect(),
+    )
 }
 
 /// Catalog filtered to entries reachable from `package`.
@@ -2511,10 +2580,11 @@ pub fn builtin_function_catalog_for(
 }
 
 /// `builtin_function_catalog_for(package)` rendered as a JSON array of function entries.
+/// Each entry includes a synthesized `"signature"` string for UI display.
 pub fn builtin_function_catalog_json_value_for(package: Package) -> serde_json::Value {
     serde_json::Value::Array(
         builtin_function_catalog_for(package)
-            .map(emit_function_entry)
+            .map(emit_function_entry_catalog)
             .collect(),
     )
 }
@@ -2755,6 +2825,142 @@ mod tests {
                     )
                 });
             }
+        }
+    }
+
+    #[test]
+    fn synthesize_signature_zero_arg() {
+        // today() -> date
+        assert_eq!(synthesize_signature("today", &[], FelType::Date), "today() -> date");
+    }
+
+    #[test]
+    fn synthesize_signature_single_required_arg() {
+        // length(value) -> number
+        let params = [Parameter {
+            name: "value",
+            fel_type: FelType::String,
+            description: None,
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }];
+        assert_eq!(
+            synthesize_signature("length", &params, FelType::Number),
+            "length(value) -> number"
+        );
+    }
+
+    #[test]
+    fn synthesize_signature_optional_arg() {
+        // substring(value, start, length?) -> string
+        let params = [
+            Parameter {
+                name: "value",
+                fel_type: FelType::String,
+                description: None,
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "start",
+                fel_type: FelType::Number,
+                description: None,
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "length",
+                fel_type: FelType::Number,
+                description: None,
+                required: false,
+                variadic: false,
+                allowed_values: None,
+            },
+        ];
+        assert_eq!(
+            synthesize_signature("substring", &params, FelType::String),
+            "substring(value, start, length?) -> string"
+        );
+    }
+
+    #[test]
+    fn synthesize_signature_variadic_arg() {
+        // coalesce(...values) -> any
+        let params = [Parameter {
+            name: "values",
+            fel_type: FelType::Any,
+            description: None,
+            required: true,
+            variadic: true,
+            allowed_values: None,
+        }];
+        assert_eq!(
+            synthesize_signature("coalesce", &params, FelType::Any),
+            "coalesce(...values) -> any"
+        );
+    }
+
+    #[test]
+    fn synthesize_signature_multi_required_args() {
+        // dateDiff(date1, date2, unit) -> number
+        let params = [
+            Parameter {
+                name: "date1",
+                fel_type: FelType::Date,
+                description: None,
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "date2",
+                fel_type: FelType::Date,
+                description: None,
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "unit",
+                fel_type: FelType::String,
+                description: None,
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+        ];
+        assert_eq!(
+            synthesize_signature("dateDiff", &params, FelType::Number),
+            "dateDiff(date1, date2, unit) -> number"
+        );
+    }
+
+    #[test]
+    fn catalog_json_value_includes_signature_field() {
+        let catalog = builtin_function_catalog_json_value();
+        let arr = catalog.as_array().expect("catalog is an array");
+        // Every entry must have a "signature" key that is a non-empty string.
+        for entry in arr {
+            let sig = entry["signature"].as_str().expect("signature is a string");
+            assert!(!sig.is_empty(), "signature must not be empty for {entry}");
+            assert!(sig.contains(" -> "), "signature must contain ' -> ' for {sig}");
+        }
+    }
+
+    #[test]
+    fn emit_schema_json_has_no_signature_field() {
+        // Round-trip invariant: the schema envelope must NOT contain "signature" on functions.
+        let schema = emit_schema_json();
+        let funcs = schema["functions"].as_array().expect("functions array");
+        for entry in funcs {
+            assert!(
+                entry.get("signature").is_none(),
+                "schema envelope must not have 'signature' field on {}",
+                entry["name"]
+            );
         }
     }
 }
