@@ -13,6 +13,7 @@ fn lex(input: &str) -> Result<Vec<Token>, String> {
     lexer
         .tokenize()
         .map(|tokens| tokens.into_iter().map(|st| st.token).collect())
+        .map_err(|e| e.to_string())
 }
 
 fn lex_ok(input: &str) -> Vec<Token> {

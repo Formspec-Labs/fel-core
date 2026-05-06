@@ -31,8 +31,12 @@ Source string
     → Value + Vec<Diagnostic>
 ```
 
-- **Parse errors** surface as `Error::Parse`.
+- **Parse errors** surface as `Error::Parse` wrapping `ParseError` (human-readable `message` plus optional byte `span`; see bundled rustdoc).
 - **Eval errors** produce `Diagnostic` entries and a null or partial value (non-fatal evaluation path).
+
+### JSON conversion and dates
+
+[`convert`](src/convert.rs) serializes FEL dates as ISO strings and does **not** coerce arbitrary JSON strings into `Date` on ingest (see `string_no_date_coercion` tests). That avoids silent type surprises unless a host opts into an explicit tagged shape (similar to Money’s `$type` marker).
 
 ### Source modules (`src/`)
 
@@ -44,7 +48,7 @@ Source string
 | `ast.rs` | `Expr`, `PathSegment`, operators. |
 | `evaluator/` | `evaluator/core.rs` — `Environment`, `MapEnvironment`, `Evaluator`, `evaluate()`, `eval_function` dispatch, broadcasting, null propagation. `evaluator/util.rs` — free helpers (decimal, plural rules, locale). `evaluator/builtins/{aggregates,strings,numeric,dates,money,logic_types}.rs` — per-domain builtin impls on `Evaluator`. |
 | `types.rs` | `Value`, `Date`, `Money`, literals, Hinnant `days_from_civil` / `civil_from_days` (epoch 1970-01-01). |
-| `error.rs` | `Error`, `Diagnostic`, `Severity`. |
+| `error.rs` | `Error`, `ParseError`, `Diagnostic`, `Severity`, JSON diagnostic helpers. |
 | `dependencies.rs` | `Dependencies`, `extract_dependencies`, JSON wire helpers. |
 | `environment.rs` | `FormspecEnvironment`, repeat + MIP + instances. |
 | `context_json.rs` | `formspec_environment_from_json_map` for WASM-style payloads. |
@@ -141,6 +145,7 @@ Integration-style suites live under `tests/`. Notable:
 
 - `schema_round_trip.rs` — `emit_schema_json()` byte-equals the canonical `formspec/schemas/fel-functions.schema.json`.
 - `civil_calendar_proptest.rs` — proptest harness validates Hinnant `days_from_civil` / `civil_from_days` / `days_in_month` against `chrono` over years `1900..=2200`.
+- `parser_parse_proptest.rs` — random bytes (lossy UTF-8) fed to `parse()` (panic hunt).
 - `builtin_catalog_consistency.rs` — every entry in `BUILTIN_FUNCTIONS` is recognized by `eval_function` dispatch.
 
 ## Regenerating the FEL function schema

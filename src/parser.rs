@@ -21,7 +21,7 @@ use rust_decimal::prelude::*;
 use std::collections::HashSet;
 
 use crate::ast::*;
-use crate::error::Error;
+use crate::error::{Error, ParseError};
 use crate::lexer::{Lexer, SpannedToken, Token};
 
 /// Recursive-descent parser over a [`SpannedToken`] stream (use [`parse`] to build from source).
@@ -47,7 +47,7 @@ pub fn parse(input: &str) -> Result<Expr, Error> {
     };
     let expr = parser.parse_expression()?;
     if !parser.at_eof() {
-        return Err(Error::Parse(format!(
+        return Err(parser.parse_err_current(format!(
             "unexpected token {:?} at position {}",
             parser.current().token,
             parser.current().span.start
@@ -57,6 +57,14 @@ pub fn parse(input: &str) -> Result<Expr, Error> {
 }
 
 impl Parser {
+    fn parse_err_current(&self, message: impl Into<String>) -> Error {
+        let tok = self.current();
+        Error::Parse(ParseError::with_span(
+            tok.span.start..tok.span.end,
+            message.into(),
+        ))
+    }
+
     fn current(&self) -> &SpannedToken {
         &self.tokens[self.pos.min(self.tokens.len() - 1)]
     }
@@ -82,7 +90,7 @@ impl Parser {
             self.advance();
             Ok(())
         } else {
-            Err(Error::Parse(format!(
+            Err(self.parse_err_current(format!(
                 "expected {expected:?}, got {:?}",
                 self.peek()
             )))
@@ -96,7 +104,7 @@ impl Parser {
                 self.advance();
                 Ok(name)
             }
-            _ => Err(Error::Parse(format!(
+            _ => Err(self.parse_err_current(format!(
                 "expected identifier, got {:?}",
                 self.peek()
             ))),
@@ -113,7 +121,7 @@ impl Parser {
         self.recursion_depth += 1;
         if self.recursion_depth > self.max_recursion_depth {
             self.recursion_depth -= 1;
-            return Err(Error::Parse(format!(
+            return Err(self.parse_err_current(format!(
                 "expression nesting exceeds maximum depth of {}",
                 self.max_recursion_depth
             )));
@@ -291,9 +299,8 @@ impl Parser {
                     ..
                 }
             ) {
-                return Err(Error::Parse(
-                    "chained comparisons are not supported; use explicit logical conjunction"
-                        .to_string(),
+                return Err(self.parse_err_current(
+                    "chained comparisons are not supported; use explicit logical conjunction",
                 ));
             }
             self.advance();
@@ -457,7 +464,7 @@ impl Parser {
                         self.advance();
                         PathSegment::Index(n.to_u64().unwrap_or(0) as usize)
                     } else {
-                        return Err(Error::Parse(format!(
+                        return Err(self.parse_err_current(format!(
                             "expected number or * in brackets, got {:?}",
                             self.peek()
                         )));
@@ -572,15 +579,12 @@ impl Parser {
                 if matches!(self.peek(), Token::LParen) {
                     self.parse_function_call("if".to_string())
                 } else {
-                    Err(Error::Parse(
-                        "unexpected 'if' — use if...then...else or if(...)".into(),
+                    Err(self.parse_err_current(
+                        "unexpected 'if' — use if...then...else or if(...)",
                     ))
                 }
             }
-            _ => Err(Error::Parse(format!(
-                "unexpected token {:?}",
-                self.peek()
-            ))),
+            _ => Err(self.parse_err_current(format!("unexpected token {:?}", self.peek()))),
         }
     }
 
@@ -611,7 +615,7 @@ impl Parser {
                         self.advance();
                         PathSegment::Index(n.to_u64().unwrap_or(0) as usize)
                     } else {
-                        return Err(Error::Parse(format!(
+                        return Err(self.parse_err_current(format!(
                             "expected number or * in field ref brackets, got {:?}",
                             self.peek()
                         )));
@@ -694,7 +698,7 @@ impl Parser {
                 }
                 let entry = self.parse_object_entry()?;
                 if !seen_keys.insert(entry.0.clone()) {
-                    return Err(Error::Parse(format!(
+                    return Err(self.parse_err_current(format!(
                         "duplicate key '{}' in object literal",
                         entry.0
                     )));
@@ -717,7 +721,7 @@ impl Parser {
                 s.clone()
             }
             _ => {
-                return Err(Error::Parse(format!(
+                return Err(self.parse_err_current(format!(
                     "expected object key, got {:?}",
                     self.peek()
                 )));

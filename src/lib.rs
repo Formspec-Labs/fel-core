@@ -38,7 +38,7 @@ pub use dependencies::{
 };
 pub use environment::{FormspecEnvironment, MipState, RepeatContext};
 pub use error::{
-    Diagnostic, Error, Severity, fel_diagnostics_to_json_value,
+    Diagnostic, Error, ParseError, Severity, fel_diagnostics_to_json_value,
     fel_diagnostics_to_json_value_styled, has_error_diagnostics, reject_undefined_functions,
     undefined_function_names_from_diagnostics,
 };

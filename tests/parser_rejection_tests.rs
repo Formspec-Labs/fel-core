@@ -1,7 +1,7 @@
 /// Parser rejection tests — verifying invalid inputs are rejected.
 ///
 /// Addresses audit finding: "Zero parser rejection tests"
-use fel_core::parse;
+use fel_core::{Error, parse};
 
 /// Assert that parsing the given input produces an error.
 fn assert_rejects(input: &str) {
@@ -258,4 +258,23 @@ fn trailing_comma_in_object_is_valid() {
         result.is_ok(),
         "trailing comma in object should be accepted"
     );
+}
+
+#[test]
+fn parse_error_span_points_at_trailing_token() {
+    let src = "1 2";
+    let err = parse(src).expect_err("two atoms without operator");
+    let Error::Parse(pe) = err;
+    let sp = pe.span.expect("parser should attach span");
+    assert_eq!(&src[sp.start..sp.end], "2");
+}
+
+#[test]
+fn lexer_error_includes_span_on_unterminated_string() {
+    let src = "\"hello";
+    let err = parse(src).expect_err("unterminated string");
+    let Error::Parse(pe) = err;
+    let sp = pe.span.expect("lexer should attach span");
+    assert!(sp.start < sp.end || sp.start == 0);
+    assert!(sp.end <= src.chars().count());
 }

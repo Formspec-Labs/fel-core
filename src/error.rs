@@ -2,17 +2,54 @@
 use std::fmt;
 use std::ops::Range;
 
+/// Lex or parse failure with optional source span (byte offsets into the expression).
+///
+/// [`Error`]'s [`Display`] output uses the `message` field.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParseError {
+    /// Human-readable explanation.
+    pub message: String,
+    /// Byte range in the source, when known.
+    pub span: Option<Range<usize>>,
+}
+
+impl ParseError {
+    /// Parse failure with no associated span.
+    #[must_use]
+    pub fn new(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            span: None,
+        }
+    }
+
+    /// Parse failure with a source span.
+    #[must_use]
+    pub fn with_span(span: Range<usize>, message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            span: Some(span),
+        }
+    }
+}
+
+impl fmt::Display for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
 /// Failure from [`crate::parse`] or fatal-style evaluation errors surfaced as `Err`.
 #[derive(Debug, Clone)]
 pub enum Error {
     /// Lex/parse failure (message from lexer or parser).
-    Parse(String),
+    Parse(ParseError),
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Error::Parse(msg) => write!(f, "parse error: {msg}"),
+            Error::Parse(pe) => write!(f, "parse error: {}", pe.message),
         }
     }
 }
@@ -143,6 +180,48 @@ pub fn fel_diagnostics_to_json_value(diagnostics: &[Diagnostic]) -> serde_json::
     fel_diagnostics_to_json_value_styled(diagnostics, crate::wire_style::JsonWireStyle::JsCamel)
 }
 
+fn diagnostic_kind_to_json(
+    kind: &DiagnosticKind,
+    style: crate::wire_style::JsonWireStyle,
+) -> serde_json::Value {
+    use crate::wire_style::JsonWireStyle;
+
+    match kind {
+        DiagnosticKind::UndefinedFunction { name } => match style {
+            JsonWireStyle::JsCamel => serde_json::json!({
+                "undefinedFunction": { "name": name }
+            }),
+            JsonWireStyle::PythonSnake => serde_json::json!({
+                "undefined_function": { "name": name }
+            }),
+        },
+    }
+}
+
+fn diagnostic_to_json_object(
+    d: &Diagnostic,
+    style: crate::wire_style::JsonWireStyle,
+) -> serde_json::Value {
+    use serde_json::{Map, Value};
+
+    let mut map = Map::new();
+    map.insert("message".to_string(), Value::String(d.message.clone()));
+    map.insert(
+        "severity".to_string(),
+        Value::String(d.severity.as_wire_str().to_string()),
+    );
+    if let Some(sp) = &d.span {
+        map.insert(
+            "span".to_string(),
+            serde_json::json!({ "start": sp.start, "end": sp.end }),
+        );
+    }
+    if let Some(kind) = &d.kind {
+        map.insert("kind".to_string(), diagnostic_kind_to_json(kind, style));
+    }
+    Value::Object(map)
+}
+
 /// Evaluation diagnostics as JSON objects with configurable key style.
 pub fn fel_diagnostics_to_json_value_styled(
     diagnostics: &[Diagnostic],
@@ -151,30 +230,7 @@ pub fn fel_diagnostics_to_json_value_styled(
     serde_json::Value::Array(
         diagnostics
             .iter()
-            .map(|d| {
-                let severity = d.severity.as_wire_str();
-                let msg = &d.message;
-                match (&d.span, style) {
-                    (Some(sp), crate::wire_style::JsonWireStyle::JsCamel) => serde_json::json!({
-                        "message": msg,
-                        "severity": severity,
-                        "span": { "start": sp.start, "end": sp.end },
-                    }),
-                    (Some(sp), crate::wire_style::JsonWireStyle::PythonSnake) => serde_json::json!({
-                        "message": msg,
-                        "severity": severity,
-                        "span": { "start": sp.start, "end": sp.end },
-                    }),
-                    (None, crate::wire_style::JsonWireStyle::JsCamel) => serde_json::json!({
-                        "message": msg,
-                        "severity": severity,
-                    }),
-                    (None, crate::wire_style::JsonWireStyle::PythonSnake) => serde_json::json!({
-                        "message": msg,
-                        "severity": severity,
-                    }),
-                }
-            })
+            .map(|d| diagnostic_to_json_object(d, style))
             .collect(),
     )
 }
@@ -253,6 +309,56 @@ mod tests {
                 "message": "bad",
                 "severity": "error",
                 "span": { "start": 3, "end": 9 }
+            }])
+        );
+    }
+
+    #[test]
+    fn diagnostic_json_includes_kind_undefined_function_js_camel() {
+        use serde_json::json;
+
+        use crate::wire_style::JsonWireStyle;
+
+        let diagnostics = vec![Diagnostic::undefined_function("foo")];
+        assert_eq!(
+            fel_diagnostics_to_json_value_styled(&diagnostics, JsonWireStyle::JsCamel),
+            json!([{
+                "message": "undefined function: foo",
+                "severity": "error",
+                "kind": { "undefinedFunction": { "name": "foo" } }
+            }])
+        );
+    }
+
+    #[test]
+    fn diagnostic_json_includes_kind_and_span_together() {
+        use serde_json::json;
+
+        let diagnostics = vec![Diagnostic::undefined_function("bar").with_span(1..5)];
+        assert_eq!(
+            fel_diagnostics_to_json_value(&diagnostics),
+            json!([{
+                "message": "undefined function: bar",
+                "severity": "error",
+                "span": { "start": 1, "end": 5 },
+                "kind": { "undefinedFunction": { "name": "bar" } }
+            }])
+        );
+    }
+
+    #[test]
+    fn diagnostic_json_snake_style_kind_keys() {
+        use serde_json::json;
+
+        use crate::wire_style::JsonWireStyle;
+
+        let diagnostics = vec![Diagnostic::undefined_function("x")];
+        assert_eq!(
+            fel_diagnostics_to_json_value_styled(&diagnostics, JsonWireStyle::PythonSnake),
+            json!([{
+                "message": "undefined function: x",
+                "severity": "error",
+                "kind": { "undefined_function": { "name": "x" } }
             }])
         );
     }

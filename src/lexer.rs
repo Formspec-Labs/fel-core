@@ -5,6 +5,8 @@
 use rust_decimal::Decimal;
 use rust_decimal::prelude::*;
 
+use crate::error::ParseError;
+
 /// Lexical token for FEL source (literals, keywords, operators, punctuation).
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
@@ -144,7 +146,7 @@ impl<'a> Lexer<'a> {
     }
 
     /// Consume the entire input and return all tokens, ending with [`Token::Eof`].
-    pub fn tokenize(&mut self) -> Result<Vec<SpannedToken>, String> {
+    pub fn tokenize(&mut self) -> Result<Vec<SpannedToken>, ParseError> {
         let mut tokens = Vec::new();
         loop {
             self.skip_whitespace_and_comments()?;
@@ -187,7 +189,7 @@ impl<'a> Lexer<'a> {
         c
     }
 
-    fn skip_whitespace_and_comments(&mut self) -> Result<(), String> {
+    fn skip_whitespace_and_comments(&mut self) -> Result<(), ParseError> {
         let len = self.chars.len();
         loop {
             // Skip whitespace
@@ -217,7 +219,11 @@ impl<'a> Lexer<'a> {
                     self.pos += 1;
                 }
                 if !closed {
-                    return Err(format!("unterminated block comment at position {start}"));
+                    let end = self.pos.min(len);
+                    return Err(ParseError::with_span(
+                        start..end,
+                        format!("unterminated block comment at position {start}"),
+                    ));
                 }
                 continue;
             }
@@ -226,7 +232,7 @@ impl<'a> Lexer<'a> {
         Ok(())
     }
 
-    fn next_token(&mut self) -> Result<Token, String> {
+    fn next_token(&mut self) -> Result<Token, ParseError> {
         let c = self.peek().unwrap();
 
         // Date/DateTime literals: @YYYY-...
@@ -310,21 +316,26 @@ impl<'a> Lexer<'a> {
             '|' => {
                 if self.peek() == Some('>') {
                     self.advance();
-                    Err(format!(
-                        "pipe operator `|>` is reserved for future use at position {}",
-                        self.pos - 2
+                    let pos = self.pos - 2;
+                    Err(ParseError::with_span(
+                        pos..self.pos,
+                        format!("pipe operator `|>` is reserved for future use at position {pos}"),
                     ))
                 } else {
-                    Err(format!(
-                        "unexpected character '|' at position {}",
-                        self.pos - 1
+                    let pos = self.pos - 1;
+                    Err(ParseError::with_span(
+                        pos..self.pos,
+                        format!("unexpected character '|' at position {pos}"),
                     ))
                 }
             }
-            _ => Err(format!(
-                "unexpected character '{c}' at position {}",
-                self.pos - 1
-            )),
+            _ => {
+                let pos = self.pos - 1;
+                Err(ParseError::with_span(
+                    pos..self.pos,
+                    format!("unexpected character '{c}' at position {pos}"),
+                ))
+            }
         }
     }
 
@@ -345,7 +356,7 @@ impl<'a> Lexer<'a> {
             && slice.as_bytes()[9..11].iter().all(|b| b.is_ascii_digit())
     }
 
-    fn read_date_literal(&mut self) -> Result<Token, String> {
+    fn read_date_literal(&mut self) -> Result<Token, ParseError> {
         let start = self.pos;
         self.advance(); // skip @
         // Read YYYY-MM-DD
@@ -381,7 +392,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn read_number(&mut self) -> Result<Token, String> {
+    fn read_number(&mut self) -> Result<Token, ParseError> {
         let start = self.pos;
         // Optional minus
         if self.peek() == Some('-') {
@@ -414,16 +425,27 @@ impl<'a> Lexer<'a> {
         let n: Decimal = s
             .parse()
             .or_else(|_| s.parse::<f64>().ok().and_then(Decimal::from_f64).ok_or(()))
-            .map_err(|_| format!("invalid number '{s}' at position {start}"))?;
+            .map_err(|_| {
+                ParseError::with_span(
+                    start..self.pos,
+                    format!("invalid number '{s}' at position {start}"),
+                )
+            })?;
         Ok(Token::Number(n))
     }
 
-    fn read_string(&mut self, quote: char) -> Result<Token, String> {
+    fn read_string(&mut self, quote: char) -> Result<Token, ParseError> {
+        let open_start = self.pos;
         self.advance(); // skip opening quote
         let mut result = String::new();
         loop {
             match self.advance() {
-                None => return Err("unterminated string".into()),
+                None => {
+                    return Err(ParseError::with_span(
+                        open_start..self.pos,
+                        "unterminated string".to_string(),
+                    ));
+                }
                 Some(c) if c == quote => return Ok(Token::StringLit(result)),
                 Some('\\') => {
                     let esc_pos = self.pos - 1; // position of the backslash
@@ -443,8 +465,11 @@ impl<'a> Lexer<'a> {
                                         self.advance();
                                     }
                                     _ => {
-                                        return Err(format!(
-                                            "invalid unicode escape '\\u{hex}' at position {esc_pos}: expected 4 hex digits"
+                                        return Err(ParseError::with_span(
+                                            esc_pos..self.pos,
+                                            format!(
+                                                "invalid unicode escape '\\u{hex}' at position {esc_pos}: expected 4 hex digits"
+                                            ),
                                         ));
                                     }
                                 }
@@ -453,18 +478,27 @@ impl<'a> Lexer<'a> {
                             match char::from_u32(cp) {
                                 Some(ch) => result.push(ch),
                                 None => {
-                                    return Err(format!(
-                                        "invalid unicode codepoint '\\u{hex}' at position {esc_pos}"
+                                    return Err(ParseError::with_span(
+                                        esc_pos..self.pos,
+                                        format!(
+                                            "invalid unicode codepoint '\\u{hex}' at position {esc_pos}"
+                                        ),
                                     ));
                                 }
                             }
                         }
                         Some(c) => {
-                            return Err(format!(
-                                "unrecognized escape sequence '\\{c}' at position {esc_pos}"
+                            return Err(ParseError::with_span(
+                                esc_pos..self.pos,
+                                format!("unrecognized escape sequence '\\{c}' at position {esc_pos}"),
                             ));
                         }
-                        None => return Err("unterminated string escape".into()),
+                        None => {
+                            return Err(ParseError::with_span(
+                                esc_pos..self.pos,
+                                "unterminated string escape".to_string(),
+                            ));
+                        }
                     }
                 }
                 Some(c) => result.push(c),
@@ -472,7 +506,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn read_identifier(&mut self) -> Result<Token, String> {
+    fn read_identifier(&mut self) -> Result<Token, ParseError> {
         let start = self.pos;
         while self
             .peek()
@@ -614,7 +648,7 @@ fn slice_by_char_offsets(input: &str, start: usize, end: usize) -> String {
 /// Tokenizes FEL source into [`PositionedToken`]s (lexical analysis only; no parse).
 pub fn tokenize(input: &str) -> Result<Vec<PositionedToken>, String> {
     let mut lexer = Lexer::new(input);
-    let tokens = lexer.tokenize()?;
+    let tokens = lexer.tokenize().map_err(|e| e.to_string())?;
     Ok(tokens
         .into_iter()
         .map(|token| PositionedToken {
@@ -670,6 +704,7 @@ mod tests {
         lexer
             .tokenize()
             .map(|tokens| tokens.into_iter().map(|st| st.token).collect())
+            .map_err(|e| e.to_string())
     }
 
     #[test]
