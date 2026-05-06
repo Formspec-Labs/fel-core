@@ -1,111 +1,152 @@
-# fel-core TODO
+# fel-core — open backlog
 
-Audit findings from 2026-05-06 multi-agent review.
-
-Resolved items live in [`COMPLETED.md`](COMPLETED.md).
+Audit seed: 2026-05-06 multi-agent review. Resolved work is archived in [`COMPLETED.md`](COMPLETED.md).
 
 ---
 
-## FIX NEXT (highest risk open items)
+## Quick reference
 
-1. #6 `extensions.rs` monolith — split registry, catalog, schema
-2. #7 Giant `eval_function` match — table-driven dispatch or stronger consistency checks
-3. #8 Date JSON round-trip policy — confirm intent (`[superseded?]`)
-4. #10 `Diagnostic` lacks source spans
-5. #11 `FieldRef` vs variable refs — `VarRef` separation
-
-### Execution protocol: true TDD refactoring loop
-
-For each bug in `FIX NEXT`, follow this exact loop before moving to the next item:
-
-1. **Red:** add or update a test that reproduces the current bug (must fail first).
-2. **Green:** implement the smallest code change that makes the new test pass.
-3. **Refactor:** clean up the touched code while keeping behavior identical.
-4. **Verify:** run the focused tests for that area, then run broader FEL test suites.
-5. **Iterate:** if more edge cases appear, add another failing test and repeat.
-
-Guardrails:
-
-- Never ship a bug fix without a failing test that proved the bug existed.
-- Keep each cycle scoped to one behavioral change.
-- Prefer multiple small cycles over one large patch.
+| ID | Topic | Priority | Status |
+|----|-------|----------|--------|
+| 6 | Split `extensions` monolith (registry / catalog / schema) | P0 | open |
+| 7 | Builtin dispatch (`eval_function`) vs catalog drift | P0 | partial |
+| 8 | Date ↔ JSON round-trip vs “no silent coercion” policy | P1 | policy review |
+| 10 | `Diagnostic` + AST source spans | P1 | open |
+| 11 | `Expr::VarRef` vs overloaded `FieldRef` | P1 | open |
+| 13 | Normalize builtin diagnostics (type / arity messages) | P2 | partial |
+| 14 | Deduplicate builtin helpers (compare, money fold, dates, …) | P2 | partial |
+| 15 | `Value::Object` lookup + duplicate keys outside FEL literals | P3 | open |
+| 30 | `Money.currency` fixed-size / `Copy` newtype | P3 | open |
+| 38 | Property tests + fuzz smoke (`proptest` in dev-deps, unused) | P3 | partial |
 
 ---
 
-## MEDIUM
+## Recommended order (large refactors)
 
-### 6. `extensions.rs` is a 2,966-line monolith `[open]`
+Mechanical / low coupling first; behavior-changing API milestones last.
 
-Combines three unrelated concerns: `ExtensionRegistry`, the 2,100-line `BUILTIN_FUNCTIONS` catalog data, and schema JSON emission.
+1. **#6** — File split only (no behavior change): `extensions/{mod,catalog,schema,registry,types}.rs` → run `schema_round_trip`, `builtin_catalog_consistency`, full `cargo test`.
+2. **#14** then **#13** — Shared helpers while preserving current diagnostics, then unify messages (updates tests that assumed silent null on mismatch).
+3. **#7** — Stronger `builtin_catalog_consistency` and/or table dispatch *after* #6 so merge conflicts stay localized.
+4. **#11** — Semver-major `Expr` variant; touches parser, printer, `dependencies`, evaluator.
+5. **#10** — Optional scaffolding (`Diagnostic::span: Option<…>`) early; full evaluator spans need AST spans + `diag` threading (often after #11).
+6. **#15 / #30** — Representation / API releases when profiling or semver budget allows.
+7. **#8** — Reopen only if product requires JSON round-trip for `Date`; today documented as intentional (see item body).
+8. **#38** — Add harness; builtin-heavy properties after #13 to avoid churn.
 
-**Fix:** Split into `extensions.rs` (registry only), `catalog.rs` (BUILTIN_FUNCTIONS data), and `schema.rs` (emit_schema_json and helpers).
+---
 
-### 7. Giant `eval_function` match (135 lines, ~70 arms) `[partial]`
+## Execution protocol (TDD loop)
 
-`src/evaluator/core.rs:975-1111` — Adding a builtin requires coordinated edits in 3 files (match arm here, builtin impl in `builtins/*.rs`, catalog entry in `extensions.rs`). No compile-time check keeping them in sync.
-A consistency test exists (`tests/builtin_catalog_consistency.rs`), but dispatch is still manually maintained.
+For each behavioral change:
 
-**Fix:** Table-driven dispatch (`HashMap<&str, fn(...)>`) or a macro that generates the match arm, trace whitelist entry, and catalog validation from a single declaration. At minimum, add a compile-time check that all match-arm names exist in the catalog (the `builtin_catalog_consistency` test partially does this).
+1. **Red** — Test fails and proves the gap.
+2. **Green** — Smallest fix.
+3. **Refactor** — Cleanup, same behavior.
+4. **Verify** — Focused tests, then full fel-core suite.
 
-### 8. Date values cannot round-trip through JSON `[superseded? confirm intent]`
+Guardrails: one behavioral change per cycle; never ship without a test that demonstrated the bug or regression risk.
 
-`src/convert.rs:131` — Dates serialize to JSON strings but deserialize back as `String`, not `Date`. Money uses `$type: "money"` tagging; Date has no equivalent.
-Current convert docs describe this as intentional ("no silent date coercion"), so this may be a policy choice rather than a bug.
+---
 
-**Fix:** Add `$type: "date"` tagging convention in `fel_to_json` / `json_to_fel`, matching the Money pattern at `src/convert.rs:70-84`.
+## P0 — Architecture & dispatch
+
+### 6. `extensions.rs` monolith `[open]`
+
+**Size:** ~2,966 lines (`wc -l`). ~2,096 lines are the `BUILTIN_FUNCTIONS` slice alone; registry, schema emitters, and types share one file.
+
+**Goal:** Split into focused modules (e.g. `catalog.rs`, `schema.rs`, `registry.rs`, optional `types.rs`) behind `pub mod extensions` with stable `fel_core::extensions::*` paths.
+
+**Verify:** `cargo test`, `tests/schema_round_trip.rs`, `tests/builtin_catalog_consistency.rs`, `cargo run -p fel-core --bin emit-fel-schema` if your pipeline uses it.
+
+---
+
+### 7. `eval_function` match vs builtin catalog `[partial]`
+
+**Where:** `src/evaluator/core.rs` — `fn eval_function` ~`1020–1162` (builtin match ~`1021–1160`; line ranges drift with edits).
+
+**Problem:** Adding a builtin touches the match, `evaluator/builtins/*.rs`, and `BUILTIN_FUNCTIONS` in extensions. No compile-time lockstep. `tests/builtin_catalog_consistency.rs` covers catalog names calling without `undefined function`, but parse-skipped names can hide gaps.
+
+**Directions:** Table/macro dispatch *or* tighten tests (explicit allowlist for names not callable as `ident()`). **`is_eager_traceable_function`** (`evaluator/util.rs`) is not the full builtin list — only eager trace whitelist; do not merge blindly with the catalog.
+
+---
+
+## P1 — Policy, diagnostics model, AST
+
+### 8. Date values vs JSON round-trip `[policy review]`
+
+**Where:** `src/convert.rs` — dates serialize as ISO strings; `json_to_fel` does not coerce plain strings to `Date` (documented “no silent date coercion”; tests e.g. `string_no_date_coercion`).
+
+**Conclusion:** Not a bug unless product mandates round-trip. **If** hosts need it: mirror Money with explicit `$type` (or opt-in / major version — wire shape change).
+
+---
 
 ### 10. `Diagnostic` lacks source spans `[open]`
 
-`src/error.rs:26-31` — Error messages are opaque strings with no source location. The parser also discards spans after AST construction (`src/parser.rs:36-53`). This limits IDE/debugger integration.
+**Where:** `src/error.rs` (`Diagnostic`); evaluator uses `diag()` with strings only. AST (`src/ast.rs`) has no span fields — lexer/parser use `SpannedToken` during parse, then spans are not stored on `Expr`.
 
-**Fix:** Add `span: Option<Range<usize>>` to `Diagnostic`. Thread spans through the evaluator. At minimum, preserve spans in the AST for future use.
-
-### 11. `FieldRef` overloads variable references and field references `[open]`
-
-`src/parser.rs:511-515` — Bare identifier `x` and field reference `$x` both produce `Expr::FieldRef`. A dedicated `Expr::VarRef` variant would simplify the evaluator's 4-strategy resolution at `src/evaluator/core.rs:400-481`.
-
-**Fix:** Add `Expr::VarRef(String)` variant. Parser emits `VarRef` for bare identifiers, `FieldRef` only when `$` prefix is present.
-
-### 13. Inconsistent diagnostic messages across builtins `[partial]`
-
-Some builtins include function names, some don't. Some return Null silently (no diagnostic) on type mismatch (`fn_str1` at `src/evaluator/builtins/strings.rs:18-19`, `fn_str2` at line 31, `moneyAmount` at `src/evaluator/core.rs:1071-1084`), while others emit diagnostics. `src/evaluator/builtins/dates.rs:114` is the only warning-level diagnostic in the entire codebase.
-Partial progress exists, but behavior is still inconsistent and should be normalized.
-
-**Fix:** Standardize: every type mismatch should emit a diagnostic with function name and received type. Add a `fn require_type(&mut self, name, val, expected) -> bool` helper.
-
-### 14. Code duplication across builtins `[partial]`
-
-- Min/max comparison logic: 4 copies in `src/evaluator/builtins/aggregates.rs` (lines 65-73, 95-103, 209-217, 237-245)
-- Money summation loop: 2 copies (`src/evaluator/builtins/money.rs:41-74`, `src/evaluator/builtins/aggregates.rs:255-286`)
-- Date-or-string arg extraction: 3 copies in `src/evaluator/builtins/dates.rs`
-- Predicate-based array iteration: 4 near-identical patterns across `aggregates.rs` and `core.rs`
-- Argument count checking: 6+ scattered copies
-Note: `filter_where` reduced some duplication, but broad extraction is still pending.
-
-**Fix:** Extract shared helpers: `compare_values()`, `sum_money_values()`, `eval_date_arg()`, `iterate_where()`, `require_arg_count()`.
+**Goal:** `span: Option<Range<usize>>` on `Diagnostic`; extend `fel_diagnostics_to_json_value*` when non-`None`. Full evaluator-quality locations require spans on expressions or evaluation frames (larger than parser-only errors).
 
 ---
 
-## LOW
+### 11. Bare identifiers vs `$` field refs `[open]`
 
-### 15. `Object(Vec<(String,Value)>)` gives O(n) key lookup `[open]`
+**Where:** Parser — bare `Identifier` → `FieldRef` ~`551–562` (approx.; verify in tree); `$…` → `parse_field_ref`. Evaluator — `eval_field_ref` ~`445–526`, `PostfixAccess` + `FieldRef` merge ~`408–438`.
 
-`src/types.rs:21` — `IndexMap` (from the `indexmap` crate) would give O(1) lookup while preserving insertion order. Also: duplicate keys are silently allowed with no validation.
+**Problem:** Both use `Expr::FieldRef`. Printer always prints `FieldRef` with a leading `$`, so source fidelity is lost for bare names.
 
-### 30. `Money.currency` should be a fixed-size type `[open]`
-
-`src/types.rs:57-62` — ISO 4217 codes are always 3 ASCII uppercase characters. A `CurrencyCode([u8; 3])` newtype with `Copy` semantics would eliminate per-instance heap allocation.
+**Goal:** `Expr::VarRef` (or equivalent) for bare identifiers; `FieldRef` only when `$` is present. **Breaking change** for exhaustive `match` on public `Expr`.
 
 ---
 
-## TEST IMPROVEMENTS
+## P2 — Builtin internals
 
-### 38. Expand property-based testing `[partial]`
+### 13. Inconsistent builtin diagnostics `[partial]`
 
-Currently only used for calendar. Missing opportunities for:
+Mixed patterns: some type mismatches silent → Null (`builtins/strings.rs`, `moneyAmount` arm in `evaluator/core.rs` ~`1116+`), others explicit `diag`. Only structured `DiagnosticKind` today is undefined-function; `dates.rs` has a rare **warning**.
 
-- Arithmetic commutativity/associativity
-- Parse-print round-trip
-- JSON round-trip
-- Null propagation consistency
-- Parser fuzz testing (never panics on random input)
+**Goal:** Central helpers on `Evaluator` (e.g. `require_arg_count`, typed `require_*`) so messages include function name and received shape before widening `DiagnosticKind`.
+
+---
+
+### 14. Duplication across builtins `[partial]`
+
+Hotspots (approximate; re-verify when editing):
+
+| Pattern | Example locations |
+|---------|-------------------|
+| Ordered min/max across discriminant | `builtins/aggregates.rs` (variadic + aggregate + minWhere + maxWhere) |
+| Money fold + currency check | `builtins/money.rs`, `aggregates.rs` moneySumWhere |
+| Date-or-string → Date | `builtins/dates.rs` (several fns) |
+| Predicate `let` loops | `aggregates.rs` count/every/some vs `filter_where` in `core.rs` |
+| Arity checks | scattered vs centralized patterns |
+
+**Goal:** `compare_values`, `sum_money_values`, shared predicate iteration, `require_arg_count` — see refactor notes in scout pass; preserve behavior in the first extraction pass.
+
+---
+
+## P3 — Types, perf, tests
+
+### 15. `Object(Vec<(String, Value)>)` lookup `[open]`
+
+**Where:** `src/types.rs`; `MapEnvironment` / `access_path` in `evaluator/core.rs` use linear search per segment.
+
+**Note:** FEL `{ … }` literals reject duplicate keys at parse time. Duplicates remain possible for JSON→FEL or programmatic `Value::Object` construction. `serde_json` `preserve_order` addresses JSON map ordering, not in-memory lookup cost.
+
+**Direction:** `indexmap` (or equivalent) on `Value::Object` + `.get` in hot paths — separate semver/API decision from #32 (already landed).
+
+---
+
+### 30. `Money.currency` as `String` `[open]`
+
+ISO 4217 codes fit three ASCII letters; heap `String` per value. **Direction:** `CurrencyCode([u8; 3])` + `Display` / `TryFrom` — breaking API change for field access patterns.
+
+---
+
+### 38. Property-based testing `[partial]`
+
+`proptest` is listed in `Cargo.toml` dev-dependencies but unused in source tests today.
+
+**Ideas:** parse↔print, `convert` JSON round-trip, null propagation — after **#13** if assertions depend on diagnostic behavior. Parser smoke / random input last (panic hunting).
+
+---
