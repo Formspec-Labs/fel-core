@@ -58,7 +58,6 @@ pub use prepare_host::{
     PrepareHostInput, PrepareHostOptions, host_options_from_json, prepare, prepare_for_host,
 };
 pub use printer::print_expr;
-pub use rust_decimal::Decimal;
 pub use trace::{Trace, TraceStep};
 pub use types::{
     Date, Money, Value, civil_from_days, days_from_civil, days_in_month,

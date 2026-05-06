@@ -234,9 +234,14 @@ All parse methods are recursive with no depth tracking. Deeply nested expression
 
 `src/lib.rs:82-195` — `token_type_name()`, `slice_by_char_offsets()`, `tokenize()`, `tokenize_to_json_value()`, `fel_diagnostics_to_json_value()`, `eval_with_fields()` all belong in domain modules (lexer, error, evaluator).
 
-### 27. `rust_decimal::Decimal` re-export couples public API to third-party version `[open]`
+### 27. `rust_decimal::Decimal` re-export couples public API to third-party version `[completed]`
 
 `src/lib.rs:61` — If `rust_decimal` makes a semver-incompatible change, downstream code breaks. Consider wrapping in a newtype or documenting the version pin clearly.
+
+**Landed (2026-05-06):**
+
+- Removed root-level `Decimal` re-export from `src/lib.rs`.
+- Public API no longer directly pins downstream callers to `rust_decimal` through crate-root exports.
 
 ### 28. `PostfixAccess` inconsistent with `FieldRef` path representation `[open]`
 
