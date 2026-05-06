@@ -172,6 +172,29 @@ fn chained_comparisons_rejected() {
     assert_rejects("1 <= 2 <= 3");
 }
 
+/// Correctness: chained equality / inequality are rejected (non-associative).
+#[test]
+fn chained_equality_rejected() {
+    assert_rejects("$a = $b = $c");
+    assert_rejects("1 == 2 == 3");
+}
+
+#[test]
+fn chained_inequality_rejected() {
+    assert_rejects("$a != $b != $c");
+}
+
+/// Explicit range checks without chaining remain valid.
+#[test]
+fn explicit_range_with_and_is_valid() {
+    assert!(parse("0 <= $age and $age <= 120").is_ok());
+}
+
+#[test]
+fn single_equality_still_parses() {
+    assert!(parse("$a = $b").is_ok());
+}
+
 /// Correctness: extra closing delimiter
 #[test]
 fn extra_closing_paren_rejected() {

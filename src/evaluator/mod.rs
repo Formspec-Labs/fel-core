@@ -12,7 +12,7 @@ mod util;
 
 pub use self::core::{
     Environment, EvalResult, Evaluator, MapEnvironment, evaluate, evaluate_with_extensions,
-    evaluate_with_trace,
+    evaluate_with_trace, evaluate_with_trace_and_extensions,
 };
 
 use std::collections::HashMap;

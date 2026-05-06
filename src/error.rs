@@ -88,6 +88,15 @@ pub enum DiagnosticKind {
         /// The unresolved function identifier as written in the expression.
         name: String,
     },
+    /// Builtin or expression context expected a different runtime type.
+    TypeMismatch {
+        /// Builtin name or logical callee (`"if"` for ternary / keyword-if).
+        fn_name: String,
+        /// Expected type phrase as emitted in the human message (e.g. `"boolean"`).
+        expected: String,
+        /// Observed type name from [`crate::types::Value::type_name`].
+        got: String,
+    },
 }
 
 impl Severity {
@@ -129,6 +138,27 @@ impl Diagnostic {
             severity: Severity::Error,
             message: format!("undefined function: {name}"),
             kind: Some(DiagnosticKind::UndefinedFunction { name }),
+            span: None,
+        }
+    }
+
+    /// Build a structured type-mismatch diagnostic (same message shape as runtime type errors).
+    pub fn type_mismatch(
+        fn_name: impl Into<String>,
+        expected: impl Into<String>,
+        got_type: impl Into<String>,
+    ) -> Self {
+        let fn_name = fn_name.into();
+        let expected = expected.into();
+        let got_type = got_type.into();
+        Diagnostic {
+            severity: Severity::Error,
+            message: format!("{fn_name}: expected {expected}, got {got_type}"),
+            kind: Some(DiagnosticKind::TypeMismatch {
+                fn_name: fn_name.clone(),
+                expected: expected.clone(),
+                got: got_type.clone(),
+            }),
             span: None,
         }
     }
@@ -193,6 +223,26 @@ fn diagnostic_kind_to_json(
             }),
             JsonWireStyle::PythonSnake => serde_json::json!({
                 "undefined_function": { "name": name }
+            }),
+        },
+        DiagnosticKind::TypeMismatch {
+            fn_name,
+            expected,
+            got,
+        } => match style {
+            JsonWireStyle::JsCamel => serde_json::json!({
+                "typeMismatch": {
+                    "fnName": fn_name,
+                    "expected": expected,
+                    "got": got,
+                }
+            }),
+            JsonWireStyle::PythonSnake => serde_json::json!({
+                "type_mismatch": {
+                    "fn_name": fn_name,
+                    "expected": expected,
+                    "got": got,
+                }
             }),
         },
     }
@@ -359,6 +409,40 @@ mod tests {
                 "message": "undefined function: x",
                 "severity": "error",
                 "kind": { "undefined_function": { "name": "x" } }
+            }])
+        );
+    }
+
+    #[test]
+    fn diagnostic_json_type_mismatch_js_camel() {
+        use serde_json::json;
+
+        use crate::wire_style::JsonWireStyle;
+
+        let diagnostics = vec![Diagnostic::type_mismatch("if", "boolean", "number")];
+        assert_eq!(
+            fel_diagnostics_to_json_value_styled(&diagnostics, JsonWireStyle::JsCamel),
+            json!([{
+                "message": "if: expected boolean, got number",
+                "severity": "error",
+                "kind": { "typeMismatch": { "fnName": "if", "expected": "boolean", "got": "number" } }
+            }])
+        );
+    }
+
+    #[test]
+    fn diagnostic_json_type_mismatch_python_snake() {
+        use serde_json::json;
+
+        use crate::wire_style::JsonWireStyle;
+
+        let diagnostics = vec![Diagnostic::type_mismatch("sum", "array", "string")];
+        assert_eq!(
+            fel_diagnostics_to_json_value_styled(&diagnostics, JsonWireStyle::PythonSnake),
+            json!([{
+                "message": "sum: expected array, got string",
+                "severity": "error",
+                "kind": { "type_mismatch": { "fn_name": "sum", "expected": "array", "got": "string" } }
             }])
         );
     }

@@ -22,6 +22,7 @@ pub fn expr_is_interpolation_static_literal(expr: &Expr) -> bool {
             operand,
             ..
         } => expr_is_interpolation_static_literal(operand),
+        Expr::VarRef { .. } => false,
         _ => false,
     }
 }

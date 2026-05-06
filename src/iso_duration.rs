@@ -3,6 +3,10 @@
 //! Parses the `PnYnMnDTnHnMnS` form. Date-designator `M` is months; after `T`, `M` is minutes.
 //! Years and months in the date component use fixed lengths (365 days, 30 days) — not calendar
 //! arithmetic. See Core spec §3.5.4 `duration`.
+//!
+//! **Fractional seconds** (`TnS` with a fractional part): only the **first four** fractional
+//! digits participate — three integer milliseconds plus one tenth rounding digit (half-up from the
+//! fifth digit). Deeper fractional precision is not reconstructed as arbitrary-precision duration.
 #![allow(clippy::missing_docs_in_private_items)]
 
 use regex::Regex;
@@ -200,6 +204,10 @@ pub fn parse_iso8601_duration_ms(input: &str) -> Option<i64> {
     }
 }
 
+/// Converts the fractional part after `.` in `n.nnnn...S` to whole milliseconds.
+///
+/// Uses at most four digits after the decimal: first three map to ms components (100×, 10×, 1×),
+/// then one digit for ties-to-even rounding; a fifth digit ≥5 increments the rounded ms.
 fn fractional_seconds_to_ms(frac: &str) -> i64 {
     if frac.is_empty() {
         return 0;

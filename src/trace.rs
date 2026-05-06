@@ -3,7 +3,8 @@
 //! A [`Trace`] is an ordered sequence of [`TraceStep`]s that records what the
 //! evaluator did while producing a result. Traces are opt-in: the hot-path
 //! [`crate::evaluate`] function does not allocate or emit any steps. Use
-//! [`crate::evaluate_with_trace`] to capture one.
+//! [`crate::evaluate_with_trace`] (or [`crate::evaluate_with_trace_and_extensions`] when host
+//! extensions must appear in the trace) to capture one.
 //!
 //! Traces are designed for human and LLM consumption, not for re-evaluation.
 //! Values are projected to `serde_json::Value` — losing FEL type fidelity

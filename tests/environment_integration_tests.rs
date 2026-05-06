@@ -8,6 +8,7 @@ use fel_core::*;
 use indexmap::IndexMap;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::*;
+use serde_json::json;
 
 fn obj(pairs: Vec<(String, Value)>) -> Value {
     Value::Object(pairs.into_iter().collect::<IndexMap<_, _>>())
@@ -348,4 +349,49 @@ fn bare_dollar_in_repeat_returns_current() {
     env.push_repeat(num(42), 1, 1, items);
 
     assert_eq!(eval_value("$", &env), num(42));
+}
+
+// ── WASM-shaped context JSON (`formspec_environment_from_json_map`) ──
+
+/// End-to-end: JSON map like WASM `evalFELWithContext` → evaluate.
+#[test]
+fn wasm_shaped_json_context_evaluates_field_variable_mip_and_locale() {
+    let ctx = json!({
+        "nowIso": "2026-03-20T12:00:00",
+        "fields": { "score": 10 },
+        "variables": { "bonus": 2 },
+        "locale": "en",
+        "mipStates": {
+            "score": {
+                "valid": true,
+                "relevant": true,
+                "readonly": false,
+                "required": false
+            }
+        },
+        "meta": { "runId": "smoke" }
+    });
+    let map = ctx.as_object().unwrap().clone();
+    let env = formspec_environment_from_json_map(&map);
+
+    let expr = parse("$score + @bonus").unwrap();
+    let out = evaluate(&expr, &env);
+    assert_eq!(out.value, Value::Number(Decimal::from(12)));
+
+    let valid_expr = parse("valid($score)").unwrap();
+    assert_eq!(
+        evaluate(&valid_expr, &env).value,
+        Value::Boolean(true)
+    );
+
+    assert_eq!(
+        evaluate(&parse("locale()").unwrap(), &env).value,
+        Value::String("en".into())
+    );
+
+    let plural = evaluate(&parse("pluralCategory(1)").unwrap(), &env).value;
+    assert!(
+        matches!(plural, Value::String(ref s) if s == "one" || s == "other"),
+        "unexpected pluralCategory: {plural:?}"
+    );
 }

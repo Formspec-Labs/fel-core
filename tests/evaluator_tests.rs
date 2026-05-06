@@ -4,6 +4,8 @@ mod common;
 use common::{arr, dec, eval, eval_fields, num, obj, s};
 use fel_core::*;
 use rust_decimal::Decimal;
+use serde_json::json;
+use std::collections::HashMap;
 
 // ── Literals ────────────────────────────────────────────────────
 
@@ -300,6 +302,22 @@ fn test_sum_rejects_money_array_with_diagnostic() {
 }
 
 #[test]
+fn test_sum_rejects_mixed_money_and_number_array_with_diagnostic() {
+    let expr = parse("sum([money(10, 'USD'), 5])").unwrap();
+    let env = MapEnvironment::new();
+    let result = evaluate(&expr, &env);
+    assert_eq!(result.value, Value::Null);
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("use moneySum()")),
+        "expected mixed money+number sum guidance, got {:?}",
+        result.diagnostics
+    );
+}
+
+#[test]
 fn test_count() {
     assert_eq!(eval("count([1, 2, null, 4])"), num(3)); // non-null count
 }
@@ -366,7 +384,7 @@ fn test_builtin_type_and_arity_diagnostics_normalize() {
     assert!(out
         .diagnostics
         .iter()
-        .any(|d| d.message.contains("requires 2 arguments")));
+        .any(|d| d.message.contains("requires at least 2 arguments")));
 
     let out = evaluate(&parse("power('a', 2)").unwrap(), &env);
     assert_eq!(out.value, Value::Null);
@@ -638,7 +656,25 @@ fn test_undefined_function() {
     let env = MapEnvironment::new();
     let result = evaluate(&expr, &env);
     assert_eq!(result.value, Value::Null);
-    assert!(!result.diagnostics.is_empty());
+    let d = result
+        .diagnostics
+        .iter()
+        .find(|d| matches!(&d.kind, Some(DiagnosticKind::UndefinedFunction { name }) if name == "unknownFunc"))
+        .expect("undefinedFunc diagnostic with kind");
+    assert_eq!(
+        d.kind,
+        Some(DiagnosticKind::UndefinedFunction {
+            name: "unknownFunc".into()
+        })
+    );
+    assert_eq!(
+        fel_diagnostics_to_json_value(&result.diagnostics),
+        json!([{
+            "message": "undefined function: unknownFunc",
+            "severity": "error",
+            "kind": { "undefinedFunction": { "name": "unknownFunc" } }
+        }])
+    );
 }
 
 #[test]
@@ -659,6 +695,67 @@ fn test_extension_registry_fallback_executes_unknown_function() {
         result.diagnostics.is_empty(),
         "extension fallback should avoid undefined-function diagnostics"
     );
+}
+
+#[test]
+fn test_evaluate_with_trace_and_extensions_records_extension_call() {
+    let expr = parse("double(3)").unwrap();
+    let env = MapEnvironment::new();
+    let mut extensions = ExtensionRegistry::new();
+    extensions
+        .register("double", 1, Some(1), |args| match &args[0] {
+            Value::Number(n) => Value::Number(*n * Decimal::from(2)),
+            _ => Value::Null,
+        })
+        .unwrap();
+
+    let (result, trace) = evaluate_with_trace_and_extensions(&expr, &env, &extensions);
+    assert_eq!(result.value, num(6));
+    assert!(
+        trace.steps.iter().any(|s| {
+            matches!(
+                s,
+                TraceStep::FunctionCalled { name, .. } if name == "double"
+            )
+        }),
+        "expected FunctionCalled step for extension, got {:?}",
+        trace.steps
+    );
+}
+
+#[test]
+fn test_var_ref_and_dollar_field_ref_evaluate_same() {
+    let mut fields = HashMap::new();
+    fields.insert("qty".into(), num(7));
+    fields.insert("outer.inner".into(), num(3));
+    let env = MapEnvironment::with_fields(fields);
+    let bare_qty = evaluate(&parse("qty").unwrap(), &env);
+    let dollar_qty = evaluate(&parse("$qty").unwrap(), &env);
+    assert_eq!(bare_qty.value, dollar_qty.value);
+    let bare_nested = evaluate(&parse("outer.inner").unwrap(), &env);
+    let dollar_nested = evaluate(&parse("$outer.inner").unwrap(), &env);
+    assert_eq!(bare_nested.value, dollar_nested.value);
+}
+
+#[test]
+fn test_if_ast_non_boolean_condition_matches_builtin_diagnostic() {
+    let env = MapEnvironment::new();
+    for src in ["1 ? 2 : 3", "if 1 then 2 else 3"] {
+        let result = evaluate(&parse(src).unwrap(), &env);
+        assert!(result.value.is_null(), "src={src:?}");
+        assert!(
+            result.diagnostics.iter().any(|d| {
+                d.message == "if: expected boolean, got number"
+                    && matches!(
+                        &d.kind,
+                        Some(DiagnosticKind::TypeMismatch { fn_name, expected, got })
+                            if fn_name == "if" && expected == "boolean" && got == "number"
+                    )
+            }),
+            "src={src:?} diagnostics={:?}",
+            result.diagnostics
+        );
+    }
 }
 
 // ── MIP state queries ───────────────────────────────────────────
@@ -796,7 +893,7 @@ fn test_aggregate_arity_sum_no_args() {
     assert_eq!(result.value, Value::Null);
 }
 
-/// Spec: core/spec.md §3.10 — countWhere requires exactly 2 arguments.
+/// Spec: core/spec.md §3.10 — countWhere requires at least 2 arguments.
 #[test]
 fn test_count_where_wrong_arity() {
     let expr = parse("countWhere([1, 2, 3])").unwrap();

@@ -13,6 +13,10 @@ pub(super) fn dec(n: i64) -> Decimal {
 /// Functions whose arguments are all eagerly evaluated and trace as
 /// `FunctionCalled { args, result }` steps.
 ///
+/// Each name here must denote a **pure** builtin (no observable side effects and no environment
+/// mutation). Tracing memoizes evaluated arguments for one eager builtin call; impure functions
+/// must never be whitelisted without revisiting trace semantics.
+///
 /// Lazy / short-circuiting functions (`if`,
 /// `coalesce`, `countWhere`, `every`, `some`, `sumWhere`, `avgWhere`, etc.)
 /// are deliberately absent — they explain themselves via [`TraceStep::IfBranch`]

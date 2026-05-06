@@ -36,9 +36,10 @@ impl<'a> Evaluator<'a> {
     pub(in crate::evaluator) fn fn_date_part(
         &mut self,
         args: &[Expr],
+        fn_name: &str,
         f: fn(&Date) -> Decimal,
     ) -> Value {
-        match self.eval_date_operand(args, 0) {
+        match self.eval_date_operand(args, 0, fn_name) {
             DateOperand::Null => Value::Null,
             DateOperand::Ok(d) => Value::Number(f(&d)),
             DateOperand::Invalid => Value::Null,
@@ -138,11 +139,11 @@ impl<'a> Evaluator<'a> {
     }
 
     pub(in crate::evaluator) fn fn_date_diff(&mut self, args: &[Expr]) -> Value {
-        let d1 = match self.eval_date_operand(args, 0) {
+        let d1 = match self.eval_date_operand(args, 0, "dateDiff") {
             DateOperand::Ok(d) => d,
             DateOperand::Null | DateOperand::Invalid => return Value::Null,
         };
-        let d2 = match self.eval_date_operand(args, 1) {
+        let d2 = match self.eval_date_operand(args, 1, "dateDiff") {
             DateOperand::Ok(d) => d,
             DateOperand::Null | DateOperand::Invalid => return Value::Null,
         };
@@ -166,7 +167,7 @@ impl<'a> Evaluator<'a> {
     }
 
     pub(in crate::evaluator) fn fn_date_add(&mut self, args: &[Expr]) -> Value {
-        let d = match self.eval_date_operand(args, 0) {
+        let d = match self.eval_date_operand(args, 0, "dateAdd") {
             DateOperand::Ok(d) => d,
             DateOperand::Null | DateOperand::Invalid => return Value::Null,
         };
@@ -214,15 +215,21 @@ impl<'a> Evaluator<'a> {
         parse_date_literal(&format!("@{s}")).or_else(|| parse_datetime_literal(&format!("@{s}")))
     }
 
-    fn eval_date_operand(&mut self, args: &[Expr], idx: usize) -> DateOperand {
+    fn eval_date_operand(&mut self, args: &[Expr], idx: usize, fn_name: &str) -> DateOperand {
         match self.eval_arg(args, idx) {
             Value::Null => DateOperand::Null,
             Value::Date(d) => DateOperand::Ok(d),
             Value::String(s) => match self.coerce_string_to_date(&s) {
                 Some(d) => DateOperand::Ok(d),
-                None => DateOperand::Invalid,
+                None => {
+                    self.diag(format!("{fn_name}: invalid date string"));
+                    DateOperand::Invalid
+                }
             },
-            _ => DateOperand::Invalid,
+            ref other => {
+                self.reject_expected_type(fn_name, "date or string", other);
+                DateOperand::Invalid
+            }
         }
     }
 }

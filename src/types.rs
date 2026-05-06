@@ -23,6 +23,11 @@ impl CurrencyCode {
     }
 
     /// Uppercase ISO code slice (e.g. `USD`).
+    ///
+    /// # Panics
+    ///
+    /// Never panics for values produced by [`Self::parse`]: codes are three ASCII letters.
+    /// This type has no public constructor that bypasses [`Self::parse`].
     pub fn as_str(&self) -> &str {
         std::str::from_utf8(&self.0).expect("currency codes are ASCII")
     }

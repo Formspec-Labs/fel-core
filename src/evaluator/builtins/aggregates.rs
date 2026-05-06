@@ -24,7 +24,7 @@ impl<'a> Evaluator<'a> {
         };
         if name == "sum" {
             let non_null: Vec<&Value> = arr.iter().filter(|v| !v.is_null()).collect();
-            if !non_null.is_empty() && non_null.iter().all(|v| matches!(v, Value::Money(_))) {
+            if non_null.iter().any(|v| matches!(v, Value::Money(_))) {
                 self.diag("sum: money values are not supported; use moneySum() for currency-safe aggregation");
                 return Value::Null;
             }

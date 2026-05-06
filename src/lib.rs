@@ -38,14 +38,15 @@ pub use dependencies::{
 };
 pub use environment::{FormspecEnvironment, MipState, RepeatContext};
 pub use error::{
-    Diagnostic, Error, ParseError, Severity, fel_diagnostics_to_json_value,
+    Diagnostic, DiagnosticKind, Error, ParseError, Severity, fel_diagnostics_to_json_value,
     fel_diagnostics_to_json_value_styled, has_error_diagnostics, reject_undefined_functions,
     undefined_function_names_from_diagnostics,
 };
 pub use evaluator::{
     Environment, EvalResult, Evaluator, MapEnvironment, evaluate, evaluate_with_extensions,
-    evaluate_with_trace, eval_with_fields,
+    evaluate_with_trace, evaluate_with_trace_and_extensions, eval_with_fields,
 };
+pub use indexmap::IndexMap;
 pub use extensions::{
     ExtensionError, ExtensionFn, ExtensionFunc, ExtensionRegistry, Package,
     builtin_function_catalog, builtin_function_catalog_for, builtin_function_catalog_json_value,

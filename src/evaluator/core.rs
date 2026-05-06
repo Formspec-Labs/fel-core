@@ -190,6 +190,12 @@ pub struct Evaluator<'a> {
     call_arg_cache_stack: Vec<CallArgCache>,
 }
 
+/// Memoizes evaluated argument [`Value`]s for one traced eager builtin call.
+///
+/// [`Self::args_ptr`] equals [`slice::as_ptr`] on the `&[Expr]` argument slice passed into
+/// `eval_function`. That slice is borrowed from the caller's [`Expr::FunctionCall`] and remains
+/// stable for the whole call; the evaluator must not hold this cache across a point where that
+/// `Vec` could reallocate. Teardown asserts the pointer still matches the slice being finalized.
 #[derive(Debug)]
 struct CallArgCache {
     args_ptr: *const Expr,
@@ -238,12 +244,39 @@ pub fn evaluate_with_extensions(
 ///
 /// The returned [`EvalResult`] has identical `value` and `diagnostics` to
 /// [`evaluate`] for the same input; only the side-channel trace is new.
+/// Extension fallbacks are disabled; use [`evaluate_with_trace_and_extensions`] when an
+/// [`ExtensionRegistry`] must run for unknown function names.
 /// Tracing is opt-in because it allocates per-step and projects values to
 /// JSON — negligible for interactive use, but worth avoiding on hot paths.
 pub fn evaluate_with_trace(expr: &Expr, env: &dyn Environment) -> (EvalResult, Trace) {
     let mut evaluator = Evaluator {
         env,
         extensions: None,
+        diagnostics: Vec::new(),
+        let_scopes: Vec::new(),
+        trace: Some(Trace::new()),
+        call_arg_cache_stack: Vec::new(),
+    };
+    let value = evaluator.eval(expr);
+    let trace = evaluator.trace.take().unwrap_or_default();
+    (
+        EvalResult {
+            value,
+            diagnostics: evaluator.diagnostics,
+        },
+        trace,
+    )
+}
+
+/// Like [`evaluate_with_trace`], but resolves unknown functions through `extensions` like [`evaluate_with_extensions`].
+pub fn evaluate_with_trace_and_extensions(
+    expr: &Expr,
+    env: &dyn Environment,
+    extensions: &ExtensionRegistry,
+) -> (EvalResult, Trace) {
+    let mut evaluator = Evaluator {
+        env,
+        extensions: Some(extensions),
         diagnostics: Vec::new(),
         let_scopes: Vec::new(),
         trace: Some(Trace::new()),
@@ -274,10 +307,10 @@ impl<'a> Evaluator<'a> {
         out
     }
 
-    /// Emits `{fn_name}: requires {min} arguments` and returns `false` when `args.len() < min`.
+    /// Emits `{fn_name}: requires at least {min} arguments` and returns `false` when `args.len() < min`.
     pub(super) fn require_min_args(&mut self, args: &[Expr], min: usize, fn_name: &str) -> bool {
         if args.len() < min {
-            self.diag(format!("{fn_name}: requires {min} arguments"));
+            self.diag(format!("{fn_name}: requires at least {min} arguments"));
             return false;
         }
         true
@@ -292,6 +325,12 @@ impl<'a> Evaluator<'a> {
         true
     }
 
+    /// Records a structured type mismatch diagnostic (no [`Value`] returned).
+    pub(super) fn diag_expected_type(&mut self, fn_name: &str, expected: &str, got_type: &str) {
+        self.diagnostics
+            .push(Diagnostic::type_mismatch(fn_name, expected, got_type));
+    }
+
     /// Records a type mismatch diagnostic and returns [`Value::Null`].
     pub(super) fn reject_expected_type(
         &mut self,
@@ -299,10 +338,7 @@ impl<'a> Evaluator<'a> {
         expected: &str,
         got: &Value,
     ) -> Value {
-        self.diag(format!(
-            "{fn_name}: expected {expected}, got {}",
-            got.type_name()
-        ));
+        self.diag_expected_type(fn_name, expected, got.type_name());
         Value::Null
     }
 
@@ -413,13 +449,7 @@ impl<'a> Evaluator<'a> {
                         }
                         self.eval(else_branch)
                     }
-                    _ => {
-                        self.diag(format!(
-                            "if: condition must be boolean, got {}",
-                            cond.type_name()
-                        ));
-                        Value::Null
-                    }
+                    _ => self.reject_expected_type("if", "boolean", &cond),
                 }
             }
             Expr::Membership {
@@ -443,6 +473,8 @@ impl<'a> Evaluator<'a> {
                 result
             }
             Expr::FunctionCall { name, args } => {
+                // Eager traceable builtins rely on per-call arg caching (see `CallArgCache`);
+                // only pure functions may remain on the eager trace list.
                 let should_trace_call = self.tracing() && is_eager_traceable_function(name);
                 if should_trace_call {
                     self.begin_call_arg_cache(args);
@@ -1144,9 +1176,9 @@ impl<'a> Evaluator<'a> {
             // Date
             "today" => self.fn_today(),
             "now" => self.fn_now(),
-            "year" => self.fn_date_part(args, |d| dec(d.year() as i64)),
-            "month" => self.fn_date_part(args, |d| dec(d.month() as i64)),
-            "day" => self.fn_date_part(args, |d| dec(d.day() as i64)),
+            "year" => self.fn_date_part(args, "year", |d| dec(d.year() as i64)),
+            "month" => self.fn_date_part(args, "month", |d| dec(d.month() as i64)),
+            "day" => self.fn_date_part(args, "day", |d| dec(d.day() as i64)),
             "hours" => self.fn_time_part(args, 0),
             "minutes" => self.fn_time_part(args, 1),
             "seconds" => self.fn_time_part(args, 2),
@@ -1231,6 +1263,13 @@ impl<'a> Evaluator<'a> {
                 let evaluated_args: Vec<Value> = args.iter().map(|arg| self.eval(arg)).collect();
                 if let Some(registry) = self.extensions {
                     if let Some(result) = registry.call(name, &evaluated_args) {
+                        if self.tracing() {
+                            self.trace_step(TraceStep::FunctionCalled {
+                                name: name.to_string(),
+                                args: evaluated_args.iter().map(fel_to_json).collect(),
+                                result: fel_to_json(&result),
+                            });
+                        }
                         return result;
                     }
                 }
@@ -1275,10 +1314,7 @@ impl<'a> Evaluator<'a> {
             Value::Array(a) => Some(a.as_slice()),
             Value::Null => None,
             _ => {
-                self.diag(format!(
-                    "{fn_name}: expected array, got {}",
-                    val.type_name()
-                ));
+                self.diag_expected_type(fn_name, "array", val.type_name());
                 None
             }
         }

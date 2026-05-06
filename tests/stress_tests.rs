@@ -75,3 +75,20 @@ fn tokenize_long_expression() {
     let toks = tokenize(&src).expect("tokenize");
     assert!(toks.len() > TERMS, "expected many tokens, got {}", toks.len());
 }
+
+#[test]
+fn tokenize_long_expression_parse_eval_agrees_with_flat_add_chain() {
+    // Same term count as `long_flat_addition_chain` — deeper left-deep AST risks eval stack overflow.
+    const TERMS: usize = 48;
+    let mut src = String::with_capacity(TERMS * 4);
+    src.push_str("0");
+    for _ in 0..TERMS {
+        src.push_str(" + 1");
+    }
+    let toks = tokenize(&src).expect("tokenize");
+    assert!(toks.len() > TERMS);
+    let expr = parse(&src).expect("parse long addition");
+    let env = MapEnvironment::new();
+    let out = evaluate(&expr, &env).value;
+    assert_eq!(out, Value::Number(Decimal::from(TERMS)));
+}

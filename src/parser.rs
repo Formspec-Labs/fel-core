@@ -1,5 +1,8 @@
 //! FEL hand-rolled recursive descent parser with operator precedence.
 //!
+//! Chaining multiple `==` / `!=` or multiple comparison operators is a **parse error**; write
+//! explicit conjunction (e.g. `0 <= $x and $x <= 10`).
+//!
 //! Private `parse_*` / `current` / `advance` implement the precedence ladder listed below.
 #![allow(clippy::missing_docs_in_private_items)]
 
@@ -264,54 +267,50 @@ impl Parser {
     // ── Equality / Comparison ───────────────────────────────────
 
     fn parse_equality(&mut self) -> Result<Expr, Error> {
-        let mut left = self.parse_comparison()?;
-        loop {
-            let op = match self.peek() {
-                Token::Eq => BinaryOp::Eq,
-                Token::NotEq => BinaryOp::NotEq,
-                _ => break,
-            };
-            self.advance();
-            let right = self.parse_comparison()?;
-            left = Expr::BinaryOp {
-                op,
-                left: Box::new(left),
-                right: Box::new(right),
-            };
+        let left = self.parse_comparison()?;
+        let op = match self.peek() {
+            Token::Eq => BinaryOp::Eq,
+            Token::NotEq => BinaryOp::NotEq,
+            _ => return Ok(left),
+        };
+        self.advance();
+        let right = self.parse_comparison()?;
+        if matches!(self.peek(), Token::Eq | Token::NotEq) {
+            return Err(self.parse_err_current(
+                "chained equality is not supported; use explicit logical conjunction",
+            ));
         }
-        Ok(left)
+        Ok(Expr::BinaryOp {
+            op,
+            left: Box::new(left),
+            right: Box::new(right),
+        })
     }
 
     fn parse_comparison(&mut self) -> Result<Expr, Error> {
-        let mut left = self.parse_membership()?;
-        loop {
-            let op = match self.peek() {
-                Token::Lt => BinaryOp::Lt,
-                Token::Gt => BinaryOp::Gt,
-                Token::LtEq => BinaryOp::LtEq,
-                Token::GtEq => BinaryOp::GtEq,
-                _ => break,
-            };
-            if matches!(
-                left,
-                Expr::BinaryOp {
-                    op: BinaryOp::Lt | BinaryOp::Gt | BinaryOp::LtEq | BinaryOp::GtEq,
-                    ..
-                }
-            ) {
-                return Err(self.parse_err_current(
-                    "chained comparisons are not supported; use explicit logical conjunction",
-                ));
-            }
-            self.advance();
-            let right = self.parse_membership()?;
-            left = Expr::BinaryOp {
-                op,
-                left: Box::new(left),
-                right: Box::new(right),
-            };
+        let left = self.parse_membership()?;
+        let op = match self.peek() {
+            Token::Lt => BinaryOp::Lt,
+            Token::Gt => BinaryOp::Gt,
+            Token::LtEq => BinaryOp::LtEq,
+            Token::GtEq => BinaryOp::GtEq,
+            _ => return Ok(left),
+        };
+        self.advance();
+        let right = self.parse_membership()?;
+        if matches!(
+            self.peek(),
+            Token::Lt | Token::Gt | Token::LtEq | Token::GtEq
+        ) {
+            return Err(self.parse_err_current(
+                "chained comparisons are not supported; use explicit logical conjunction",
+            ));
         }
-        Ok(left)
+        Ok(Expr::BinaryOp {
+            op,
+            left: Box::new(left),
+            right: Box::new(right),
+        })
     }
 
     // ── Membership ──────────────────────────────────────────────
