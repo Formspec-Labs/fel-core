@@ -11,22 +11,22 @@
 #![warn(clippy::missing_docs_in_private_items)]
 
 pub mod ast;
-pub mod context_json;
+pub(crate) mod context_json;
 pub mod convert;
 pub mod dependencies;
 pub mod environment;
 pub mod error;
 pub mod evaluator;
 pub mod extensions;
-pub mod interpolation;
-pub mod iso_duration;
+pub(crate) mod interpolation;
+pub(crate) mod iso_duration;
 pub mod lexer;
 pub mod parser;
 pub mod prepare_host;
 pub mod printer;
-pub mod trace;
+pub(crate) mod trace;
 pub mod types;
-pub mod wire_style;
+pub(crate) mod wire_style;
 
 // Re-export key types
 pub use ast::Expr;

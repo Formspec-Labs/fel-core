@@ -177,9 +177,15 @@ Note: `filter_where` reduced some duplication, but broad extraction is still pen
 - Added fluent override API `with_current_datetime(...)` used by tests/hosts.
 - Added regression test `test_map_environment_clock_can_be_overridden`.
 
-### 17. All 17 modules are `pub` — many should be `pub(crate)` `[open]`
+### 17. All 17 modules are `pub` — many should be `pub(crate)` `[completed]`
 
 `src/lib.rs:13-29` — Modules like `iso_duration`, `interpolation`, `wire_style`, `trace`, `context_json` are implementation details. Making them `pub(crate)` would reduce the public API surface and prevent external coupling.
+
+**Landed (2026-05-06):**
+
+- Tightened module visibility in `src/lib.rs` for implementation-detail modules:
+  `context_json`, `interpolation`, `iso_duration`, `trace`, and `wire_style` are now `pub(crate)`.
+- Public API remains available through explicit re-exports, and full test suite remains green.
 
 ### 18. `Error::Eval` variant is dead code `[completed]`
 
