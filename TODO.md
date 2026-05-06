@@ -364,9 +364,18 @@ Zero tests for `undefined_function_names_from_diagnostics`, `has_error_diagnosti
 
 - Added direct unit tests in `src/error.rs` covering all four previously untested helpers/APIs.
 
-### 37. Add `src/context_json.rs` tests `[open]`
+### 37. Add `src/context_json.rs` tests `[completed]`
 
 Only 1 test exists. Missing coverage for meta, locale, repeat counts, MIP states, edge cases.
+
+**Landed (2026-05-06):**
+
+- Expanded `src/context_json.rs` unit coverage with focused tests for:
+  - snake_case key aliases (`now_iso`, `mip_states`, `repeat_context`)
+  - variables, instances, locale, and meta ingestion
+  - repeat parent-chain construction + default index/count/collection handling
+  - default MIP values when partial state objects are provided
+- Verified with focused `context_json` tests and full `cargo test`.
 
 ### 38. Expand property-based testing `[partial]`
 

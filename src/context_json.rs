@@ -141,4 +141,96 @@ mod tests {
         assert_eq!(env.data.get("n"), Some(&CoreValue::Number(Decimal::from(3))));
         assert!(env.current_datetime.is_some());
     }
+
+    #[test]
+    fn builds_env_from_snake_case_context_keys() {
+        let ctx = json!({
+            "now_iso": "2020-01-02T03:04:05Z",
+            "fields": { "a": 1 },
+            "variables": { "v": "x" },
+            "instances": { "i": { "k": 2 } },
+            "locale": "en-US",
+            "meta": { "flag": true },
+            "mip_states": {
+                "a": {
+                    "valid": false,
+                    "relevant": true,
+                    "readonly": true,
+                    "required": false
+                }
+            }
+        });
+        let env = formspec_environment_from_json_map(ctx.as_object().unwrap());
+
+        assert_eq!(env.data.get("a"), Some(&CoreValue::Number(Decimal::from(1))));
+        assert_eq!(
+            env.variables.get("v"),
+            Some(&CoreValue::String("x".to_string()))
+        );
+        assert_eq!(
+            env.instances.get("i"),
+            Some(&CoreValue::Object(vec![(
+                "k".to_string(),
+                CoreValue::Number(Decimal::from(2))
+            )]))
+        );
+        assert_eq!(env.locale.as_deref(), Some("en-US"));
+        assert_eq!(env.meta.get("flag"), Some(&CoreValue::Boolean(true)));
+        assert!(env.current_datetime.is_some());
+
+        let mip = env.mip_states.get("a").expect("mip state for a");
+        assert!(!mip.valid);
+        assert!(mip.relevant);
+        assert!(mip.readonly);
+        assert!(!mip.required);
+    }
+
+    #[test]
+    fn repeat_context_builds_parent_chain_and_defaults() {
+        let ctx = json!({
+            "repeat_context": {
+                "current": "child",
+                "index": 2,
+                "count": 3,
+                "collection": ["child", "other"],
+                "parent": {
+                    "current": "parent"
+                }
+            }
+        });
+        let env = formspec_environment_from_json_map(ctx.as_object().unwrap());
+        let repeat = env.repeat_context.as_ref().expect("repeat context");
+        assert_eq!(repeat.current, CoreValue::String("child".to_string()));
+        assert_eq!(repeat.index, 2);
+        assert_eq!(repeat.count, 3);
+        assert_eq!(
+            repeat.collection,
+            vec![
+                CoreValue::String("child".to_string()),
+                CoreValue::String("other".to_string())
+            ]
+        );
+
+        let parent = repeat.parent.as_ref().expect("parent repeat context");
+        assert_eq!(parent.current, CoreValue::String("parent".to_string()));
+        // Defaults apply when omitted.
+        assert_eq!(parent.index, 1);
+        assert_eq!(parent.count, 0);
+        assert!(parent.collection.is_empty());
+    }
+
+    #[test]
+    fn mip_defaults_apply_for_partial_entries() {
+        let ctx = json!({
+            "mipStates": {
+                "q": { "readonly": true }
+            }
+        });
+        let env = formspec_environment_from_json_map(ctx.as_object().unwrap());
+        let mip = env.mip_states.get("q").expect("mip state q");
+        assert!(mip.valid);
+        assert!(mip.relevant);
+        assert!(mip.readonly);
+        assert!(!mip.required);
+    }
 }
