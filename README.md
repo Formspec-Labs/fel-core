@@ -8,14 +8,14 @@ Rust implementation of **Formspec Expression Language (FEL)** — lex, parse, ev
 |--------|------|
 | **lexer** | Tokenize source with spans (chars + decimal literals). |
 | **parser** | Recursive descent → `ast::Expr`. |
-| **evaluator** | Tree walk, null propagation, builtins, `Environment` trait for `$` / `@` / MIPs. |
+| **evaluator** | Tree walk, null propagation, builtins, `Environment` trait for `$` / `@` / MIPs. Split across `evaluator/{core, util, builtins/*}.rs`. |
 | **dependencies** | Static AST walk for field/context/MIP refs (no evaluation). |
-| **types** | `FelValue`, dates, money. |
-| **convert** | Canonical `serde_json::Value` ↔ `FelValue`. |
-| **environment** | Full `FormspecEnvironment` for engine-style evaluation. |
-| **extensions** | Optional `ExtensionRegistry` for host functions. |
+| **types** | `Value`, `Date`, `Money`, Howard Hinnant civil-day arithmetic. |
+| **convert** | Canonical `serde_json::Value` ↔ `Value`. |
+| **environment** | `FormspecEnvironment` for engine-style evaluation (host adapter; non-formspec hosts implement the trait directly via `MapEnvironment`). |
+| **extensions** | Typed builtin catalog (`BuiltinFunctionCatalogEntry`, `Parameter`, `FelType`, `Package`), schema JSON emission, `ExtensionRegistry` for runtime host functions. |
 
-Normative behavior is defined in the Formspec repo under `specs/fel/` and `schemas/`; this crate is a **reference-quality** engine for Rust callers (`formspec-core`, `formspec-eval`, WASM bridges, tests).
+This crate **is** the FEL spec source of truth: `formspec/schemas/fel-functions.schema.json` is generated from `BUILTIN_FUNCTIONS` via `cargo run --bin emit-fel-schema`. TypeScript and Python implementations conform to that schema; a round-trip test (`tests/schema_round_trip.rs`) keeps emission and the canonical schema in lock-step.
 
 ## Architecture
 
@@ -28,36 +28,41 @@ Source string
     → Lexer::tokenize → Vec<SpannedToken>
     → Parser::parse_expression → Expr (AST)
     → Evaluator::eval (or extract_dependencies for static analysis)
-    → FelValue + Vec<Diagnostic>
+    → Value + Vec<Diagnostic>
 ```
 
-- **Parse errors** surface as `FelError::Parse`.
-- **Eval errors** usually produce `Diagnostic` entries and a null or partial value; some paths return `FelError::Eval`.
+- **Parse errors** surface as `Error::Parse`.
+- **Eval errors** usually produce `Diagnostic` entries and a null or partial value; some paths return `Error::Eval`.
 
 ### Source modules (`src/`)
 
 | File | Responsibility |
 |------|----------------|
-| `lib.rs` | Crate root, `#![warn(missing_docs)]` + `clippy::missing_docs_in_private_items`, re-exports, `tokenize` / JSON helpers for FFI. |
+| `lib.rs` | Crate root, `#![deny(missing_docs)]` + `#![warn(clippy::missing_docs_in_private_items)]`, re-exports, `tokenize` / JSON helpers for FFI. |
 | `lexer.rs` | `Token`, `Lexer`, spans. |
 | `parser.rs` | `parse()`, precedence per module doc comment. |
-| `ast.rs` | `Expr`, `PathSegment`, operators. Large `Expr` enum uses `#[allow(missing_docs)]` on variants; see type-level rustdoc. |
-| `evaluator.rs` | `Environment`, `MapEnvironment`, `Evaluator`, `evaluate()`. |
-| `types.rs` | `FelValue`, `FelDate`, `FelMoney`, literals, date helpers. |
-| `error.rs` | `FelError`, `Diagnostic`, `Severity`. |
+| `ast.rs` | `Expr`, `PathSegment`, operators. |
+| `evaluator/` | `evaluator/core.rs` — `Environment`, `MapEnvironment`, `Evaluator`, `evaluate()`, `eval_function` dispatch, broadcasting, null propagation. `evaluator/util.rs` — free helpers (decimal, plural rules, locale). `evaluator/builtins/{aggregates,strings,numeric,dates,money,logic_types}.rs` — per-domain builtin impls on `Evaluator`. |
+| `types.rs` | `Value`, `Date`, `Money`, literals, Hinnant `days_from_civil` / `civil_from_days` (epoch 1970-01-01). |
+| `error.rs` | `Error`, `Diagnostic`, `Severity`. |
 | `dependencies.rs` | `Dependencies`, `extract_dependencies`, JSON wire helpers. |
 | `environment.rs` | `FormspecEnvironment`, repeat + MIP + instances. |
 | `context_json.rs` | `formspec_environment_from_json_map` for WASM-style payloads. |
 | `convert.rs` | `json_to_fel`, `fel_to_json`, field maps. |
-| `extensions.rs` | Built-in catalog metadata, `ExtensionRegistry`. |
+| `extensions.rs` | Typed `BuiltinFunctionCatalogEntry` (parameters, returns, examples), `Package` host-tag enum, `builtin_function_catalog_for(Package)` filter, `emit_schema_json()` schema emitter, `ExtensionRegistry`. |
+| `iso_duration.rs` | ISO 8601 duration parser. `fn_duration` emits a warning diagnostic when input contains `Y` or date-component `M` (nominal-length lie). |
 | `printer.rs` | `print_expr` (AST → source). |
+| `prepare_host.rs` | FEL source rewriter for WASM/TS-binding parity. |
 | `wire_style.rs` | `JsonWireStyle` for dependency JSON key casing. |
+| `bin/emit-fel-schema.rs` | CLI: regenerates `formspec/schemas/fel-functions.schema.json` from the catalog. |
 
-### Monorepo consumers
+### Cross-stack consumers
 
-- **formspec-core** — FEL analysis, rewrites, shared types.
+- **formspec-core** — FEL analysis (catalog-driven type inference, parameter-position type checking), rewrites, shared types.
 - **formspec-eval** — Batch definition evaluation.
-- **formspec-wasm** (if present) — Thin FFI over `tokenize`, `parse`, `evaluate`, JSON helpers.
+- **formspec-py / formspec-wasm** — Thin FFI over `tokenize`, `parse`, `evaluate`, `list_builtin_functions`, JSON helpers.
+- **work-spec / wos-core, wos-runtime** — FEL evaluation against `MapEnvironment` for workflow guards and decision tables.
+- **work-spec / wos-lint** — Static lint rules consume `builtin_function_catalog_for(Package::Universal)` for unknown-function and boolean-shape checks.
 
 ## For LLM assistants
 
@@ -71,16 +76,16 @@ Skipping that file will miss public-item rustdoc that is not duplicated here.
 ## Quick start
 
 ```rust
-use fel_core::{parse, evaluate, MapEnvironment, FelValue};
+use fel_core::{parse, evaluate, MapEnvironment, Value};
 use std::collections::HashMap;
 use rust_decimal::Decimal;
 
 let expr = parse("$a + 1").unwrap();
 let mut fields = HashMap::new();
-fields.insert("a".into(), FelValue::Number(Decimal::from(2)));
+fields.insert("a".into(), Value::Number(Decimal::from(2)));
 let env = MapEnvironment::with_fields(fields);
 let out = evaluate(&expr, &env);
-assert_eq!(out.value, FelValue::Number(Decimal::from(3)));
+assert_eq!(out.value, Value::Number(Decimal::from(3)));
 ```
 
 ## API documentation (rustdoc)
@@ -91,10 +96,10 @@ From the repo root:
 cargo doc -p fel-core --no-deps --open
 ```
 
-With **warnings as errors** for missing public docs (CI-style):
+Public-doc enforcement is on by default (`#![deny(missing_docs)]` at the crate root). The `.github/workflows/doc.yml` CI gate additionally runs:
 
 ```bash
-RUSTDOCFLAGS='-D missing_docs' cargo doc -p fel-core --no-deps
+RUSTDOCFLAGS='-D rustdoc::broken-intra-doc-links' cargo doc -p fel-core --no-deps
 ```
 
 ### Markdown export (from doc comments)
@@ -115,10 +120,10 @@ This runs `cargo doc-md` into `target/doc-md-fel-core`, `scripts/bundle-rustdoc-
 
 ## Internal (private) documentation
 
-`src/lib.rs` enables **`clippy::missing_docs_in_private_items`** (with **`#![warn(missing_docs)]`**) so private helpers are covered in CI-style `cargo clippy`.
+Public docs are denied (`#![deny(missing_docs)]`); private items are warned but selectively allowed inside heavyweight internal pipelines.
 
-- **Narrative + allow** — Large internal pipelines (`lexer`, `parser`, `evaluator`, `dependencies`, `environment`, `extensions`, `printer`, `context_json`) extend the module `//!` with a short internal overview and use `#![allow(clippy::missing_docs_in_private_items)]` so lexer/parser/evaluator internals are not each annotated with `///`.
-- **Tests** — Each `#[cfg(test)] mod tests` uses `#![allow(clippy::missing_docs_in_private_items)]` for helper fns inside suites.
+- **Narrative + allow** — `lexer`, `parser`, `dependencies`, `environment`, `extensions`, `printer`, `context_json`, and each `evaluator/` submodule extend the module `//!` with a short internal overview and use `#![allow(clippy::missing_docs_in_private_items)]` so internals are not each annotated with `///`.
+- **Tests** — Each `#[cfg(test)] mod tests` uses `#![allow(clippy::missing_docs_in_private_items)]` for helper fns.
 
 Strict check (lint only this crate):
 
@@ -132,7 +137,21 @@ cargo clippy -p fel-core --no-deps -- -D clippy::missing_docs_in_private_items
 cargo nextest run -p fel-core
 ```
 
-Integration-style suites live under `crates/fel-core/tests/`.
+Integration-style suites live under `tests/`. Notable:
+
+- `schema_round_trip.rs` — `emit_schema_json()` byte-equals the canonical `formspec/schemas/fel-functions.schema.json`.
+- `civil_calendar_proptest.rs` — proptest harness validates Hinnant `days_from_civil` / `civil_from_days` / `days_in_month` against `chrono` over years `1900..=2200`.
+- `builtin_catalog_consistency.rs` — every entry in `BUILTIN_FUNCTIONS` is recognized by `eval_function` dispatch.
+
+## Regenerating the FEL function schema
+
+`formspec/schemas/fel-functions.schema.json` is auto-generated from the Rust catalog:
+
+```bash
+cargo run -p fel-core --bin emit-fel-schema > ../formspec/schemas/fel-functions.schema.json
+```
+
+The round-trip test catches any drift; if it fails, edit `BUILTIN_FUNCTIONS` in `src/extensions.rs` (the source of truth), not the JSON.
 
 ## License
 
