@@ -138,11 +138,8 @@ impl<'a> Evaluator<'a> {
             Value::Number(n) => {
                 if n == Decimal::ZERO {
                     Value::Boolean(false)
-                } else if n == Decimal::ONE {
-                    Value::Boolean(true)
                 } else {
-                    self.diag(format!("boolean: cannot convert {n}"));
-                    Value::Null
+                    Value::Boolean(true)
                 }
             }
             v => {

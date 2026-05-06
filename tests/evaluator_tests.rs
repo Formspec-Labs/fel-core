@@ -450,6 +450,8 @@ fn test_casting() {
     assert_eq!(eval("boolean('true')"), Value::Boolean(true));
     assert_eq!(eval("boolean(0)"), Value::Boolean(false));
     assert_eq!(eval("boolean(1)"), Value::Boolean(true));
+    assert_eq!(eval("boolean(2)"), Value::Boolean(true));
+    assert_eq!(eval("boolean(-3)"), Value::Boolean(true));
 }
 
 // ── Money functions ─────────────────────────────────────────────

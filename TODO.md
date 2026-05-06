@@ -65,11 +65,16 @@ The `moneySumWhere` path now enforces currency checks, but generic `sum()` still
 
 **Fix:** Either return `Money` when all elements are same-currency money, or emit a diagnostic and return Null for money-typed arrays (direct users to `moneySum()`).
 
-### 4. `boolean()` and `is_truthy()` have incompatible truth definitions `[open]`
+### 4. `boolean()` and `is_truthy()` have incompatible truth definitions `[completed]`
 
 `src/evaluator/builtins/logic_types.rs:138-146` vs `src/types.rs:111` — `boolean(2)` produces Null + diagnostic (only 0/1 accepted), but `is_truthy()` treats any non-zero number as true. Two codepaths, two different answers.
 
 **Fix:** Align the definitions. Either `boolean()` accepts all non-zero numbers (matching `is_truthy()`), or document the intentional split and which builtins use which.
+
+**Landed (2026-05-06):**
+
+- Updated `boolean(number)` conversion to match `is_truthy()` semantics: `0 -> false`, non-zero -> `true`.
+- Added regression assertions for positive and negative non-zero numeric inputs.
 
 ### 5. `length(null)` returns `0`, violating null propagation `[completed]`
 
