@@ -1,7 +1,7 @@
 /// Comprehensive FEL evaluator tests.
 mod common;
 
-use common::{arr, dec, eval, eval_fields, num, s};
+use common::{arr, dec, eval, eval_fields, num, obj, s};
 use fel_core::*;
 use rust_decimal::Decimal;
 
@@ -235,7 +235,7 @@ fn test_field_ref() {
 
 #[test]
 fn test_nested_field_ref() {
-    let addr = Value::Object(vec![("city".to_string(), s("NYC"))]);
+    let addr = obj(vec![("city".to_string(), s("NYC"))]);
     let result = eval_fields("$address.city", vec![("address", addr)]);
     assert_eq!(result, s("NYC"));
 }
@@ -243,9 +243,9 @@ fn test_nested_field_ref() {
 #[test]
 fn test_wildcard_projection() {
     let items = arr(vec![
-        Value::Object(vec![("qty".to_string(), num(2))]),
-        Value::Object(vec![("qty".to_string(), num(5))]),
-        Value::Object(vec![("qty".to_string(), num(3))]),
+        obj(vec![("qty".to_string(), num(2))]),
+        obj(vec![("qty".to_string(), num(5))]),
+        obj(vec![("qty".to_string(), num(3))]),
     ]);
     let result = eval_fields("$items[*].qty", vec![("items", items)]);
     assert_eq!(result, arr(vec![num(2), num(5), num(3)]));
@@ -347,6 +347,45 @@ fn test_numeric_functions() {
     assert_eq!(eval("ceil(3.2)"), num(4));
     assert_eq!(eval("abs(-5)"), num(5));
     assert_eq!(eval("power(2, 10)"), num(1024));
+}
+
+#[test]
+fn test_builtin_type_and_arity_diagnostics_normalize() {
+    let env = MapEnvironment::new();
+
+    let out = evaluate(&parse("round('x')").unwrap(), &env);
+    assert_eq!(out.value, Value::Null);
+    assert!(out.diagnostics.iter().any(|d| d.message.contains("expected number")));
+
+    let out = evaluate(&parse("round(1, 'x')").unwrap(), &env);
+    assert_eq!(out.value, Value::Null);
+    assert!(out.diagnostics.iter().any(|d| d.message.contains("round")));
+
+    let out = evaluate(&parse("power(2)").unwrap(), &env);
+    assert_eq!(out.value, Value::Null);
+    assert!(out
+        .diagnostics
+        .iter()
+        .any(|d| d.message.contains("requires 2 arguments")));
+
+    let out = evaluate(&parse("power('a', 2)").unwrap(), &env);
+    assert_eq!(out.value, Value::Null);
+    assert!(out.diagnostics.iter().any(|d| d.message.contains("power")));
+
+    let out = evaluate(&parse("if(true, 1, 2, 3)").unwrap(), &env);
+    assert_eq!(out.value, Value::Null);
+    assert!(out
+        .diagnostics
+        .iter()
+        .any(|d| d.message.contains("exactly 3 arguments")));
+
+    let out = evaluate(&parse("selected(1, 2)").unwrap(), &env);
+    assert_eq!(out.value, Value::Null);
+    assert!(out.diagnostics.iter().any(|d| d.message.contains("array")));
+
+    let out = evaluate(&parse("number(money(1, 'USD'))").unwrap(), &env);
+    assert_eq!(out.value, Value::Null);
+    assert!(out.diagnostics.iter().any(|d| d.message.contains("number")));
 }
 
 // ── Date functions ──────────────────────────────────────────────
@@ -517,7 +556,7 @@ fn test_money_add() {
     match result {
         Value::Money(m) => {
             assert_eq!(m.amount, Decimal::from(150));
-            assert_eq!(m.currency, "USD");
+            assert_eq!(m.currency.as_str(), "USD");
         }
         _ => panic!("expected money"),
     }
@@ -565,11 +604,11 @@ fn test_format() {
 #[test]
 fn test_complex_expression() {
     let items = arr(vec![
-        Value::Object(vec![
+        obj(vec![
             ("qty".to_string(), num(3)),
             ("price".to_string(), num(10)),
         ]),
-        Value::Object(vec![
+        obj(vec![
             ("qty".to_string(), num(2)),
             ("price".to_string(), num(25)),
         ]),
@@ -1061,7 +1100,7 @@ fn test_money_sum_where() {
         ),
         Value::Money(Money {
             amount: Decimal::from(500),
-            currency: "USD".to_string()
+            currency: CurrencyCode::parse("USD").expect("USD"),
         })
     ); // 200 + 300
 }

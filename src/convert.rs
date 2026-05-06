@@ -5,11 +5,12 @@
 
 use std::collections::HashMap;
 
+use indexmap::IndexMap;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::*;
 use serde_json::Value;
 
-use crate::types::{Money as TypeMoney, Value as TypeValue};
+use crate::types::{CurrencyCode, Money as TypeMoney, Value as TypeValue};
 
 /// JSON object → flat field map for FEL `MapEnvironment` (`{}` / empty → empty map).
 pub fn json_object_to_field_map(val: &Value) -> HashMap<String, TypeValue> {
@@ -86,16 +87,18 @@ pub fn json_to_fel(val: &Value) -> TypeValue {
                     _ => None,
                 };
                 if let Some(amount_decimal) = maybe_decimal {
-                    return TypeValue::Money(TypeMoney {
-                        amount: amount_decimal,
-                        currency: currency.to_string(),
-                    });
+                    if let Some(cc) = CurrencyCode::parse(currency) {
+                        return TypeValue::Money(TypeMoney {
+                            amount: amount_decimal,
+                            currency: cc,
+                        });
+                    }
                 }
             }
             TypeValue::Object(
                 map.iter()
                     .map(|(k, v)| (k.clone(), json_to_fel(v)))
-                    .collect(),
+                    .collect::<IndexMap<_, _>>(),
             )
         }
     }
@@ -141,7 +144,10 @@ pub fn fel_to_json(val: &TypeValue) -> Value {
                 "amount".to_string(),
                 fel_to_json(&TypeValue::Number(m.amount)),
             );
-            map.insert("currency".to_string(), Value::String(m.currency.clone()));
+            map.insert(
+                "currency".to_string(),
+                Value::String(m.currency.to_string()),
+            );
             Value::Object(map)
         }
     }
@@ -151,6 +157,8 @@ pub fn fel_to_json(val: &TypeValue) -> Value {
 mod tests {
     #![allow(clippy::missing_docs_in_private_items)]
     use super::*;
+    use crate::types::CurrencyCode;
+    use indexmap::IndexMap;
     use serde_json::json;
 
     #[test]
@@ -225,11 +233,11 @@ mod tests {
 
     #[test]
     fn object_serialization_preserves_entry_order() {
-        let value = TypeValue::Object(vec![
+        let value = TypeValue::Object(IndexMap::from([
             ("b".to_string(), TypeValue::Number(Decimal::from(1))),
             ("a".to_string(), TypeValue::Number(Decimal::from(2))),
             ("c".to_string(), TypeValue::Number(Decimal::from(3))),
-        ]);
+        ]));
         let json = fel_to_json(&value);
         let keys: Vec<String> = json
             .as_object()
@@ -245,7 +253,7 @@ mod tests {
         let val = json_to_fel(&json!({"$type": "money", "amount": 99.99, "currency": "USD"}));
         match &val {
             TypeValue::Money(m) => {
-                assert_eq!(m.currency, "USD");
+                assert_eq!(m.currency.as_str(), "USD");
                 let f = m.amount.to_f64().unwrap();
                 assert!((f - 99.99).abs() < 0.01, "amount: {f}");
             }
@@ -258,7 +266,7 @@ mod tests {
         let val = json_to_fel(&json!({"$type": "money", "amount": "99.99", "currency": "USD"}));
         match &val {
             TypeValue::Money(m) => {
-                assert_eq!(m.currency, "USD");
+                assert_eq!(m.currency.as_str(), "USD");
                 // String amount parsed as exact Decimal
                 assert_eq!(m.amount, Decimal::from_str_exact("99.99").unwrap());
             }
@@ -271,7 +279,7 @@ mod tests {
         let val = json_to_fel(&json!({"$type": "money", "amount": 100, "currency": "EUR"}));
         match &val {
             TypeValue::Money(m) => {
-                assert_eq!(m.currency, "EUR");
+                assert_eq!(m.currency.as_str(), "EUR");
                 assert_eq!(m.amount, Decimal::from(100));
             }
             other => panic!("expected Money, got {other:?}"),
@@ -292,7 +300,7 @@ mod tests {
     fn money_roundtrip() {
         let money = TypeValue::Money(TypeMoney {
             amount: Decimal::from_str_exact("99.99").unwrap(),
-            currency: "USD".to_string(),
+            currency: CurrencyCode::parse("USD").unwrap(),
         });
         let json = fel_to_json(&money);
         assert_eq!(json.get("$type"), Some(&json!("money")));

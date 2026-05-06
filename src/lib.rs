@@ -64,7 +64,7 @@ pub use prepare_host::{
 pub use printer::print_expr;
 pub use trace::{Trace, TraceStep};
 pub use types::{
-    Date, Money, Value, civil_from_days, days_from_civil, days_in_month,
+    CurrencyCode, Date, Money, Value, civil_from_days, days_from_civil, days_in_month,
     parse_date_literal, parse_datetime_literal,
 };
 pub use wire_style::JsonWireStyle;

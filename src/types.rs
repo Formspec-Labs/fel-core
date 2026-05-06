@@ -1,6 +1,38 @@
 //! FEL runtime value types with base-10 decimal arithmetic.
+use indexmap::IndexMap;
 use rust_decimal::Decimal;
 use std::fmt;
+
+/// ISO 4217 alphabetic currency code (three ASCII letters), normalized to uppercase.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct CurrencyCode([u8; 3]);
+
+impl CurrencyCode {
+    /// Parses a three-letter ISO code; accepts any casing.
+    pub fn parse(s: &str) -> Option<Self> {
+        let t = s.trim();
+        if t.len() != 3 {
+            return None;
+        }
+        if !t.as_bytes().iter().all(|b| b.is_ascii_alphabetic()) {
+            return None;
+        }
+        let u = t.to_ascii_uppercase();
+        let b = u.as_bytes();
+        Some(Self([b[0], b[1], b[2]]))
+    }
+
+    /// Uppercase ISO code slice (e.g. `USD`).
+    pub fn as_str(&self) -> &str {
+        std::str::from_utf8(&self.0).expect("currency codes are ASCII")
+    }
+}
+
+impl fmt::Display for CurrencyCode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
 
 /// Runtime value for FEL evaluation (mirrors JSON + dates + money).
 #[derive(Debug, Clone)]
@@ -17,8 +49,8 @@ pub enum Value {
     Date(Date),
     /// Ordered list of values.
     Array(Vec<Value>),
-    /// Ordered key-value map.
-    Object(Vec<(String, Value)>),
+    /// Key-value map (insertion order preserved; efficient keyed lookup).
+    Object(IndexMap<String, Value>),
     /// Monetary amount with ISO currency code.
     Money(Money),
 }
@@ -58,7 +90,7 @@ pub struct Money {
     /// Decimal amount (base-10).
     pub amount: Decimal,
     /// ISO 4217 currency code (e.g. `USD`).
-    pub currency: String,
+    pub currency: CurrencyCode,
 }
 
 impl PartialEq for Value {

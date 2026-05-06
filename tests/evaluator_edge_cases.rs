@@ -6,7 +6,7 @@
 /// object equality, today()/now(), and other gaps.
 mod common;
 
-use common::{dec, eval, num, s};
+use common::{dec, eval, num, obj, s};
 use fel_core::*;
 use rust_decimal::Decimal;
 use std::collections::HashMap;
@@ -77,7 +77,7 @@ fn money_subtraction() {
     match result {
         Value::Money(m) => {
             assert_eq!(m.amount, Decimal::from(70));
-            assert_eq!(m.currency, "USD");
+            assert_eq!(m.currency.as_str(), "USD");
         }
         _ => panic!("expected money, got {result:?}"),
     }
@@ -90,7 +90,7 @@ fn money_multiply_by_scalar() {
     match result {
         Value::Money(m) => {
             assert_eq!(m.amount, Decimal::from(100));
-            assert_eq!(m.currency, "EUR");
+            assert_eq!(m.currency.as_str(), "EUR");
         }
         _ => panic!("expected money, got {result:?}"),
     }
@@ -103,7 +103,7 @@ fn scalar_multiply_by_money() {
     match result {
         Value::Money(m) => {
             assert_eq!(m.amount, Decimal::from(30));
-            assert_eq!(m.currency, "GBP");
+            assert_eq!(m.currency.as_str(), "GBP");
         }
         _ => panic!("expected money, got {result:?}"),
     }
@@ -116,7 +116,7 @@ fn money_divide_by_scalar() {
     match result {
         Value::Money(m) => {
             assert_eq!(m.amount, Decimal::from(25));
-            assert_eq!(m.currency, "USD");
+            assert_eq!(m.currency.as_str(), "USD");
         }
         _ => panic!("expected money, got {result:?}"),
     }
@@ -157,7 +157,7 @@ fn money_sum_array() {
     match result {
         Value::Money(m) => {
             assert_eq!(m.amount, Decimal::from(60));
-            assert_eq!(m.currency, "USD");
+            assert_eq!(m.currency.as_str(), "USD");
         }
         _ => panic!("expected money, got {result:?}"),
     }
@@ -170,7 +170,7 @@ fn money_sum_with_nulls() {
     match result {
         Value::Money(m) => {
             assert_eq!(m.amount, Decimal::from(40));
-            assert_eq!(m.currency, "USD");
+            assert_eq!(m.currency.as_str(), "USD");
         }
         _ => panic!("expected money, got {result:?}"),
     }
@@ -596,7 +596,7 @@ fn format_missing_args() {
 fn postfix_access_on_expression() {
     // coalesce returns first non-null; test dot access on result
     let mut fields = HashMap::new();
-    let obj = Value::Object(vec![("x".to_string(), num(42))]);
+    let obj = obj(vec![("x".to_string(), num(42))]);
     fields.insert("data".to_string(), obj);
     let result = eval_with_fields("$data.x", fields).unwrap();
     assert_eq!(result.value, num(42));

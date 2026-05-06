@@ -94,6 +94,24 @@ pub(super) fn render_field_path(name: &Option<String>, path: &[PathSegment]) -> 
     out
 }
 
+fn append_field_path_segments(segs: &mut Vec<String>, path: &[PathSegment]) {
+    for seg in path {
+        match seg {
+            PathSegment::Dot(n) => segs.push(n.clone()),
+            PathSegment::Index(idx) => {
+                if let Some(last) = segs.last_mut() {
+                    last.push_str(&format!("[{idx}]"));
+                }
+            }
+            PathSegment::Wildcard => {
+                if let Some(last) = segs.last_mut() {
+                    last.push_str("[*]");
+                }
+            }
+        }
+    }
+}
+
 pub(super) fn extract_field_path(expr: &Expr) -> Vec<String> {
     match expr {
         Expr::FieldRef { name, path } => {
@@ -101,21 +119,12 @@ pub(super) fn extract_field_path(expr: &Expr) -> Vec<String> {
             if let Some(n) = name {
                 segs.push(n.clone());
             }
-            for seg in path {
-                match seg {
-                    PathSegment::Dot(n) => segs.push(n.clone()),
-                    PathSegment::Index(idx) => {
-                        if let Some(last) = segs.last_mut() {
-                            last.push_str(&format!("[{idx}]"));
-                        }
-                    }
-                    PathSegment::Wildcard => {
-                        if let Some(last) = segs.last_mut() {
-                            last.push_str("[*]");
-                        }
-                    }
-                }
-            }
+            append_field_path_segments(&mut segs, path);
+            segs
+        }
+        Expr::VarRef { name, path } => {
+            let mut segs = vec![name.clone()];
+            append_field_path_segments(&mut segs, path);
             segs
         }
         _ => Vec::new(),

@@ -27,12 +27,13 @@ impl<'a> Evaluator<'a> {
         let n = match self.eval_arg(args, 0) {
             Value::Number(n) => n,
             Value::Null => return Value::Null,
-            _ => return Value::Null,
+            other => return self.reject_expected_type("round", "number", &other),
         };
         let precision = if args.len() > 1 {
             match self.eval_arg(args, 1) {
                 Value::Number(p) => p.to_i32().unwrap_or(0),
-                _ => 0,
+                Value::Null => return Value::Null,
+                other => return self.reject_expected_type("round", "number", &other),
             }
         } else {
             0
@@ -46,15 +47,18 @@ impl<'a> Evaluator<'a> {
     }
 
     pub(in crate::evaluator) fn fn_power(&mut self, args: &[Expr]) -> Value {
+        if !self.require_min_args(args, 2, "power") {
+            return Value::Null;
+        }
         let base = match self.eval_arg(args, 0) {
             Value::Number(n) => n,
             Value::Null => return Value::Null,
-            _ => return Value::Null,
+            other => return self.reject_expected_type("power", "number", &other),
         };
         let exp = match self.eval_arg(args, 1) {
             Value::Number(n) => n,
             Value::Null => return Value::Null,
-            _ => return Value::Null,
+            other => return self.reject_expected_type("power", "number", &other),
         };
         // For non-negative integer exponents, use repeated multiplication
         if let Some(exp_u64) = exp.to_u64() {

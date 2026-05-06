@@ -32,8 +32,14 @@ pub enum Expr {
     Object(Vec<(String, Expr)>),
 
     // References
+    /// `$` field reference (optional name for bare `$`).
     FieldRef {
         name: Option<String>,
+        path: Vec<PathSegment>,
+    },
+    /// Bare identifier path (`x`, `x.a`) — no leading `$` in source.
+    VarRef {
+        name: String,
         path: Vec<PathSegment>,
     },
     ContextRef {

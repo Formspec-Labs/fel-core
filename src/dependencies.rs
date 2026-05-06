@@ -78,6 +78,33 @@ fn walk(expr: &Expr, deps: &mut Dependencies, let_vars: &mut Vec<String>) {
             }
         }
 
+        Expr::VarRef { name, path } => {
+            if !let_vars.contains(name) {
+                let mut full_path = name.clone();
+                for seg in path {
+                    match seg {
+                        PathSegment::Dot(seg_name) => {
+                            full_path.push('.');
+                            full_path.push_str(seg_name);
+                        }
+                        PathSegment::Index(i) => {
+                            full_path.push_str(&format!("[{i}]"));
+                        }
+                        PathSegment::Wildcard => {
+                            deps.has_wildcard = true;
+                            full_path.push_str("[*]");
+                        }
+                    }
+                }
+                deps.fields.insert(full_path);
+            }
+            for seg in path {
+                if matches!(seg, PathSegment::Wildcard) {
+                    deps.has_wildcard = true;
+                }
+            }
+        }
+
         Expr::ContextRef { name, arg, tail } => {
             if name == "instance"
                 && let Some(instance_name) = arg
@@ -242,13 +269,29 @@ fn extract_field_path_str(expr: &Expr) -> String {
             }
             result
         }
+        Expr::VarRef { name, path } => {
+            let mut result = name.clone();
+            for seg in path {
+                match seg {
+                    PathSegment::Dot(seg_name) => {
+                        if !result.is_empty() {
+                            result.push('.');
+                        }
+                        result.push_str(seg_name);
+                    }
+                    PathSegment::Index(i) => result.push_str(&format!("[{i}]")),
+                    PathSegment::Wildcard => result.push_str("[*]"),
+                }
+            }
+            result
+        }
         _ => String::new(),
     }
 }
 
 fn extend_field_path(expr: &Expr, extra_path: &[PathSegment]) -> Option<String> {
     match expr {
-        Expr::FieldRef { .. } => {
+        Expr::FieldRef { .. } | Expr::VarRef { .. } => {
             let mut path = extract_field_path_str(expr);
             for seg in extra_path {
                 match seg {

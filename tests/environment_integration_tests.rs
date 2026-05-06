@@ -5,8 +5,13 @@
 /// These tests use FormspecEnvironment (not just MapEnvironment) to verify
 /// MIP state queries, repeat context, and variables work through the evaluator.
 use fel_core::*;
+use indexmap::IndexMap;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::*;
+
+fn obj(pairs: Vec<(String, Value)>) -> Value {
+    Value::Object(pairs.into_iter().collect::<IndexMap<_, _>>())
+}
 
 fn num(n: i64) -> Value {
     Value::Number(Decimal::from(n))
@@ -164,7 +169,7 @@ fn repeat_context_current_index_count() {
 #[test]
 fn repeat_context_with_object_current() {
     let mut env = FormspecEnvironment::new();
-    let item = Value::Object(vec![
+    let item = obj(vec![
         ("name".to_string(), s("Alice")),
         ("age".to_string(), num(30)),
     ]);
@@ -260,7 +265,7 @@ fn undefined_variable_returns_null() {
 #[test]
 fn variable_with_nested_object() {
     let mut env = FormspecEnvironment::new();
-    let config = Value::Object(vec![
+    let config = obj(vec![
         ("maxItems".to_string(), num(10)),
         ("label".to_string(), s("Settings")),
     ]);
@@ -276,7 +281,7 @@ fn variable_with_nested_object() {
 #[test]
 fn named_instance_resolution() {
     let mut env = FormspecEnvironment::new();
-    let lookup = Value::Object(vec![
+    let lookup = obj(vec![
         ("us".to_string(), s("United States")),
         ("uk".to_string(), s("United Kingdom")),
     ]);
@@ -310,7 +315,7 @@ fn field_resolution_basic() {
 #[test]
 fn field_resolution_nested_object() {
     let mut env = FormspecEnvironment::new();
-    let addr = Value::Object(vec![
+    let addr = obj(vec![
         ("city".to_string(), s("NYC")),
         ("zip".to_string(), s("10001")),
     ]);

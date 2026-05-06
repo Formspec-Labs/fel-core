@@ -13,9 +13,13 @@ impl<'a> Evaluator<'a> {
             Value::Number(n) => n,
             _ => return Value::Null,
         };
-        let currency = match self.eval_arg(args, 1) {
+        let currency_str = match self.eval_arg(args, 1) {
             Value::String(s) => s,
             _ => return Value::Null,
+        };
+        let Some(currency) = CurrencyCode::parse(&currency_str) else {
+            self.diag("money: currency must be a three-letter ISO code");
+            return Value::Null;
         };
         Value::Money(Money { amount, currency })
     }

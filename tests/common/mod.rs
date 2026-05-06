@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use fel_core::*;
+use indexmap::IndexMap;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::*;
 
@@ -35,4 +36,9 @@ pub fn s(v: &str) -> Value {
 
 pub fn arr(vals: Vec<Value>) -> Value {
     Value::Array(vals)
+}
+
+/// Build an object value with insertion order preserved.
+pub fn obj(pairs: Vec<(String, Value)>) -> Value {
+    Value::Object(pairs.into_iter().collect::<IndexMap<_, _>>())
 }

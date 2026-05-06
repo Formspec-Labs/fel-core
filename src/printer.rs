@@ -55,6 +55,10 @@ fn write_expr(buf: &mut String, expr: &Expr, needs_parens: bool) {
             }
             write_path_segments(buf, path);
         }
+        Expr::VarRef { name, path } => {
+            buf.push_str(name);
+            write_path_segments(buf, path);
+        }
         Expr::ContextRef { name, arg, tail } => {
             buf.push('@');
             buf.push_str(name);

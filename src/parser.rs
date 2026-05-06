@@ -477,6 +477,10 @@ impl Parser {
                 path.push(seg);
                 Expr::FieldRef { name, path }
             }
+            Expr::VarRef { name, mut path } => {
+                path.push(seg);
+                Expr::VarRef { name, path }
+            }
             Expr::PostfixAccess {
                 expr: inner_expr,
                 mut path,
@@ -555,9 +559,9 @@ impl Parser {
                 if matches!(self.peek(), Token::LParen) {
                     self.parse_function_call(name)
                 } else {
-                    // Bare identifier — could be a let-bound variable reference
-                    Ok(Expr::FieldRef {
-                        name: Some(name),
+                    // Bare identifier — let-bound variable or unqualified field path
+                    Ok(Expr::VarRef {
+                        name,
                         path: vec![],
                     })
                 }
@@ -943,8 +947,8 @@ mod tests {
                     } => {
                         assert_eq!(
                             *left,
-                            Expr::FieldRef {
-                                name: Some("x".into()),
+                            Expr::VarRef {
+                                name: "x".into(),
                                 path: vec![]
                             }
                         );
@@ -1094,12 +1098,12 @@ mod tests {
     }
 
     #[test]
-    fn bare_identifier_postfix_is_flat_field_ref() {
+    fn bare_identifier_postfix_is_flat_var_ref() {
         let expr = parse("x.a.b[0]").unwrap();
         assert_eq!(
             expr,
-            Expr::FieldRef {
-                name: Some("x".into()),
+            Expr::VarRef {
+                name: "x".into(),
                 path: vec![
                     PathSegment::Dot("a".into()),
                     PathSegment::Dot("b".into()),
@@ -1156,7 +1160,7 @@ mod tests {
         match expr {
             Expr::LetBinding { value, body, .. } => {
                 assert!(matches!(*value, Expr::Membership { negated: false, .. }));
-                assert!(matches!(*body, Expr::FieldRef { .. }));
+                assert!(matches!(*body, Expr::VarRef { .. }));
             }
             other => panic!("expected LetBinding, got {other:?}"),
         }

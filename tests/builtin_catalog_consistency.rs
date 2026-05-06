@@ -29,20 +29,23 @@ fn gate_fires_for_fake_entry() {
 
 #[test]
 fn every_catalog_entry_is_dispatched() {
-    // Reserved-word names cannot be parsed as bare function calls.
-    let reserved = ["if", "and", "or", "not", "in"];
+    /// Names that cannot appear as a bare `ident()` call token (lexer keywords, etc.).
+    /// Document each entry when extending — silent skips hide dispatch drift.
+    const NOT_PARSEABLE_AS_IDENT_CALL: &[&str] = &[];
 
     let env = MapEnvironment::new();
     for entry in builtin_function_catalog() {
-        if reserved.contains(&entry.name) {
+        if NOT_PARSEABLE_AS_IDENT_CALL.contains(&entry.name) {
             continue;
         }
 
         let expr_src = format!("{}()", entry.name);
-        let parsed = match parse(&expr_src) {
-            Ok(p) => p,
-            Err(_) => continue, // Some names may not be parseable as zero-arg calls; skip.
-        };
+        let parsed = parse(&expr_src).unwrap_or_else(|e| {
+            panic!(
+                "catalog entry '{}' must parse as `{}()` so dispatch can be exercised: {e}",
+                entry.name, entry.name
+            )
+        });
         let result = evaluate(&parsed, &env);
 
         for diag in &result.diagnostics {

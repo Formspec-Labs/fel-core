@@ -12,6 +12,7 @@ repository = "https://github.com/Formspec-org/fel-core"
 # under formspec-stack until hosted publication on crates.io.
 
 [dependencies]
+indexmap = "2"
 intl_pluralrules = "7.0.2"
 regex = "1"
 rust_decimal = "1"

@@ -123,6 +123,7 @@ pub fn formspec_environment_from_json_map(ctx: &Map<String, Value>) -> FormspecE
 #[cfg(test)]
 mod tests {
     #![allow(clippy::missing_docs_in_private_items)]
+    use indexmap::IndexMap;
     use rust_decimal::Decimal;
     use serde_json::json;
 
@@ -169,10 +170,10 @@ mod tests {
         );
         assert_eq!(
             env.instances.get("i"),
-            Some(&CoreValue::Object(vec![(
+            Some(&CoreValue::Object(IndexMap::from([(
                 "k".to_string(),
-                CoreValue::Number(Decimal::from(2))
-            )]))
+                CoreValue::Number(Decimal::from(2)),
+            )])))
         );
         assert_eq!(env.locale.as_deref(), Some("en-US"));
         assert_eq!(env.meta.get("flag"), Some(&CoreValue::Boolean(true)));

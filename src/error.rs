@@ -1,5 +1,6 @@
 //! FEL error types and diagnostic messages.
 use std::fmt;
+use std::ops::Range;
 
 /// Failure from [`crate::parse`] or fatal-style evaluation errors surfaced as `Err`.
 #[derive(Debug, Clone)]
@@ -27,6 +28,8 @@ pub struct Diagnostic {
     pub message: String,
     /// Machine-readable category for robust downstream handling.
     pub kind: Option<DiagnosticKind>,
+    /// Byte range in the source expression, when known.
+    pub span: Option<Range<usize>>,
 }
 
 /// Diagnostic severity for tooling and JSON wire format.
@@ -68,6 +71,7 @@ impl Diagnostic {
             severity: Severity::Error,
             message: msg.into(),
             kind: None,
+            span: None,
         }
     }
 
@@ -77,6 +81,7 @@ impl Diagnostic {
             severity: Severity::Warning,
             message: msg.into(),
             kind: None,
+            span: None,
         }
     }
 
@@ -87,7 +92,15 @@ impl Diagnostic {
             severity: Severity::Error,
             message: format!("undefined function: {name}"),
             kind: Some(DiagnosticKind::UndefinedFunction { name }),
+            span: None,
         }
+    }
+
+    /// Attaches a source span (byte offsets into the FEL source string).
+    #[must_use]
+    pub fn with_span(mut self, span: Range<usize>) -> Self {
+        self.span = Some(span);
+        self
     }
 }
 
@@ -139,14 +152,26 @@ pub fn fel_diagnostics_to_json_value_styled(
         diagnostics
             .iter()
             .map(|d| {
-                match style {
-                    crate::wire_style::JsonWireStyle::JsCamel => serde_json::json!({
-                        "message": d.message,
-                        "severity": d.severity.as_wire_str(),
+                let severity = d.severity.as_wire_str();
+                let msg = &d.message;
+                match (&d.span, style) {
+                    (Some(sp), crate::wire_style::JsonWireStyle::JsCamel) => serde_json::json!({
+                        "message": msg,
+                        "severity": severity,
+                        "span": { "start": sp.start, "end": sp.end },
                     }),
-                    crate::wire_style::JsonWireStyle::PythonSnake => serde_json::json!({
-                        "message": d.message,
-                        "severity": d.severity.as_wire_str(),
+                    (Some(sp), crate::wire_style::JsonWireStyle::PythonSnake) => serde_json::json!({
+                        "message": msg,
+                        "severity": severity,
+                        "span": { "start": sp.start, "end": sp.end },
+                    }),
+                    (None, crate::wire_style::JsonWireStyle::JsCamel) => serde_json::json!({
+                        "message": msg,
+                        "severity": severity,
+                    }),
+                    (None, crate::wire_style::JsonWireStyle::PythonSnake) => serde_json::json!({
+                        "message": msg,
+                        "severity": severity,
                     }),
                 }
             })
@@ -215,5 +240,20 @@ mod tests {
         assert_eq!(js, expected);
         assert_eq!(py, expected);
         assert_eq!(default, expected);
+    }
+
+    #[test]
+    fn diagnostic_json_includes_span_when_set() {
+        use serde_json::json;
+
+        let diagnostics = vec![Diagnostic::error("bad").with_span(3..9)];
+        assert_eq!(
+            fel_diagnostics_to_json_value(&diagnostics),
+            json!([{
+                "message": "bad",
+                "severity": "error",
+                "span": { "start": 3, "end": 9 }
+            }])
+        );
     }
 }

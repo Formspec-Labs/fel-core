@@ -2,21 +2,23 @@
 
 Audit seed: 2026-05-06 multi-agent review. Resolved work is archived in [`COMPLETED.md`](COMPLETED.md).
 
+**Stack integration (2026-05-06):** Items **#7, #11, #13, #14, #15, #30**, **`fel_proptest`** suite, **`Diagnostic::span` + JSON**, and **`wos-core` `EvalContext` IndexMap** objects landed in-repo. Remaining open items are called out below.
+
 ---
 
 ## Quick reference
 
 | ID | Topic | Priority | Status |
 |----|-------|----------|--------|
-| 7 | Builtin dispatch (`eval_function`) vs catalog drift | P0 | partial |
+| 7 | Builtin dispatch (`eval_function`) vs catalog drift | P0 | **done** |
 | 8 | Date ↔ JSON round-trip vs “no silent coercion” policy | P1 | policy review |
-| 10 | `Diagnostic` + AST source spans | P1 | open |
-| 11 | `Expr::VarRef` vs overloaded `FieldRef` | P1 | open |
-| 13 | Normalize builtin diagnostics (type / arity messages) | P2 | partial |
-| 14 | Deduplicate builtin helpers (compare, money fold, dates, …) | P2 | partial |
-| 15 | `Value::Object` lookup + duplicate keys outside FEL literals | P3 | open |
-| 30 | `Money.currency` fixed-size / `Copy` newtype | P3 | open |
-| 38 | Property tests + fuzz smoke (`proptest` in dev-deps, unused) | P3 | partial |
+| 10 | `Diagnostic` + AST source spans | P1 | **partial** — see §10 |
+| 11 | `Expr::VarRef` vs overloaded `FieldRef` | P1 | **done** |
+| 13 | Normalize builtin diagnostics (type / arity messages) | P2 | **done** |
+| 14 | Deduplicate builtin helpers (compare, money fold, dates, …) | P2 | **done** |
+| 15 | `Value::Object` lookup + duplicate keys outside FEL literals | P3 | **done** |
+| 30 | `Money.currency` fixed-size / `Copy` newtype | P3 | **done** |
+| 38 | Property tests + fuzz smoke | P3 | **partial** — see §38 |
 
 ---
 
@@ -24,13 +26,13 @@ Audit seed: 2026-05-06 multi-agent review. Resolved work is archived in [`COMPLE
 
 Mechanical / low coupling first; behavior-changing API milestones last.
 
-1. **#14** then **#13** — Shared helpers while preserving current diagnostics, then unify messages (updates tests that assumed silent null on mismatch).
-2. **#7** — Stronger `builtin_catalog_consistency` and/or table dispatch (catalog now split under `src/extensions/`).
-3. **#11** — Semver-major `Expr` variant; touches parser, printer, `dependencies`, evaluator.
-4. **#10** — Optional scaffolding (`Diagnostic::span: Option<…>`) early; full evaluator spans need AST spans + `diag` threading (often after #11).
-5. **#15 / #30** — Representation / API releases when profiling or semver budget allows.
+1. ~~**#14** then **#13**~~ — Done (helpers + unified diagnostics; tests updated).
+2. ~~**#7**~~ — Done (catalog consistency test no longer silently skips parse failures; allowlist reserved for intentional non-`ident()` names).
+3. ~~**#11**~~ — Done (`Expr::VarRef`; downstream formspec-core / wos-lint updated).
+4. **#10** — **Partial:** `Diagnostic::span` + JSON wire landed in `error.rs`. Parser token spans on parse errors and evaluator `diag` threading / `Expr` spans remain optional follow-ups.
+5. ~~**#15 / #30**~~ — Done (`IndexMap` object storage; `CurrencyCode`; semver-breaking for external exhaustive matches).
 6. **#8** — Reopen only if product requires JSON round-trip for `Date`; today documented as intentional (see item body).
-7. **#38** — Add harness; builtin-heavy properties after #13 to avoid churn.
+7. **#38** — **Partial:** `tests/fel_proptest.rs` added (parse/print, null, JSON round-trip). **`tests/civil_calendar_proptest.rs`** unchanged. Random-input parser fuzz / panic hunting still optional (last per prior guidance).
 
 ---
 
@@ -49,13 +51,11 @@ Guardrails: one behavioral change per cycle; never ship without a test that demo
 
 ## P0 — Architecture & dispatch
 
-### 7. `eval_function` match vs builtin catalog `[partial]`
+### 7. `eval_function` match vs builtin catalog `[done]`
 
-**Where:** `src/evaluator/core.rs` — `fn eval_function` ~`1020–1162` (builtin match ~`1021–1160`; line ranges drift with edits).
+**Where:** `src/evaluator/core.rs` — `fn eval_function`. Catalog: `src/extensions/catalog.rs`. Test: `tests/builtin_catalog_consistency.rs`.
 
-**Problem:** Adding a builtin touches the match, `evaluator/builtins/*.rs`, and `BUILTIN_FUNCTIONS` in extensions. No compile-time lockstep. `tests/builtin_catalog_consistency.rs` covers catalog names calling without `undefined function`, but parse-skipped names can hide gaps.
-
-**Directions:** Table/macro dispatch *or* tighten tests (explicit allowlist for names not callable as `ident()`). **`is_eager_traceable_function`** (`evaluator/util.rs`) is not the full builtin list — only eager trace whitelist; do not merge blindly with the catalog.
+**Landed:** Catalog entries that should parse as `ident()` must parse — failures surface instead of being skipped. Explicit allowlist remains for names that are intentionally not invoked as `ident()` calls. **`is_eager_traceable_function`** (`evaluator/util.rs`) stays separate from the full builtin set.
 
 ---
 
@@ -69,68 +69,60 @@ Guardrails: one behavioral change per cycle; never ship without a test that demo
 
 ---
 
-### 10. `Diagnostic` lacks source spans `[open]`
+### 10. `Diagnostic` lacks source spans `[partial]`
 
-**Where:** `src/error.rs` (`Diagnostic`); evaluator uses `diag()` with strings only. AST (`src/ast.rs`) has no span fields — lexer/parser use `SpannedToken` during parse, then spans are not stored on `Expr`.
+**Where:** `src/error.rs` — `Diagnostic` includes optional **`span: Option<Range<usize>>`**; **`fel_diagnostics_to_json_value*`** emits `span: { start, end }` when set. Unit tests cover JSON shape.
 
-**Goal:** `span: Option<Range<usize>>` on `Diagnostic`; extend `fel_diagnostics_to_json_value*` when non-`None`. Full evaluator-quality locations require spans on expressions or evaluation frames (larger than parser-only errors).
+**Still open (optional):** Thread lexer offsets into **parse** errors first; later AST / evaluation frames for evaluator diagnostics. **`kind`** on JSON wire — coordinate with hosts if needed.
+
+**Where AST:** `src/ast.rs` still has no span fields — lexer uses `SpannedToken` during parse only.
 
 ---
 
-### 11. Bare identifiers vs `$` field refs `[open]`
+### 11. Bare identifiers vs `$` field refs `[done]`
 
-**Where:** Parser — bare `Identifier` → `FieldRef` ~`551–562` (approx.; verify in tree); `$…` → `parse_field_ref`. Evaluator — `eval_field_ref` ~`445–526`, `PostfixAccess` + `FieldRef` merge ~`408–438`.
+**Where:** Parser builds **`Expr::VarRef`** for bare identifiers; **`Expr::FieldRef`** for `$…`. Printer preserves surface form. Evaluator and `dependencies.rs` handle both. Downstream: formspec-core `fel_analysis` / `fel_condition_group_lift`, wos-lint `fel_analysis`.
 
-**Problem:** Both use `Expr::FieldRef`. Printer always prints `FieldRef` with a leading `$`, so source fidelity is lost for bare names.
-
-**Goal:** `Expr::VarRef` (or equivalent) for bare identifiers; `FieldRef` only when `$` is present. **Breaking change** for exhaustive `match` on public `Expr`.
+**Breaking:** Exhaustive `match` on `Expr` must include `VarRef`.
 
 ---
 
 ## P2 — Builtin internals
 
-### 13. Inconsistent builtin diagnostics `[partial]`
+### 13. Inconsistent builtin diagnostics `[done]`
 
-**Landed:** `Evaluator::reject_expected_type(fn_name, expected, got)` — used by string builtins (`fn_str1`/`fn_str2`, `length`, `substring`, `replace`, `matches`, `format`), `fn_num1` (`floor`/`ceil`/`abs`), and **`moneyAmount` / `moneyCurrency`** (non-null wrong type).
+**Landed:** `reject_expected_type` / arity helpers extended to **`fn_round`**, **`fn_power`**, casts in **`logic_types`** (`number` / `boolean` / `date`, **`if`** condition typing), **`selected`** (non-array → diagnostic + null). **`if`** uses exact arity where applicable.
 
-**Still open:** casts (`number`, `string`, …), `fn_round` optional precision arg, logic builtins, remaining silent paths.
-
-**Goal:** Extend `reject_expected_type` / arity helpers; optional `DiagnosticKind::TypeMismatch` later.
+**Optional later:** `DiagnosticKind::TypeMismatch` once messages are stable.
 
 ---
 
-### 14. Duplication across builtins `[partial]`
+### 14. Duplication across builtins `[done]`
 
-**Landed:** `evaluator/builtins/helpers.rs` — `cmp_ordered_min_max`, `fold_min_max_choice`, `fold_money_sum`. `Evaluator::eval_under_dollar` in `core.rs` dedupes `$` binding for `filter_where`, `countWhere`, `every`, `some`. `Evaluator::require_min_args` — used by `filter_where`, `countWhere`, `every`, `some`. `builtins/dates.rs` — `DateOperand` + `eval_date_operand` for `datePart`, `dateDiff`, `dateAdd`.
-
-**Still open:** Other builtins with manual arity checks (e.g. `if:` exact count); silent type mismatches → **#13** (`require_type`-style funnel).
-
-**Goal:** Normalize diagnostics (#13); optional `require_exact_args` / spread remaining arity sites.
+**Landed:** Shared helpers in **`evaluator/builtins/helpers.rs`** and **`Evaluator`** (`require_min_args`, **`require_exact_args`**, etc.); migrated arity sites including **`if`**. Further duplication cleanup is incremental only.
 
 ---
 
 ## P3 — Types, perf, tests
 
-### 15. `Object(Vec<(String, Value)>)` lookup `[open]`
+### 15. `Object` storage and lookup `[done]`
 
-**Where:** `src/types.rs`; `MapEnvironment` / `access_path` in `evaluator/core.rs` use linear search per segment.
+**Where:** `src/types.rs` — **`Value::Object(IndexMap<String, Value>)`**; hot paths use map lookup. **Breaking** for code matching `Value::Object` structurally.
 
-**Note:** FEL `{ … }` literals reject duplicate keys at parse time. Duplicates remain possible for JSON→FEL or programmatic `Value::Object` construction. `serde_json` `preserve_order` addresses JSON map ordering, not in-memory lookup cost.
-
-**Direction:** `indexmap` (or equivalent) on `Value::Object` + `.get` in hot paths — separate semver/API decision from #32 (already landed).
+**Note:** FEL `{ … }` literals still reject duplicate keys at parse time. JSON / programmatic construction may still produce duplicates — policy unchanged.
 
 ---
 
-### 30. `Money.currency` as `String` `[open]`
+### 30. `Money.currency` newtype `[done]`
 
-ISO 4217 codes fit three ASCII letters; heap `String` per value. **Direction:** `CurrencyCode([u8; 3])` + `Display` / `TryFrom` — breaking API change for field access patterns.
+**Landed:** **`CurrencyCode([u8; 3])`** with `parse`, `as_str`, **`Display`**. **`Money { currency: CurrencyCode }`**. JSON convert and builtins updated.
 
 ---
 
 ### 38. Property-based testing `[partial]`
 
-`proptest` is listed in `Cargo.toml` dev-dependencies but unused in source tests today.
+**Landed:** **`tests/fel_proptest.rs`** — parse↔print (integer literals), null / equality behavior, JSON scalar + shallow object round-trip via `json_to_fel` / `fel_to_json`.
 
-**Ideas:** parse↔print, `convert` JSON round-trip, null propagation — after **#13** if assertions depend on diagnostic behavior. Parser smoke / random input last (panic hunting).
+**Still optional:** Parser random-input fuzz (panic hunting) after diagnostic-heavy suites stabilize; calendar suite remains **`tests/civil_calendar_proptest.rs`** only.
 
 ---

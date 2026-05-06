@@ -13,8 +13,7 @@ impl<'a> Evaluator<'a> {
     // ── Logical helpers ─────────────────────────────────────────
 
     pub(in crate::evaluator) fn fn_if(&mut self, args: &[Expr]) -> Value {
-        if args.len() < 3 {
-            self.diag("if: requires 3 arguments");
+        if !self.require_exact_args(args, 3, "if") {
             return Value::Null;
         }
         let cond = self.eval(&args[0]);
@@ -41,13 +40,7 @@ impl<'a> Evaluator<'a> {
                 }
                 self.eval(&args[2])
             }
-            _ => {
-                self.diag(format!(
-                    "if: condition must be boolean, got {}",
-                    cond.type_name()
-                ));
-                Value::Null
-            }
+            other => self.reject_expected_type("if", "boolean", &other),
         }
     }
 
@@ -72,9 +65,11 @@ impl<'a> Evaluator<'a> {
     }
 
     pub(in crate::evaluator) fn fn_selected(&mut self, args: &[Expr]) -> Value {
-        let arr = match self.eval_arg(args, 0) {
+        let container = self.eval_arg(args, 0);
+        let arr = match &container {
             Value::Array(a) => a,
-            _ => return Value::Boolean(false),
+            Value::Null => return Value::Null,
+            other => return self.reject_expected_type("selected", "array", other),
         };
         let val = self.eval_arg(args, 1);
         let found = arr
@@ -104,10 +99,11 @@ impl<'a> Evaluator<'a> {
             },
             Value::Boolean(b) => Value::Number(if b { Decimal::ONE } else { Decimal::ZERO }),
             Value::Null => Value::Null,
-            v => {
-                self.diag(format!("number: cannot convert {}", v.type_name()));
-                Value::Null
-            }
+            other => self.reject_expected_type(
+                "number",
+                "number, string, boolean, or null",
+                &other,
+            ),
         }
     }
 
@@ -142,10 +138,11 @@ impl<'a> Evaluator<'a> {
                     Value::Boolean(true)
                 }
             }
-            v => {
-                self.diag(format!("boolean: cannot convert {}", v.type_name()));
-                Value::Null
-            }
+            other => self.reject_expected_type(
+                "boolean",
+                "boolean, number, string, or null",
+                &other,
+            ),
         }
     }
 
@@ -163,10 +160,7 @@ impl<'a> Evaluator<'a> {
                 }
             }
             Value::Null => Value::Null,
-            v => {
-                self.diag(format!("date: cannot convert {}", v.type_name()));
-                Value::Null
-            }
+            other => self.reject_expected_type("date", "date or string", &other),
         }
     }
 

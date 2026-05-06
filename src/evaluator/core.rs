@@ -1,4 +1,5 @@
 #![allow(clippy::missing_docs_in_private_items)]
+use indexmap::IndexMap;
 use rust_decimal::Decimal;
 use std::collections::HashMap;
 
@@ -130,8 +131,8 @@ impl Environment for MapEnvironment {
         };
         for seg in &segments[1..] {
             match &current {
-                Value::Object(entries) => match entries.iter().find(|(k, _)| k == seg) {
-                    Some((_, v)) => current = v.clone(),
+                Value::Object(entries) => match entries.get(seg.as_str()) {
+                    Some(v) => current = v.clone(),
                     None => return Value::Null,
                 },
                 _ => return Value::Null,
@@ -282,6 +283,15 @@ impl<'a> Evaluator<'a> {
         true
     }
 
+    /// Emits `{fn_name}: requires exactly {n} arguments` and returns `false` when arity differs.
+    pub(super) fn require_exact_args(&mut self, args: &[Expr], n: usize, fn_name: &str) -> bool {
+        if args.len() != n {
+            self.diag(format!("{fn_name}: requires exactly {n} arguments"));
+            return false;
+        }
+        true
+    }
+
     /// Records a type mismatch diagnostic and returns [`Value::Null`].
     pub(super) fn reject_expected_type(
         &mut self,
@@ -337,12 +347,23 @@ impl<'a> Evaluator<'a> {
                 entries
                     .iter()
                     .map(|(k, v)| (k.clone(), self.eval(v)))
-                    .collect(),
+                    .collect::<IndexMap<_, _>>(),
             ),
             Expr::FieldRef { name, path } => {
                 let value = self.eval_field_ref(name, path);
                 if self.tracing() {
                     let rendered = render_field_path(name, path);
+                    self.trace_step(TraceStep::FieldResolved {
+                        path: rendered,
+                        value: fel_to_json(&value),
+                    });
+                }
+                value
+            }
+            Expr::VarRef { name, path } => {
+                let value = self.eval_field_ref(&Some(name.clone()), path);
+                if self.tracing() {
+                    let rendered = render_field_path(&Some(name.clone()), path);
                     self.trace_step(TraceStep::FieldResolved {
                         path: rendered,
                         value: fel_to_json(&value),
@@ -466,6 +487,31 @@ impl<'a> Evaluator<'a> {
                         }
                     }
                 }
+                if let Expr::VarRef {
+                    name,
+                    path: base_path,
+                } = expr.as_ref()
+                {
+                    let mut segments = vec![name.clone()];
+                    let mut combined = Vec::with_capacity(base_path.len() + path.len());
+                    combined.extend(base_path.iter().cloned());
+                    combined.extend(path.iter().cloned());
+                    if combined
+                        .iter()
+                        .all(|segment| matches!(segment, PathSegment::Dot(_)))
+                    {
+                        let bound_in_let =
+                            self.let_scopes.iter().any(|scope| scope.contains_key(name));
+                        if !bound_in_let {
+                            for segment in &combined {
+                                if let PathSegment::Dot(part) = segment {
+                                    segments.push(part.clone());
+                                }
+                            }
+                            return self.env.resolve_field(&segments);
+                        }
+                    }
+                }
                 let base = self.eval(expr);
                 self.access_path(base, path)
             }
@@ -563,9 +609,8 @@ impl<'a> Evaluator<'a> {
                 PathSegment::Dot(name) => match &current {
                     Value::Object(entries) => {
                         current = entries
-                            .iter()
-                            .find(|(k, _)| k == name)
-                            .map(|(_, v)| v.clone())
+                            .get(name.as_str())
+                            .cloned()
                             .unwrap_or(Value::Null);
                     }
                     Value::Null => return Value::Null,
@@ -1156,7 +1201,7 @@ impl<'a> Evaluator<'a> {
             "moneyCurrency" => {
                 let v = self.eval_arg(args, 0);
                 match v {
-                    Value::Money(m) => Value::String(m.currency),
+                    Value::Money(m) => Value::String(m.currency.to_string()),
                     Value::Null => Value::Null,
                     other => self.reject_expected_type("moneyCurrency", "money", &other),
                 }

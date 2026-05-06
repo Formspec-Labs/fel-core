@@ -178,8 +178,8 @@ fn resolve_path(val: &TypeValue, segments: &[String]) -> TypeValue {
     let mut current = val.clone();
     for seg in segments {
         match &current {
-            TypeValue::Object(entries) => match entries.iter().find(|(k, _)| k == seg) {
-                Some((_, v)) => current = v.clone(),
+            TypeValue::Object(entries) => match entries.get(seg.as_str()) {
+                Some(v) => current = v.clone(),
                 None => return TypeValue::Null,
             },
             TypeValue::Array(entries) => {
@@ -188,9 +188,8 @@ fn resolve_path(val: &TypeValue, segments: &[String]) -> TypeValue {
                         .iter()
                         .map(|entry| match entry {
                             TypeValue::Object(fields) => fields
-                                .iter()
-                                .find(|(k, _)| k == seg)
-                                .map(|(_, v)| v.clone())
+                                .get(seg.as_str())
+                                .cloned()
                                 .unwrap_or(TypeValue::Null),
                             _ => TypeValue::Null,
                         })
@@ -414,6 +413,7 @@ impl Environment for FormspecEnvironment {
 #[cfg(test)]
 mod tests {
     #![allow(clippy::missing_docs_in_private_items)]
+    use indexmap::IndexMap;
     use super::*;
 
     fn s(v: &str) -> TypeValue {
@@ -438,10 +438,10 @@ mod tests {
     #[test]
     fn test_nested_field_resolution() {
         let mut env = FormspecEnvironment::new();
-        let addr = TypeValue::Object(vec![
+        let addr = TypeValue::Object(IndexMap::from([
             ("city".to_string(), s("NYC")),
             ("zip".to_string(), s("10001")),
-        ]);
+        ]));
         env.set_field("address", addr);
 
         assert_eq!(
@@ -507,7 +507,7 @@ mod tests {
     #[test]
     fn test_named_instances() {
         let mut env = FormspecEnvironment::new();
-        let config = TypeValue::Object(vec![("maxRetries".to_string(), num(3))]);
+        let config = TypeValue::Object(IndexMap::from([("maxRetries".to_string(), num(3))]));
         env.set_instance("config", config);
 
         assert_eq!(
