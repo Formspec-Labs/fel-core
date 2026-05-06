@@ -3,9 +3,13 @@
 //! These tests assert on the shape of emitted [`TraceStep`]s for small FEL
 //! programs. They are the contract for the v0 trace API and the regression
 //! guard for the non-tracing hot path.
-use fel_core::{Value, MapEnvironment, Trace, TraceStep, evaluate, evaluate_with_trace, parse};
+use fel_core::{
+    Date, Environment, MapEnvironment, Trace, TraceStep, Value, evaluate, evaluate_with_trace,
+    parse,
+};
 use rust_decimal::Decimal;
 use serde_json::json;
+use std::cell::Cell;
 use std::collections::HashMap;
 
 fn env_with(fields: &[(&str, Value)]) -> MapEnvironment {
@@ -20,6 +24,42 @@ fn trace_for(source: &str, env: &MapEnvironment) -> Trace {
     let expr = parse(source).expect("parse should succeed");
     let (_result, trace) = evaluate_with_trace(&expr, env);
     trace
+}
+
+struct CountingEnv {
+    fields: HashMap<String, Value>,
+    resolve_count: Cell<usize>,
+}
+
+impl CountingEnv {
+    fn new(fields: &[(&str, Value)]) -> Self {
+        let mut map = HashMap::new();
+        for (k, v) in fields {
+            map.insert((*k).to_string(), v.clone());
+        }
+        Self {
+            fields: map,
+            resolve_count: Cell::new(0),
+        }
+    }
+}
+
+impl Environment for CountingEnv {
+    fn resolve_field(&self, segments: &[String]) -> Value {
+        self.resolve_count.set(self.resolve_count.get() + 1);
+        match segments {
+            [name] => self.fields.get(name).cloned().unwrap_or(Value::Null),
+            _ => Value::Null,
+        }
+    }
+
+    fn resolve_context(&self, _name: &str, _arg: Option<&str>, _tail: &[String]) -> Value {
+        Value::Null
+    }
+
+    fn current_date(&self) -> Option<Date> {
+        None
+    }
 }
 
 #[test]
@@ -177,6 +217,21 @@ fn eager_function_with_field_ref_args_does_not_duplicate_sub_steps() {
     assert_eq!(call.0, "sum");
     assert_eq!(call.1, vec![json!([5, 3])]);
     assert_eq!(call.2, json!(8));
+}
+
+#[test]
+fn traced_eager_call_evaluates_each_argument_once() {
+    let env = CountingEnv::new(&[
+        ("x", Value::Number(Decimal::from(5))),
+        ("y", Value::Number(Decimal::from(3))),
+    ]);
+    let expr = parse("sum([$x, $y])").expect("parse");
+    let (_result, _trace) = evaluate_with_trace(&expr, &env);
+    assert_eq!(
+        env.resolve_count.get(),
+        2,
+        "expected one resolution per field arg in traced eager call"
+    );
 }
 
 #[test]

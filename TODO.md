@@ -217,9 +217,18 @@ Note: `filter_where` reduced some duplication, but broad extraction is still pen
 - Updated in-repo callsites to use module-qualified access via `fel_core::extensions::emit_schema_json`.
 - Verified with full `cargo test` pass.
 
-### 20. Tracing double-evaluates arguments for eager functions `[open]`
+### 20. Tracing double-evaluates arguments for eager functions `[completed]`
 
 `src/evaluator/core.rs:336-361` — Pre-evaluates args to capture JSON values, then `eval_function` evaluates them again. Documented at `src/evaluator/util.rs:18-25`. No guard against future impure builtins being added to the whitelist.
+
+**Landed (2026-05-06):**
+
+- Removed tracing pre-evaluation pass from `Expr::FunctionCall` and replaced it with per-call argument caching in `Evaluator`.
+- `eval_arg` now memoizes values for the active traced eager function call, so each arg expression is evaluated at most once.
+- `FunctionCalled` trace steps now source arg JSON from cached runtime values after the real evaluation path.
+- Added regression test `traced_eager_call_evaluates_each_argument_once` using a counting `Environment` to assert no double evaluation.
+- Updated eager-traceable whitelist docs in `src/evaluator/util.rs` to reflect the new single-pass behavior.
+- Verified with focused trace test and full `cargo test`.
 
 ### 21. `Ternary` and `IfThenElse` are structurally identical AST nodes `[open]`
 

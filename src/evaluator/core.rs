@@ -185,6 +185,14 @@ pub struct Evaluator<'a> {
     /// Optional evaluation trace. `None` on the hot path, `Some` when the
     /// caller entered via [`evaluate_with_trace`].
     pub(super) trace: Option<Trace>,
+    /// Stack of per-call argument caches used by traceable eager functions.
+    call_arg_cache_stack: Vec<CallArgCache>,
+}
+
+#[derive(Debug)]
+struct CallArgCache {
+    args_ptr: *const Expr,
+    values: Vec<Option<Value>>,
 }
 
 /// Evaluate an expression against an environment.
@@ -195,6 +203,7 @@ pub fn evaluate(expr: &Expr, env: &dyn Environment) -> EvalResult {
         diagnostics: Vec::new(),
         let_scopes: Vec::new(),
         trace: None,
+        call_arg_cache_stack: Vec::new(),
     };
     let value = evaluator.eval(expr);
     EvalResult {
@@ -215,6 +224,7 @@ pub fn evaluate_with_extensions(
         diagnostics: Vec::new(),
         let_scopes: Vec::new(),
         trace: None,
+        call_arg_cache_stack: Vec::new(),
     };
     let value = evaluator.eval(expr);
     EvalResult {
@@ -236,6 +246,7 @@ pub fn evaluate_with_trace(expr: &Expr, env: &dyn Environment) -> (EvalResult, T
         diagnostics: Vec::new(),
         let_scopes: Vec::new(),
         trace: Some(Trace::new()),
+        call_arg_cache_stack: Vec::new(),
     };
     let value = evaluator.eval(expr);
     let trace = evaluator.trace.take().unwrap_or_default();
@@ -379,25 +390,13 @@ impl<'a> Evaluator<'a> {
                 result
             }
             Expr::FunctionCall { name, args } => {
-                let pre_evaluated_args: Option<Vec<serde_json::Value>> =
-                    if self.tracing() && is_eager_traceable_function(name) {
-                        // Suspend trace *and* diagnostics while we pre-evaluate
-                        // the args to capture their JSON values. `eval_function`
-                        // below walks the same args again — without suspension,
-                        // every sub-step (FieldResolved, BinaryOp, …) and every
-                        // diagnostic would appear twice in the output.
-                        let saved_trace = self.trace.take();
-                        let saved_diag_len = self.diagnostics.len();
-                        let vals: Vec<serde_json::Value> =
-                            args.iter().map(|a| fel_to_json(&self.eval(a))).collect();
-                        self.diagnostics.truncate(saved_diag_len);
-                        self.trace = saved_trace;
-                        Some(vals)
-                    } else {
-                        None
-                    };
+                let should_trace_call = self.tracing() && is_eager_traceable_function(name);
+                if should_trace_call {
+                    self.begin_call_arg_cache(args);
+                }
                 let result = self.eval_function(name, args);
-                if let Some(arg_vals) = pre_evaluated_args {
+                if should_trace_call {
+                    let arg_vals = self.finish_call_arg_cache_as_json(args);
                     self.trace_step(TraceStep::FunctionCalled {
                         name: name.clone(),
                         args: arg_vals,
@@ -1163,7 +1162,29 @@ impl<'a> Evaluator<'a> {
     }
 
     pub(super) fn eval_arg(&mut self, args: &[Expr], idx: usize) -> Value {
+        let args_ptr = args.as_ptr();
         if idx < args.len() {
+            let use_top_cache = self
+                .call_arg_cache_stack
+                .last()
+                .is_some_and(|cache| cache.args_ptr == args_ptr && idx < cache.values.len());
+            if use_top_cache {
+                if let Some(val) = self
+                    .call_arg_cache_stack
+                    .last()
+                    .and_then(|cache| cache.values[idx].as_ref())
+                {
+                    return val.clone();
+                }
+                let evaluated = self.eval(&args[idx]);
+                if let Some(cache) = self.call_arg_cache_stack.last_mut()
+                    && cache.args_ptr == args_ptr
+                    && idx < cache.values.len()
+                {
+                    cache.values[idx] = Some(evaluated.clone());
+                }
+                return evaluated;
+            }
             self.eval(&args[idx])
         } else {
             Value::Null
@@ -1182,6 +1203,34 @@ impl<'a> Evaluator<'a> {
                 None
             }
         }
+    }
+
+    fn begin_call_arg_cache(&mut self, args: &[Expr]) {
+        self.call_arg_cache_stack.push(CallArgCache {
+            args_ptr: args.as_ptr(),
+            values: vec![None; args.len()],
+        });
+    }
+
+    fn finish_call_arg_cache_as_json(&mut self, args: &[Expr]) -> Vec<serde_json::Value> {
+        let mut cache = self
+            .call_arg_cache_stack
+            .pop()
+            .expect("call arg cache stack should contain current call");
+        assert_eq!(
+            cache.args_ptr,
+            args.as_ptr(),
+            "call arg cache stack mismatch for traced function call"
+        );
+        cache
+            .values
+            .iter_mut()
+            .enumerate()
+            .map(|(idx, slot)| {
+                let value = slot.take().unwrap_or_else(|| self.eval(&args[idx]));
+                fel_to_json(&value)
+            })
+            .collect()
     }
 
     /// Filter array elements by predicate (shared by sumWhere / avgWhere / minWhere / maxWhere / moneySumWhere).
