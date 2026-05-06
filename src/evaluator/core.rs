@@ -12,6 +12,12 @@ use crate::types::*;
 
 use super::util::{binary_op_symbol, dec, is_eager_traceable_function, render_field_path};
 
+/// Maximum [`Evaluator::eval`] recursion depth (stack overflow guard; left-associative chains are deep).
+///
+/// Kept modest so evaluation stops before the OS thread stack overflows (well above stress tests
+/// that use ~48-term chains; far below LibFuzzer inputs that nested thousands of operators).
+const MAX_EVAL_DEPTH: usize = 128;
+
 // ── Evaluation context ──────────────────────────────────────────
 
 /// Resolves `$` field paths, `@` context, MIP queries, repeat navigation, and clock for FEL builtins.
@@ -188,6 +194,8 @@ pub struct Evaluator<'a> {
     pub(super) trace: Option<Trace>,
     /// Stack of per-call argument caches used by traceable eager functions.
     call_arg_cache_stack: Vec<CallArgCache>,
+    /// Nesting depth for `eval` recursion (capped at [`MAX_EVAL_DEPTH`]).
+    eval_depth: usize,
 }
 
 /// Memoizes evaluated argument [`Value`]s for one traced eager builtin call.
@@ -211,6 +219,7 @@ pub fn evaluate(expr: &Expr, env: &dyn Environment) -> EvalResult {
         let_scopes: Vec::new(),
         trace: None,
         call_arg_cache_stack: Vec::new(),
+        eval_depth: 0,
     };
     let value = evaluator.eval(expr);
     EvalResult {
@@ -232,6 +241,7 @@ pub fn evaluate_with_extensions(
         let_scopes: Vec::new(),
         trace: None,
         call_arg_cache_stack: Vec::new(),
+        eval_depth: 0,
     };
     let value = evaluator.eval(expr);
     EvalResult {
@@ -256,6 +266,7 @@ pub fn evaluate_with_trace(expr: &Expr, env: &dyn Environment) -> (EvalResult, T
         let_scopes: Vec::new(),
         trace: Some(Trace::new()),
         call_arg_cache_stack: Vec::new(),
+        eval_depth: 0,
     };
     let value = evaluator.eval(expr);
     let trace = evaluator.trace.take().unwrap_or_default();
@@ -281,6 +292,7 @@ pub fn evaluate_with_trace_and_extensions(
         let_scopes: Vec::new(),
         trace: Some(Trace::new()),
         call_arg_cache_stack: Vec::new(),
+        eval_depth: 0,
     };
     let value = evaluator.eval(expr);
     let trace = evaluator.trace.take().unwrap_or_default();
@@ -359,6 +371,17 @@ impl<'a> Evaluator<'a> {
 
 impl<'a> Evaluator<'a> {
     pub(super) fn eval(&mut self, expr: &Expr) -> Value {
+        if self.eval_depth >= MAX_EVAL_DEPTH {
+            self.diag("expression evaluation depth exceeded");
+            return Value::Null;
+        }
+        self.eval_depth += 1;
+        let out = self.eval_impl(expr);
+        self.eval_depth -= 1;
+        out
+    }
+
+    fn eval_impl(&mut self, expr: &Expr) -> Value {
         match expr {
             Expr::Null => Value::Null,
             Expr::Boolean(b) => Value::Boolean(*b),
@@ -899,26 +922,38 @@ impl<'a> Evaluator<'a> {
         }
 
         match op {
-            BinaryOp::Add => self.num_op(left, right, "+", |a, b| a + b),
-            BinaryOp::Sub => self.num_op(left, right, "-", |a, b| a - b),
-            BinaryOp::Mul => self.num_op(left, right, "*", |a, b| a * b),
+            BinaryOp::Add => self.num_op(left, right, "+"),
+            BinaryOp::Sub => self.num_op(left, right, "-"),
+            BinaryOp::Mul => self.num_op(left, right, "*"),
             BinaryOp::Div => {
                 if let (Value::Number(a), Value::Number(b)) = (left, right) {
                     if b.is_zero() {
                         self.diag("division by zero");
                         Value::Null
                     } else {
-                        Value::Number(a / b)
+                        match a.checked_div(*b) {
+                            Some(q) => Value::Number(q),
+                            None => {
+                                self.diag("division overflow");
+                                Value::Null
+                            }
+                        }
                     }
                 } else if let (Value::Money(m), Value::Number(n)) = (left, right) {
                     if n.is_zero() {
                         self.diag("division by zero");
                         Value::Null
                     } else {
-                        Value::Money(Money {
-                            amount: m.amount / n,
-                            currency: m.currency.clone(),
-                        })
+                        match m.amount.checked_div(*n) {
+                            Some(amount) => Value::Money(Money {
+                                amount,
+                                currency: m.currency.clone(),
+                            }),
+                            None => {
+                                self.diag("division overflow");
+                                Value::Null
+                            }
+                        }
                     }
                 } else if let (Value::Money(a), Value::Money(b)) = (left, right) {
                     if a.currency != b.currency {
@@ -931,7 +966,13 @@ impl<'a> Evaluator<'a> {
                         self.diag("division by zero");
                         Value::Null
                     } else {
-                        Value::Number(a.amount / b.amount)
+                        match a.amount.checked_div(b.amount) {
+                            Some(q) => Value::Number(q),
+                            None => {
+                                self.diag("division overflow");
+                                Value::Null
+                            }
+                        }
                     }
                 } else {
                     self.diag(format!(
@@ -948,17 +989,29 @@ impl<'a> Evaluator<'a> {
                         self.diag("modulo by zero");
                         Value::Null
                     } else {
-                        Value::Number(a % b)
+                        match a.checked_rem(*b) {
+                            Some(r) => Value::Number(r),
+                            None => {
+                                self.diag("modulo overflow");
+                                Value::Null
+                            }
+                        }
                     }
                 } else if let (Value::Money(m), Value::Number(n)) = (left, right) {
                     if n.is_zero() {
                         self.diag("modulo by zero");
                         Value::Null
                     } else {
-                        Value::Money(Money {
-                            amount: m.amount % n,
-                            currency: m.currency.clone(),
-                        })
+                        match m.amount.checked_rem(*n) {
+                            Some(amount) => Value::Money(Money {
+                                amount,
+                                currency: m.currency.clone(),
+                            }),
+                            None => {
+                                self.diag("modulo overflow");
+                                Value::Null
+                            }
+                        }
                     }
                 } else {
                     self.diag(format!(
@@ -991,15 +1044,24 @@ impl<'a> Evaluator<'a> {
         }
     }
 
-    fn num_op(
-        &mut self,
-        left: &Value,
-        right: &Value,
-        sym: &str,
-        f: fn(Decimal, Decimal) -> Decimal,
-    ) -> Value {
+    fn num_op(&mut self, left: &Value, right: &Value, sym: &str) -> Value {
+        let combine = |a: Decimal, b: Decimal| -> Option<Decimal> {
+            match sym {
+                "+" => a.checked_add(b),
+                "-" => a.checked_sub(b),
+                "*" => a.checked_mul(b),
+                _ => None,
+            }
+        };
+
         match (left, right) {
-            (Value::Number(a), Value::Number(b)) => Value::Number(f(*a, *b)),
+            (Value::Number(a), Value::Number(b)) => match combine(*a, *b) {
+                Some(v) => Value::Number(v),
+                None => {
+                    self.diag(format!("arithmetic overflow ({sym})"));
+                    Value::Null
+                }
+            },
             (Value::Money(a), Value::Money(b)) if sym == "+" || sym == "-" => {
                 if a.currency != b.currency {
                     self.diag(format!(
@@ -1008,26 +1070,54 @@ impl<'a> Evaluator<'a> {
                     ));
                     Value::Null
                 } else {
-                    Value::Money(Money {
-                        amount: f(a.amount, b.amount),
-                        currency: a.currency.clone(),
-                    })
+                    match combine(a.amount, b.amount) {
+                        Some(amount) => Value::Money(Money {
+                            amount,
+                            currency: a.currency.clone(),
+                        }),
+                        None => {
+                            self.diag(format!("arithmetic overflow ({sym})"));
+                            Value::Null
+                        }
+                    }
                 }
             }
             (Value::Money(m), Value::Number(n)) if sym == "+" || sym == "-" => {
-                Value::Money(Money {
-                    amount: f(m.amount, *n),
-                    currency: m.currency.clone(),
-                })
+                match combine(m.amount, *n) {
+                    Some(amount) => Value::Money(Money {
+                        amount,
+                        currency: m.currency.clone(),
+                    }),
+                    None => {
+                        self.diag(format!("arithmetic overflow ({sym})"));
+                        Value::Null
+                    }
+                }
             }
-            (Value::Money(m), Value::Number(n)) if sym == "*" => Value::Money(Money {
-                amount: m.amount * n,
-                currency: m.currency.clone(),
-            }),
-            (Value::Number(n), Value::Money(m)) if sym == "*" => Value::Money(Money {
-                amount: *n * m.amount,
-                currency: m.currency.clone(),
-            }),
+            (Value::Money(m), Value::Number(n)) if sym == "*" => {
+                match m.amount.checked_mul(*n) {
+                    Some(amount) => Value::Money(Money {
+                        amount,
+                        currency: m.currency.clone(),
+                    }),
+                    None => {
+                        self.diag("arithmetic overflow (*)");
+                        Value::Null
+                    }
+                }
+            }
+            (Value::Number(n), Value::Money(m)) if sym == "*" => {
+                match n.checked_mul(m.amount) {
+                    Some(amount) => Value::Money(Money {
+                        amount,
+                        currency: m.currency.clone(),
+                    }),
+                    None => {
+                        self.diag("arithmetic overflow (*)");
+                        Value::Null
+                    }
+                }
+            }
             _ => {
                 self.diag(format!(
                     "cannot apply '{sym}' to {} and {}",
