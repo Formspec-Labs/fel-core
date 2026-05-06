@@ -1,17 +1,6 @@
-/// Comprehensive tests for the matches() regex engine.
+/// Comprehensive tests for `matches()` via the regex crate backend.
 ///
-/// Addresses audit finding: "matches() regex engine — 120 lines, zero tests"
-///
-/// The evaluator has a hand-rolled regex matcher (simple_match, match_regex,
-/// match_recursive) that implements a subset of regex. These tests exercise it
-/// through the public FEL API via the matches() function.
-///
-/// Known limitation (BUG): escape sequences (\d, \w, \s, etc.) do NOT work
-/// with quantifiers (*, +, ?). The match_recursive function checks for
-/// quantifiers at pat[pi+1], but when pat[pi] is '\\', the quantifier is
-/// at pat[pi+2]. The quantifier check sees the escape letter (e.g., 'd')
-/// instead of the quantifier, and falls through to the escape handler
-/// which consumes \d but ignores the trailing quantifier.
+/// These tests exercise regex behavior through the public FEL API.
 use fel_core::*;
 
 fn eval(input: &str) -> Value {
@@ -146,8 +135,6 @@ fn empty_pattern_with_anchors() {
 }
 
 // ── Character class escapes (single match, no quantifier) ───────
-// Note: escape sequences work for SINGLE matches but NOT with quantifiers.
-// See BUG note at top of file.
 
 /// Correctness: \\d matches a single digit
 #[test]
@@ -175,9 +162,7 @@ fn backslash_s_matches_single_whitespace() {
     assert_eq!(result, Value::Boolean(true));
 }
 
-// ── Escape sequences WITH quantifiers — known BUG ───────────────
-// BUG: escape sequences (\d, \w, \s) followed by quantifiers (*, +, ?)
-// Escape sequences with quantifiers — fixed by replacing hand-rolled engine with regex crate.
+// ── Escape sequences WITH quantifiers ───────────────────────────
 
 /// \\d+ matches one or more digits
 #[test]

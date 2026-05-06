@@ -305,10 +305,15 @@ Currently only used for calendar. Missing opportunities for:
 - Null propagation consistency
 - Parser fuzz testing (never panics on random input)
 
-### 39. Remove stale BUG docs in `regex_tests.rs` `[obsolete/stale]`
+### 39. Remove stale BUG docs in `regex_tests.rs` `[completed]`
 
 The hand-rolled regex engine was replaced with the `regex` crate. Stale BUG comments and limitation notes at lines 5-14, 150, and 178-179 are outdated. Tests deliberately exercising the broken-but-now-passing escape behavior should be reviewed.
 Reframe this as cleanup debt (docs/comments/tests) instead of active runtime bug risk.
+
+**Landed (2026-05-06):**
+
+- Removed stale hand-rolled-engine BUG commentary in `tests/regex_tests.rs`.
+- Kept runtime assertions intact and validated with `cargo test --test regex_tests`.
 
 ### 40. Add stress/performance tests `[open]`
 
