@@ -284,9 +284,14 @@ All parse methods are recursive with no depth tracking. Deeply nested expression
 
 ## TEST IMPROVEMENTS
 
-### 35. Create shared test helpers module `[open]`
+### 35. Create shared test helpers module `[completed]`
 
 `eval()`, `num()`, `dec()`, `s()`, `arr()`, `env_with()` are duplicated across 5+ test files. Create `tests/common/mod.rs`.
+
+**Landed (2026-05-06):**
+
+- Added shared helper module `tests/common/mod.rs` with common evaluator/value constructors.
+- Migrated duplicated helper logic from `tests/evaluator_tests.rs` and `tests/evaluator_edge_cases.rs` to use the shared module.
 
 ### 36. Add unit tests for `src/error.rs` `[completed]`
 

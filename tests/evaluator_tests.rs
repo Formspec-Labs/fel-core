@@ -1,42 +1,9 @@
 /// Comprehensive FEL evaluator tests.
+mod common;
+
+use common::{arr, dec, eval, eval_fields, num, s};
 use fel_core::*;
 use rust_decimal::Decimal;
-use rust_decimal::prelude::*;
-
-// ── Helpers ─────────────────────────────────────────────────────
-
-fn eval(input: &str) -> Value {
-    let expr = parse(input).unwrap();
-    let env = MapEnvironment::new();
-    evaluate(&expr, &env).value
-}
-
-fn eval_fields(input: &str, fields: Vec<(&str, Value)>) -> Value {
-    let expr = parse(input).unwrap();
-    let env = MapEnvironment::with_fields(
-        fields
-            .into_iter()
-            .map(|(k, v)| (k.to_string(), v))
-            .collect(),
-    );
-    evaluate(&expr, &env).value
-}
-
-fn num(n: impl Into<Decimal>) -> Value {
-    Value::Number(n.into())
-}
-
-fn dec(v: &str) -> Value {
-    Value::Number(Decimal::from_str(v).unwrap())
-}
-
-fn s(v: &str) -> Value {
-    Value::String(v.to_string())
-}
-
-fn arr(vals: Vec<Value>) -> Value {
-    Value::Array(vals)
-}
 
 // ── Literals ────────────────────────────────────────────────────
 

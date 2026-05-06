@@ -4,16 +4,12 @@
 ///
 /// Covers: eval_with_fields, money arithmetic, date arithmetic edge cases,
 /// object equality, today()/now(), and other gaps.
+mod common;
+
+use common::{dec, eval, num, s};
 use fel_core::*;
 use rust_decimal::Decimal;
-use rust_decimal::prelude::*;
 use std::collections::HashMap;
-
-fn eval(input: &str) -> Value {
-    let expr = parse(input).unwrap();
-    let env = MapEnvironment::new();
-    evaluate(&expr, &env).value
-}
 
 fn eval_result(input: &str) -> EvalResult {
     let expr = parse(input).unwrap();
@@ -21,17 +17,6 @@ fn eval_result(input: &str) -> EvalResult {
     evaluate(&expr, &env)
 }
 
-fn num(n: i64) -> Value {
-    Value::Number(Decimal::from(n))
-}
-
-fn dec(v: &str) -> Value {
-    Value::Number(Decimal::from_str(v).unwrap())
-}
-
-fn s(v: &str) -> Value {
-    Value::String(v.to_string())
-}
 
 // ── eval_with_fields convenience function ───────────────────────
 
