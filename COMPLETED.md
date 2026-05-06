@@ -1,7 +1,7 @@
 # fel-core — completed work
 
 Archive of resolved audit items (source audit: 2026-05-06 multi-agent review).  
-For open work see [`TODO.md`](TODO.md).
+For open work see [`TODO.md`](TODO.md). A compact **Delivered ID** table (cross-stack summary) is at the [end of this file](#delivered-id-quick-reference-audit-initiative).
 
 ---
 
@@ -353,3 +353,118 @@ Single `src/extensions.rs` (~3k lines) mixed catalog data, schema emission, type
 - `fel_core::extensions::*` public paths unchanged.
 - Docs: `README.md` module map and schema regeneration instructions point at `catalog.rs` for `BUILTIN_FUNCTIONS`.
 - Verified with full `cargo test` and `tests/schema_round_trip.rs`.
+
+---
+
+## Backlog sweep (TODO #7–#15, #30, #38 — stack integration 2026-05-06)
+
+Resolved items from [`TODO.md`](TODO.md) backlog sequencing. Cross-repo touch-ups (formspec-core, wos-lint, formspec-py, `work-spec` **`wos-core`**) landed alongside fel-core.
+
+### 7. Builtin dispatch vs catalog drift `[completed]`
+
+**Problem:** `tests/builtin_catalog_consistency.rs` could skip catalog names when `parse(name)` failed, hiding drift between `eval_function` and `extensions/catalog.rs`.
+
+**Landed:**
+
+- Tightened consistency test: unexpected parse failures fail the test instead of silent `continue`.
+- Explicit allowlist reserved for names intentionally not callable as `ident()`.
+- Documented that `is_eager_traceable_function` (`evaluator/util.rs`) is not the full builtin list.
+
+---
+
+### 10 (phase 1). `Diagnostic` spans on wire `[completed]`
+
+**Problem:** Diagnostics had no byte range for editors or structured hosts.
+
+**Landed:**
+
+- `Diagnostic::span: Option<Range<usize>>` plus builder helpers in `src/error.rs`.
+- `fel_diagnostics_to_json_value*` emits `span: { start, end }` when present; unit tests lock JSON shape.
+
+**Still tracked as open in [`TODO.md`](TODO.md):** lexer-backed parse-error spans; optional `Expr` / evaluator frame spans; optional `kind` on JSON wire.
+
+---
+
+### 11. `Expr::VarRef` vs `$` `FieldRef` `[completed]`
+
+**Problem:** Bare identifiers and `$` refs shared `FieldRef`; printer always emitted `$`, losing source fidelity.
+
+**Landed:**
+
+- `Expr::VarRef { name, path }` in `src/ast.rs`; parser assigns bare identifiers to `VarRef`, `parse_field_ref` keeps `FieldRef`.
+- Evaluator, `dependencies.rs`, `printer.rs` updated; postfix/access paths aligned with `FieldRef`.
+- Downstream: `formspec-core` (`fel_analysis`, `fel_condition_group_lift`), `wos-lint` (`fel_analysis`), exhaustive matches updated.
+
+---
+
+### 13. Builtin diagnostics normalization `[completed]`
+
+**Problem:** Mixed silent `Null`, ad hoc strings, and inconsistent arity messaging.
+
+**Landed:**
+
+- Extended `Evaluator::reject_expected_type` and arity helpers (`require_exact_args`, etc.).
+- `fn_round`, `fn_power`, casts in `logic_types` (`number` / `boolean` / `date`, `if` condition), `selected` (non-array → diagnostic + null); `if` exact arity where required.
+- Regression coverage in `tests/evaluator_tests.rs` (e.g. type/arity diagnostics).
+
+---
+
+### 14. Builtin helper deduplication `[completed]`
+
+**Problem:** Repeated manual arity checks and scattered patterns across builtins.
+
+**Landed:**
+
+- Consolidation in `evaluator/builtins/helpers.rs` and `Evaluator` (`require_min_args`, `require_exact_args`, …).
+- Migrated sites including `if` and related clusters; further cleanup is incremental.
+
+---
+
+### 15. `Value::Object` as `IndexMap` `[completed]`
+
+**Problem:** `Vec<(String, Value)>` implied linear lookup for nested access.
+
+**Landed:**
+
+- `Value::Object(IndexMap<String, Value>)` in `src/types.rs`; `MapEnvironment` / `access_path` and JSON convert paths use map semantics.
+- **Breaking** for downstream exhaustive `Value` matches; fixed in-repo (e.g. **`wos-core/src/context.rs`** — `EvalContext::to_fel_environment` builds `IndexMap` for case/event/instance objects).
+- `tests/common/mod.rs` helper `obj()` for integration tests.
+
+---
+
+### 30. `Money.currency` as `CurrencyCode` `[completed]`
+
+**Problem:** Heap `String` per money value; no fixed ISO 4217 representation.
+
+**Landed:**
+
+- `CurrencyCode([u8; 3])` with `parse`, `as_str`, `Display`; `Money { currency: CurrencyCode }`.
+- Builtins (`money.rs`), `convert.rs`, formspec-py `convert.rs` (valid ISO codes; invalid → null where appropriate).
+
+---
+
+### 38 (phase 1). FEL property tests beyond calendar `[completed]`
+
+**Problem:** Only `tests/civil_calendar_proptest.rs` used `proptest` for fel-core.
+
+**Landed:**
+
+- `tests/fel_proptest.rs`: integer parse↔print round-trip, null propagation / equality checks, JSON scalar + shallow object round-trip via `json_to_fel` / `fel_to_json`.
+
+**Still optional ([`TODO.md`](TODO.md)):** random-input parser fuzz for panic hunting.
+
+---
+
+## Delivered ID quick reference (audit initiative)
+
+Moved from [`TODO.md`](TODO.md) — short index of closed backlog IDs and related stack work (no duplicate narrative; see sections above for detail).
+
+| ID | Outcome |
+|----|---------|
+| **#10** | `ParseError { message, span }` on `Error::Parse`; lexer/parser spans; diagnostic JSON includes **`kind`** when set ([`src/error.rs`](src/error.rs), [`JsonWireStyle`](src/wire_style.rs)). Optional evaluator/AST spans **not** implemented (defer until a concrete consumer). |
+| **#8** | Date ↔ JSON policy in [`README.md`](README.md) and [`convert`](src/convert.rs) tests (`string_no_date_coercion`). |
+| **#38** | Parser panic smoke test: [`tests/parser_parse_proptest.rs`](tests/parser_parse_proptest.rs) (also noted in [`README.md`](README.md) Tests). |
+
+**formspec-core (same initiative):** `FelAnalysisError.span`; `fel_analysis_to_json_value` → `errors[]` as `{ message, span }`; condition-group lift adds `span` on parse failure; `fel_rewrite_exact` uses span-aligned parse errors.
+
+**Cross-stack bindings (2026-05 — no fel-core code changes):** TypeScript engine normalizes WASM `errors[]` to `line`/`column`/`offset` + optional `span`; Python `analyze_expression` doc + native test; rustdoc/API.llm drift fixes; optional wos-lint parse messages append char span; formspec-wasm `analyzeFEL` snapshot test. Optional evaluator/AST spans on every subexpression remain **out of scope** here (same as **#10**).
