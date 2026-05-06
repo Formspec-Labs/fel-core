@@ -204,13 +204,27 @@ fn fractional_seconds_to_ms(frac: &str) -> i64 {
     if frac.is_empty() {
         return 0;
     }
-    let mut v = 0.0f64;
-    for (i, c) in frac.chars().enumerate().take(9) {
-        if let Some(d) = c.to_digit(10) {
-            v += (d as f64) * 10f64.powi(-((i as i32) + 1));
+    let mut ms = 0i64;
+    let mut chars = frac.chars();
+
+    if let Some(c) = chars.next() {
+        ms += i64::from(c.to_digit(10).unwrap_or(0)) * 100;
+    }
+    if let Some(c) = chars.next() {
+        ms += i64::from(c.to_digit(10).unwrap_or(0)) * 10;
+    }
+    if let Some(c) = chars.next() {
+        ms += i64::from(c.to_digit(10).unwrap_or(0));
+    }
+
+    // Round to nearest millisecond using the next digit.
+    if let Some(c) = chars.next() {
+        if c.to_digit(10).unwrap_or(0) >= 5 {
+            ms += 1;
         }
     }
-    (v * 1000.0).round() as i64
+
+    ms
 }
 
 #[cfg(test)]
@@ -262,6 +276,22 @@ mod tests {
         assert_eq!(
             parse_iso8601_duration("PT0.5S"),
             IsoDurationParse::Milliseconds(500)
+        );
+    }
+
+    #[test]
+    fn fractional_seconds_rounding_boundaries() {
+        assert_eq!(
+            parse_iso8601_duration("PT0.9994S"),
+            IsoDurationParse::Milliseconds(999)
+        );
+        assert_eq!(
+            parse_iso8601_duration("PT0.9995S"),
+            IsoDurationParse::Milliseconds(1000)
+        );
+        assert_eq!(
+            parse_iso8601_duration("PT1.0005S"),
+            IsoDurationParse::Milliseconds(1001)
         );
     }
 

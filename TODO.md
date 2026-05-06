@@ -222,9 +222,14 @@ Note: `filter_where` reduced some duplication, but broad extraction is still pen
 
 All parse methods are recursive with no depth tracking. Deeply nested expressions (10,000+ levels) could cause stack overflow. Add a max-depth counter.
 
-### 24. Fractional seconds in ISO duration use f64 `[open]`
+### 24. Fractional seconds in ISO duration use f64 `[completed]`
 
 `src/iso_duration.rs:203-214` — Accumulates digits into an `f64` then rounds. Should use integer arithmetic to avoid floating-point rounding errors.
+
+**Landed (2026-05-06):**
+
+- Replaced fractional-second millisecond conversion in `src/iso_duration.rs` with integer arithmetic + rounding digit.
+- Added rounding-boundary regression tests (`0.9994`, `0.9995`, `1.0005` seconds cases).
 
 ### 25. `get_array` clones the entire array on every aggregate call `[open]`
 
