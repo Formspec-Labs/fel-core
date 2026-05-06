@@ -446,10 +446,7 @@ impl Parser {
                 Token::Dot => {
                     self.advance();
                     let name = self.eat_identifier()?;
-                    expr = Expr::PostfixAccess {
-                        expr: Box::new(expr),
-                        path: vec![PathSegment::Dot(name)],
-                    };
+                    expr = self.attach_postfix_segment(expr, PathSegment::Dot(name));
                 }
                 Token::LBracket => {
                     self.advance();
@@ -466,15 +463,35 @@ impl Parser {
                         )));
                     };
                     self.expect(&Token::RBracket)?;
-                    expr = Expr::PostfixAccess {
-                        expr: Box::new(expr),
-                        path: vec![seg],
-                    };
+                    expr = self.attach_postfix_segment(expr, seg);
                 }
                 _ => break,
             }
         }
         Ok(expr)
+    }
+
+    fn attach_postfix_segment(&mut self, expr: Expr, seg: PathSegment) -> Expr {
+        match expr {
+            Expr::FieldRef { name, mut path } => {
+                path.push(seg);
+                Expr::FieldRef { name, path }
+            }
+            Expr::PostfixAccess {
+                expr: inner_expr,
+                mut path,
+            } => {
+                path.push(seg);
+                Expr::PostfixAccess {
+                    expr: inner_expr,
+                    path,
+                }
+            }
+            other => Expr::PostfixAccess {
+                expr: Box::new(other),
+                path: vec![seg],
+            },
+        }
     }
 
     // ── Atoms ───────────────────────────────────────────────────
@@ -1074,6 +1091,37 @@ mod tests {
                 path: vec![PathSegment::Wildcard, PathSegment::Dot("name".into())]
             }
         );
+    }
+
+    #[test]
+    fn bare_identifier_postfix_is_flat_field_ref() {
+        let expr = parse("x.a.b[0]").unwrap();
+        assert_eq!(
+            expr,
+            Expr::FieldRef {
+                name: Some("x".into()),
+                path: vec![
+                    PathSegment::Dot("a".into()),
+                    PathSegment::Dot("b".into()),
+                    PathSegment::Index(0),
+                ],
+            }
+        );
+    }
+
+    #[test]
+    fn parenthesized_expression_postfix_stays_single_postfix_node() {
+        let expr = parse("(1 + 2).a.b").unwrap();
+        match expr {
+            Expr::PostfixAccess { expr, path } => {
+                assert!(matches!(*expr, Expr::BinaryOp { .. }));
+                assert_eq!(
+                    path,
+                    vec![PathSegment::Dot("a".into()), PathSegment::Dot("b".into())]
+                );
+            }
+            other => panic!("expected PostfixAccess, got {other:?}"),
+        }
     }
 
     #[test]

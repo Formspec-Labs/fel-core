@@ -288,9 +288,19 @@ All parse methods are recursive with no depth tracking. Deeply nested expression
 - Removed root-level `Decimal` re-export from `src/lib.rs`.
 - Public API no longer directly pins downstream callers to `rust_decimal` through crate-root exports.
 
-### 28. `PostfixAccess` inconsistent with `FieldRef` path representation `[open]`
+### 28. `PostfixAccess` inconsistent with `FieldRef` path representation `[completed]`
 
 `src/parser.rs:412-448` — Each `.field` creates a nested `PostfixAccess`, while `FieldRef` uses a flat `Vec<PathSegment>`. The evaluator must handle both, doubling path-accession code.
+
+**Landed (2026-05-06):**
+
+- Refactored parser postfix construction to normalize path representation:
+  - Appends postfix segments directly into `Expr::FieldRef.path` when the base is a field/identifier.
+  - Flattens chained postfix operations into a single `Expr::PostfixAccess` node for non-field bases.
+- Added parser regressions:
+  - `bare_identifier_postfix_is_flat_field_ref`
+  - `parenthesized_expression_postfix_stays_single_postfix_node`
+- Verified with focused postfix tests and full `cargo test`.
 
 ### 29. `wire_style.rs` used inconsistently `[completed]`
 
