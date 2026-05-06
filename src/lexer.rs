@@ -234,8 +234,8 @@ impl<'a> Lexer<'a> {
             return self.read_date_literal();
         }
 
-        // Number literals (including negative via parser, not lexer)
-        if c.is_ascii_digit() || (c == '-' && self.peek_at(1).is_some_and(|c| c.is_ascii_digit())) {
+        // Number literals (unary minus is handled by the parser).
+        if c.is_ascii_digit() {
             return self.read_number();
         }
 

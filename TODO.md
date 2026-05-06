@@ -6,7 +6,7 @@ Audit findings from 2026-05-06 multi-agent review.
 
 ## FIX NEXT (highest risk open items)
 
-1. #1 Negative-number lexing breaks unspaced subtraction
+1. #1 Negative-number lexing breaks unspaced subtraction [completed 2026-05-06]
 2. #2 ExtensionRegistry is dead code (never invoked by evaluator)
 3. #5 `length(null)` null-propagation inconsistency
 4. #9 Decimal precision loss in JSON serialization
@@ -32,11 +32,17 @@ Guardrails:
 
 ## HIGH
 
-### 1. Negative-number lexing breaks unspaced subtraction `[open]`
+### 1. Negative-number lexing breaks unspaced subtraction `[completed]`
 
 `src/lexer.rs:238-239` — The condition `c == '-' && peek_at(1).is_ascii_digit()` lexes `-2` as a single `Number(-2)` token, making `1-2` fail to parse. The comment on line 237 says "negative via parser, not lexer" but the code does the opposite. Every subtraction without a space after `-` is broken. The parser already handles unary minus at `src/parser.rs:396-406`. All existing tests use spaces around operators, so this was never caught.
 
 **Fix:** Remove the `c == '-' && ...` arm from the condition. The parser's `parse_unary` already transforms `-5` into `UnaryOp::Neg(Number(5))`.
+
+**Landed (2026-05-06):**
+
+- Added regression test `test_unspaced_subtraction` in `tests/evaluator_tests.rs` to cover `1-2` (no spaces).
+- Updated `src/lexer.rs` to lex numbers only from digit-leading tokens; `-` now always lexes as `Token::Minus`.
+- Verified via focused and full suite runs (`cargo test --test lexer_tests`, `cargo test --test evaluator_tests`, `cargo test`).
 
 ### 2. ExtensionRegistry is dead code — never invoked by evaluator `[open]`
 

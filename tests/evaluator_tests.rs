@@ -107,6 +107,11 @@ fn test_basic_arithmetic() {
 }
 
 #[test]
+fn test_unspaced_subtraction() {
+    assert_eq!(eval("1-2"), num(-1));
+}
+
+#[test]
 fn test_arithmetic_precedence() {
     assert_eq!(eval("2 + 3 * 4"), num(14));
     assert_eq!(eval("(2 + 3) * 4"), num(20));
