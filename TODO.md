@@ -229,9 +229,16 @@ Note: `filter_where` reduced some duplication, but broad extraction is still pen
 
 `src/parser.rs:13-14` — `$x ?? $y > 5` parses as `($x ?? $y) > 5`. In JS/TS, `??` has lower precedence than comparison. This is now explicitly documented in parser precedence and appears intentional.
 
-### 23. No recursion depth limit in parser `[open]`
+### 23. No recursion depth limit in parser `[completed]`
 
 All parse methods are recursive with no depth tracking. Deeply nested expressions (10,000+ levels) could cause stack overflow. Add a max-depth counter.
+
+**Landed (2026-05-06):**
+
+- Added parser recursion-depth tracking in `src/parser.rs` with a hard maximum depth of 32 nested expression frames.
+- Parser now returns a parse error (`expression nesting exceeds maximum depth ...`) instead of recursing until stack overflow.
+- Added regression test `overly_deep_nesting_rejected` in `tests/parser_rejection_tests.rs`.
+- Verified with focused parser test + full `cargo test`.
 
 ### 24. Fractional seconds in ISO duration use f64 `[completed]`
 

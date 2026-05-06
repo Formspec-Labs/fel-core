@@ -147,6 +147,16 @@ fn whitespace_only_rejected() {
     assert_rejects("   ");
 }
 
+/// Robustness: excessively deep nesting is rejected before stack exhaustion.
+#[test]
+fn overly_deep_nesting_rejected() {
+    let depth = 100usize;
+    let mut input = "(".repeat(depth);
+    input.push('1');
+    input.push_str(&")".repeat(depth));
+    assert_rejects(&input);
+}
+
 // ── Trailing tokens ─────────────────────────────────────────────
 
 /// Spec: fel-grammar.md §7 L374-375 — must consume entire input

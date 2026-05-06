@@ -30,6 +30,8 @@ pub struct Parser {
     pos: usize,
     /// When > 0, suppress `in` as membership operator (inside let-value).
     no_in_depth: usize,
+    recursion_depth: usize,
+    max_recursion_depth: usize,
 }
 
 /// Parse a FEL expression string into an AST.
@@ -40,6 +42,8 @@ pub fn parse(input: &str) -> Result<Expr, Error> {
         tokens,
         pos: 0,
         no_in_depth: 0,
+        recursion_depth: 0,
+        max_recursion_depth: 32,
     };
     let expr = parser.parse_expression()?;
     if !parser.at_eof() {
@@ -106,6 +110,20 @@ impl Parser {
     }
 
     fn parse_let_or_if(&mut self) -> Result<Expr, Error> {
+        self.recursion_depth += 1;
+        if self.recursion_depth > self.max_recursion_depth {
+            self.recursion_depth -= 1;
+            return Err(Error::Parse(format!(
+                "expression nesting exceeds maximum depth of {}",
+                self.max_recursion_depth
+            )));
+        }
+        let result = self.parse_let_or_if_inner();
+        self.recursion_depth -= 1;
+        result
+    }
+
+    fn parse_let_or_if_inner(&mut self) -> Result<Expr, Error> {
         // let <name> = <value> in <body>
         if matches!(self.peek(), Token::Let) {
             self.advance(); // let
