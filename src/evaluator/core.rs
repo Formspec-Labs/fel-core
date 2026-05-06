@@ -282,6 +282,20 @@ impl<'a> Evaluator<'a> {
         true
     }
 
+    /// Records a type mismatch diagnostic and returns [`Value::Null`].
+    pub(super) fn reject_expected_type(
+        &mut self,
+        fn_name: &str,
+        expected: &str,
+        got: &Value,
+    ) -> Value {
+        self.diag(format!(
+            "{fn_name}: expected {expected}, got {}",
+            got.type_name()
+        ));
+        Value::Null
+    }
+
     /// True iff this evaluator is recording a trace. Cheap predictable branch.
     #[inline]
     pub(super) fn tracing(&self) -> bool {
@@ -1069,17 +1083,17 @@ impl<'a> Evaluator<'a> {
             "endsWith" => self.fn_str2(args, "endsWith", |s, p| Value::Boolean(s.ends_with(p))),
             "substring" => self.fn_substring(args),
             "replace" => self.fn_replace(args),
-            "upper" => self.fn_str1(args, |s| Value::String(s.to_uppercase())),
-            "lower" => self.fn_str1(args, |s| Value::String(s.to_lowercase())),
-            "trim" => self.fn_str1(args, |s| Value::String(s.trim().to_string())),
+            "upper" => self.fn_str1(args, "upper", |s| Value::String(s.to_uppercase())),
+            "lower" => self.fn_str1(args, "lower", |s| Value::String(s.to_lowercase())),
+            "trim" => self.fn_str1(args, "trim", |s| Value::String(s.trim().to_string())),
             "matches" => self.fn_matches(args),
             "format" => self.fn_format(args),
 
             // Numeric
             "round" => self.fn_round(args),
-            "floor" => self.fn_num1(args, |n| n.floor()),
-            "ceil" => self.fn_num1(args, |n| n.ceil()),
-            "abs" => self.fn_num1(args, |n| n.abs()),
+            "floor" => self.fn_num1(args, "floor", |n| n.floor()),
+            "ceil" => self.fn_num1(args, "ceil", |n| n.ceil()),
+            "abs" => self.fn_num1(args, "abs", |n| n.abs()),
             "power" => self.fn_power(args),
 
             // Date
@@ -1135,14 +1149,16 @@ impl<'a> Evaluator<'a> {
                 let v = self.eval_arg(args, 0);
                 match v {
                     Value::Money(m) => Value::Number(m.amount),
-                    _ => Value::Null,
+                    Value::Null => Value::Null,
+                    other => self.reject_expected_type("moneyAmount", "money", &other),
                 }
             }
             "moneyCurrency" => {
                 let v = self.eval_arg(args, 0);
                 match v {
                     Value::Money(m) => Value::String(m.currency),
-                    _ => Value::Null,
+                    Value::Null => Value::Null,
+                    other => self.reject_expected_type("moneyCurrency", "money", &other),
                 }
             }
             "moneyAdd" => self.fn_money_add(args),

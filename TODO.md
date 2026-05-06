@@ -91,9 +91,11 @@ Guardrails: one behavioral change per cycle; never ship without a test that demo
 
 ### 13. Inconsistent builtin diagnostics `[partial]`
 
-Mixed patterns: some type mismatches silent → Null (`builtins/strings.rs`, `moneyAmount` arm in `evaluator/core.rs` ~`1116+`), others explicit `diag`. Only structured `DiagnosticKind` today is undefined-function; `dates.rs` has a rare **warning**.
+**Landed:** `Evaluator::reject_expected_type(fn_name, expected, got)` — used by string builtins (`fn_str1`/`fn_str2`, `length`, `substring`, `replace`, `matches`, `format`), `fn_num1` (`floor`/`ceil`/`abs`), and **`moneyAmount` / `moneyCurrency`** (non-null wrong type).
 
-**Goal:** Central helpers on `Evaluator` (e.g. `require_arg_count`, typed `require_*`) so messages include function name and received shape before widening `DiagnosticKind`.
+**Still open:** casts (`number`, `string`, …), `fn_round` optional precision arg, logic builtins, remaining silent paths.
+
+**Goal:** Extend `reject_expected_type` / arity helpers; optional `DiagnosticKind::TypeMismatch` later.
 
 ---
 

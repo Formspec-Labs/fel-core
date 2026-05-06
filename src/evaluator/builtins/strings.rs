@@ -11,29 +11,34 @@ use super::super::util::dec;
 impl<'a> Evaluator<'a> {
     // ── String helpers ──────────────────────────────────────────
 
-    pub(in crate::evaluator) fn fn_str1(&mut self, args: &[Expr], f: fn(&str) -> Value) -> Value {
+    pub(in crate::evaluator) fn fn_str1(
+        &mut self,
+        args: &[Expr],
+        fn_name: &str,
+        f: fn(&str) -> Value,
+    ) -> Value {
         match self.eval_arg(args, 0) {
             Value::String(s) => f(&s),
             Value::Null => Value::Null,
-            _ => Value::Null,
+            other => self.reject_expected_type(fn_name, "string", &other),
         }
     }
 
     pub(in crate::evaluator) fn fn_str2(
         &mut self,
         args: &[Expr],
-        _name: &str,
+        name: &str,
         f: fn(&str, &str) -> Value,
     ) -> Value {
         let s = match self.eval_arg(args, 0) {
             Value::String(s) => s,
             Value::Null => return Value::Null,
-            _ => return Value::Null,
+            other => return self.reject_expected_type(name, "string", &other),
         };
         let s2 = match self.eval_arg(args, 1) {
             Value::String(s) => s,
             Value::Null => return Value::Null,
-            _ => return Value::Null,
+            other => return self.reject_expected_type(name, "string", &other),
         };
         f(&s, &s2)
     }
@@ -43,7 +48,7 @@ impl<'a> Evaluator<'a> {
             Value::String(s) => Value::Number(dec(s.chars().count() as i64)),
             Value::Array(a) => Value::Number(dec(a.len() as i64)),
             Value::Null => Value::Null,
-            _ => Value::Null,
+            other => self.reject_expected_type("length", "string or array", &other),
         }
     }
 
@@ -51,18 +56,20 @@ impl<'a> Evaluator<'a> {
         let s = match self.eval_arg(args, 0) {
             Value::String(s) => s,
             Value::Null => return Value::Null,
-            _ => return Value::Null,
+            other => return self.reject_expected_type("substring", "string", &other),
         };
         let start = match self.eval_arg(args, 1) {
             Value::Number(n) => n.to_i64().unwrap_or(1).max(1) as usize,
-            _ => return Value::Null,
+            Value::Null => return Value::Null,
+            other => return self.reject_expected_type("substring", "number", &other),
         };
         let chars: Vec<char> = s.chars().collect();
         let start_idx = start.saturating_sub(1);
         if args.len() > 2 {
             let len = match self.eval_arg(args, 2) {
                 Value::Number(n) => n.to_i64().unwrap_or(0).max(0) as usize,
-                _ => return Value::Null,
+                Value::Null => return Value::Null,
+                other => return self.reject_expected_type("substring", "number", &other),
             };
             let end = (start_idx + len).min(chars.len());
             Value::String(chars[start_idx.min(chars.len())..end].iter().collect())
@@ -75,17 +82,17 @@ impl<'a> Evaluator<'a> {
         let s = match self.eval_arg(args, 0) {
             Value::String(s) => s,
             Value::Null => return Value::Null,
-            _ => return Value::Null,
+            other => return self.reject_expected_type("replace", "string", &other),
         };
         let old = match self.eval_arg(args, 1) {
             Value::String(s) => s,
             Value::Null => return Value::Null,
-            _ => return Value::Null,
+            other => return self.reject_expected_type("replace", "string", &other),
         };
         let new = match self.eval_arg(args, 2) {
             Value::String(s) => s,
             Value::Null => return Value::Null,
-            _ => return Value::Null,
+            other => return self.reject_expected_type("replace", "string", &other),
         };
         Value::String(s.replace(&old, &new))
     }
@@ -94,12 +101,12 @@ impl<'a> Evaluator<'a> {
         let s = match self.eval_arg(args, 0) {
             Value::String(s) => s,
             Value::Null => return Value::Null,
-            _ => return Value::Null,
+            other => return self.reject_expected_type("matches", "string", &other),
         };
         let pattern = match self.eval_arg(args, 1) {
             Value::String(s) => s,
             Value::Null => return Value::Null,
-            _ => return Value::Null,
+            other => return self.reject_expected_type("matches", "string", &other),
         };
         match RegexBuilder::new(&pattern).size_limit(1_000_000).build() {
             Ok(re) => Value::Boolean(re.is_match(&s)),
@@ -120,7 +127,7 @@ impl<'a> Evaluator<'a> {
         let template = match self.eval(&args[0]) {
             Value::String(s) => s,
             Value::Null => return Value::Null,
-            _ => return Value::Null,
+            other => return self.reject_expected_type("format", "string", &other),
         };
         let values: Vec<String> = args[1..]
             .iter()

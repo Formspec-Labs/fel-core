@@ -482,6 +482,36 @@ fn test_money() {
 }
 
 #[test]
+fn test_money_amount_currency_type_mismatch_emits_diagnostic() {
+    let expr = parse("moneyAmount(42)").unwrap();
+    let env = MapEnvironment::new();
+    let out = evaluate(&expr, &env);
+    assert_eq!(out.value, Value::Null);
+    assert!(
+        out.diagnostics.iter().any(|d| {
+            d.message.contains("moneyAmount")
+                && d.message.contains("expected money")
+                && d.message.contains("number")
+        }),
+        "{:?}",
+        out.diagnostics
+    );
+
+    let expr = parse("moneyCurrency('x')").unwrap();
+    let out = evaluate(&expr, &env);
+    assert_eq!(out.value, Value::Null);
+    assert!(
+        out.diagnostics.iter().any(|d| {
+            d.message.contains("moneyCurrency")
+                && d.message.contains("expected money")
+                && d.message.contains("string")
+        }),
+        "{:?}",
+        out.diagnostics
+    );
+}
+
+#[test]
 fn test_money_add() {
     let result = eval("moneyAdd(money(100, 'USD'), money(50, 'USD'))");
     match result {

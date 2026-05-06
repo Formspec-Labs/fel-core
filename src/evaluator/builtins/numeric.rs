@@ -13,12 +13,13 @@ impl<'a> Evaluator<'a> {
     pub(in crate::evaluator) fn fn_num1(
         &mut self,
         args: &[Expr],
+        fn_name: &str,
         f: fn(Decimal) -> Decimal,
     ) -> Value {
         match self.eval_arg(args, 0) {
             Value::Number(n) => Value::Number(f(n)),
             Value::Null => Value::Null,
-            _ => Value::Null,
+            other => self.reject_expected_type(fn_name, "number", &other),
         }
     }
 
