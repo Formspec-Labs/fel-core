@@ -413,6 +413,12 @@ Reframe this as cleanup debt (docs/comments/tests) instead of active runtime bug
 - Removed stale hand-rolled-engine BUG commentary in `tests/regex_tests.rs`.
 - Kept runtime assertions intact and validated with `cargo test --test regex_tests`.
 
-### 40. Add stress/performance tests `[open]`
+### 40. Add stress/performance tests `[completed]`
 
 No tests for very large arrays, deeply nested expressions (current deepest test is 3 levels), large field maps. No criterion benchmarks.
+
+**Landed (2026-05-06):**
+
+- Added integration suite `tests/stress_tests.rs`: large array literal `sum`, 500-key field map lookup, parentheses nesting under parser limit, bounded flat `+` chain (left-deep AST stays within eval stack), long-input tokenization.
+- Left-deep addition chains must stay modest until evaluation becomes iterative; see test comment.
+- Verified with `cargo test --test stress_tests` and full `cargo test`.
