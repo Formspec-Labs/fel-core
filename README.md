@@ -34,6 +34,22 @@ Source string
 - **Parse errors** surface as `Error::Parse` wrapping `ParseError` (human-readable `message` plus optional byte `span`; see bundled rustdoc).
 - **Eval errors** produce `Diagnostic` entries and a null or partial value (non-fatal evaluation path).
 
+### Evaluation diagnostics (`kind`)
+
+Some diagnostics include structured `kind` when serialized with [`fel_diagnostics_to_json_value`](src/error.rs): **`undefinedFunction`** (`name`), **`typeMismatch`** (`fnName` / `fn_name`, `expected`, `got`). Plain message-only diagnostics omit `kind`.
+
+### Parser limits
+
+Maximum nested expression depth is **32** recursive frames (deep parentheses); exceeding it yields a parse error before stack exhaustion.
+
+### ISO 8601 duration fractional seconds
+
+The duration parser maps fractional seconds to milliseconds using the **first four** fractional digits (three millisecond digits plus one rounding digit); further digits do not increase precision beyond that quantization.
+
+### Crate-root API
+
+Stable entry points (`evaluate`, `Trace`, `IndexMap`, JSON helpers, …) are re-exported at the crate root. Implementation modules such as `trace` and `iso_duration` are `pub(crate)` so downstream code prefers stable paths.
+
 ### JSON conversion and dates
 
 [`convert`](src/convert.rs) serializes FEL dates as ISO strings and does **not** coerce arbitrary JSON strings into `Date` on ingest (see `string_no_date_coercion` tests). That avoids silent type surprises unless a host opts into an explicit tagged shape (similar to Money’s `$type` marker).

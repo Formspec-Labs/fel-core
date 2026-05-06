@@ -455,6 +455,36 @@ Resolved items from [`TODO.md`](TODO.md) backlog sequencing. Cross-repo touch-up
 
 ---
 
+## Open backlog R1–R20 (2026-05-06 follow-up swarm) `[completed]`
+
+**Source:** rows formerly in [`TODO.md`](TODO.md) (plan signed-off same day).
+
+**Landed (2026-05-06):**
+
+- **R1 / tracing docs:** Pure-function requirement documented on [`is_eager_traceable_function`](src/evaluator/util.rs); mirrored at traced [`Expr::FunctionCall`](src/evaluator/core.rs).
+- **R2:** [`sum()`](src/evaluator/builtins/aggregates.rs) rejects any array containing `Money` (including mixed with numbers); regression test.
+- **R3:** [`CallArgCache`](src/evaluator/core.rs) slice-pointer contract documented.
+- **R4:** Fractional-second digit policy in [`iso_duration`](src/iso_duration.rs) + README.
+- **R5:** Parser rejects chained `==`/`!=` and aligns chained relational rejection ([`parse_equality`](src/parser.rs), [`parse_comparison`](src/parser.rs)); tests in [`tests/parser_rejection_tests.rs`](tests/parser_rejection_tests.rs).
+- **R6:** README documents **32** nesting depth limit.
+- **R7:** Arity helper message **`requires at least {n} arguments`** ([`require_min_args`](src/evaluator/core.rs)); tests/comments updated.
+- **R8:** [`evaluate_with_trace_and_extensions`](src/evaluator/core.rs); extension fallback emits [`TraceStep::FunctionCalled`](src/trace.rs) when tracing; re-exported from [`lib.rs`](src/lib.rs).
+- **R9 / R10 / façade:** README sections for diagnostics, limits, ISO fractions, crate-root API; **`pub use indexmap::IndexMap`** at crate root.
+- **R11:** Explicit [`Expr::VarRef`](src/interpolation.rs) arm in `expr_is_interpolation_static_literal`.
+- **R12:** VarRef vs `$` parity test ([`tests/evaluator_tests.rs`](tests/evaluator_tests.rs)).
+- **R13:** [`CurrencyCode::as_str`](src/types.rs) `# Panics` docs.
+- **R14:** AST ternary / keyword-if non-boolean condition uses [`reject_expected_type("if", ...)`](src/evaluator/core.rs).
+- **R15:** [`DiagnosticKind::TypeMismatch`](src/error.rs) + JSON wire; [`reject_expected_type`](src/evaluator/core.rs) / [`diag_expected_type`](src/evaluator/core.rs); [`get_array`](src/evaluator/core.rs) uses structured mismatch.
+- **R16:** [`test_undefined_function`](tests/evaluator_tests.rs) asserts kind + JSON shape (`serde_json` dev-dep).
+- **R17:** Shared [`diag_expected_type`](src/evaluator/core.rs) (implemented together with R15).
+- **R18:** [`eval_date_operand`](src/evaluator/builtins/dates.rs) diagnostics for wrong types and invalid date strings; [`fn_date_part`](src/evaluator/builtins/dates.rs) threading.
+- **R19:** [`tests/stress_tests.rs`](tests/stress_tests.rs) parse+eval cross-check on long flat addition chain.
+- **R20:** [`tests/environment_integration_tests.rs`](tests/environment_integration_tests.rs) — `formspec_environment_from_json_map` + evaluate.
+
+**Verify:** `cargo test -p fel-core`; `cargo test -p formspec-core` and `cargo test -p wos-core` from sibling workspaces passed against these changes.
+
+---
+
 ## Delivered ID quick reference (audit initiative)
 
 Moved from [`TODO.md`](TODO.md) — short index of closed backlog IDs and related stack work (no duplicate narrative; see sections above for detail).
