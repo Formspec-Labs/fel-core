@@ -196,9 +196,15 @@ Note: `filter_where` reduced some duplication, but broad extraction is still pen
 - Removed `Error::Eval` variant from `src/error.rs`.
 - Updated README wording to reflect diagnostic-first evaluation failures.
 
-### 19. Over-broad re-exports of schema types in public API `[open]`
+### 19. Over-broad re-exports of schema types in public API `[completed]`
 
 `src/lib.rs:47-52` — `BuiltinFunctionCatalogEntry`, `Example`, `Parameter`, `FelType`, `emit_schema_json` are schema-generation internals. Only `ExtensionRegistry`, `ExtensionError`, `ExtensionFunc`, `Package`, and catalog query functions need to be public.
+
+**Landed (2026-05-06):**
+
+- Removed schema-internal root re-exports from `src/lib.rs` (`BuiltinFunctionCatalogEntry`, `Example`, `Parameter`, `FelType`, `emit_schema_json`).
+- Updated in-repo callsites to use module-qualified access via `fel_core::extensions::emit_schema_json`.
+- Verified with full `cargo test` pass.
 
 ### 20. Tracing double-evaluates arguments for eager functions `[open]`
 
