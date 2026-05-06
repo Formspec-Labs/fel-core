@@ -150,34 +150,64 @@ pub fn tokenize(input: &str) -> Result<Vec<PositionedToken>, String> {
         .collect())
 }
 
-/// FEL lexer tokens as JSON (camelCase keys) for host bindings.
+/// FEL lexer tokens as JSON for host bindings (default `camelCase`).
 pub fn tokenize_to_json_value(input: &str) -> Result<serde_json::Value, String> {
+    tokenize_to_json_value_styled(input, JsonWireStyle::JsCamel)
+}
+
+/// FEL lexer tokens as JSON with configurable key style.
+pub fn tokenize_to_json_value_styled(
+    input: &str,
+    style: JsonWireStyle,
+) -> Result<serde_json::Value, String> {
     let tokens = tokenize(input)?;
     Ok(serde_json::Value::Array(
         tokens
             .into_iter()
             .map(|token| {
-                serde_json::json!({
-                    "tokenType": token.token_type,
-                    "text": token.text,
-                    "start": token.start,
-                    "end": token.end,
-                })
+                match style {
+                    JsonWireStyle::JsCamel => serde_json::json!({
+                        "tokenType": token.token_type,
+                        "text": token.text,
+                        "start": token.start,
+                        "end": token.end,
+                    }),
+                    JsonWireStyle::PythonSnake => serde_json::json!({
+                        "token_type": token.token_type,
+                        "text": token.text,
+                        "start": token.start,
+                        "end": token.end,
+                    }),
+                }
             })
             .collect(),
     ))
 }
 
-/// Evaluation diagnostics as JSON objects (`message`, `severity` wire string).
+/// Evaluation diagnostics as JSON objects (default `camelCase`).
 pub fn fel_diagnostics_to_json_value(diagnostics: &[Diagnostic]) -> serde_json::Value {
+    fel_diagnostics_to_json_value_styled(diagnostics, JsonWireStyle::JsCamel)
+}
+
+/// Evaluation diagnostics as JSON objects with configurable key style.
+pub fn fel_diagnostics_to_json_value_styled(
+    diagnostics: &[Diagnostic],
+    style: JsonWireStyle,
+) -> serde_json::Value {
     serde_json::Value::Array(
         diagnostics
             .iter()
             .map(|d| {
-                serde_json::json!({
-                    "message": d.message,
-                    "severity": d.severity.as_wire_str(),
-                })
+                match style {
+                    JsonWireStyle::JsCamel => serde_json::json!({
+                        "message": d.message,
+                        "severity": d.severity.as_wire_str(),
+                    }),
+                    JsonWireStyle::PythonSnake => serde_json::json!({
+                        "message": d.message,
+                        "severity": d.severity.as_wire_str(),
+                    }),
+                }
             })
             .collect(),
     )
@@ -191,4 +221,45 @@ pub fn eval_with_fields(
     let expr = parse(input)?;
     let env = MapEnvironment::with_fields(fields);
     Ok(evaluate(&expr, &env))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn tokenize_json_respects_wire_style() {
+        let js = tokenize_to_json_value_styled("1", JsonWireStyle::JsCamel).expect("tokenize");
+        let py =
+            tokenize_to_json_value_styled("1", JsonWireStyle::PythonSnake).expect("tokenize");
+
+        assert_eq!(
+            js,
+            json!([
+                { "tokenType": "NumberLiteral", "text": "1", "start": 0, "end": 1 },
+                { "tokenType": "EOF", "text": "", "start": 1, "end": 1 }
+            ])
+        );
+        assert_eq!(
+            py,
+            json!([
+                { "token_type": "NumberLiteral", "text": "1", "start": 0, "end": 1 },
+                { "token_type": "EOF", "text": "", "start": 1, "end": 1 }
+            ])
+        );
+    }
+
+    #[test]
+    fn diagnostic_json_styled_matches_default_shape() {
+        let diagnostics = vec![Diagnostic::error("boom")];
+        let js = fel_diagnostics_to_json_value_styled(&diagnostics, JsonWireStyle::JsCamel);
+        let py = fel_diagnostics_to_json_value_styled(&diagnostics, JsonWireStyle::PythonSnake);
+        let default = fel_diagnostics_to_json_value(&diagnostics);
+
+        let expected = json!([{ "message": "boom", "severity": "error" }]);
+        assert_eq!(js, expected);
+        assert_eq!(py, expected);
+        assert_eq!(default, expected);
+    }
 }

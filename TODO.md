@@ -292,9 +292,19 @@ All parse methods are recursive with no depth tracking. Deeply nested expression
 
 `src/parser.rs:412-448` — Each `.field` creates a nested `PostfixAccess`, while `FieldRef` uses a flat `Vec<PathSegment>`. The evaluator must handle both, doubling path-accession code.
 
-### 29. `wire_style.rs` used inconsistently `[open]`
+### 29. `wire_style.rs` used inconsistently `[completed]`
 
 `src/wire_style.rs` defines `JsonWireStyle` for dependency JSON keys, but other JSON emission functions (`tokenize_to_json_value`, `fel_diagnostics_to_json_value`) hardcode camelCase. Python hosts get inconsistent key casing.
+
+**Landed (2026-05-06):**
+
+- Added styled JSON emitters in `src/lib.rs`:
+  - `tokenize_to_json_value_styled(input, style)`
+  - `fel_diagnostics_to_json_value_styled(diagnostics, style)`
+- Kept existing functions (`tokenize_to_json_value`, `fel_diagnostics_to_json_value`) as backward-compatible camelCase defaults.
+- `tokenize_to_json_value_styled` now emits `tokenType` for `JsCamel` and `token_type` for `PythonSnake`.
+- Added unit tests covering style-specific token key casing and diagnostic output parity.
+- Verified with targeted style tests and full `cargo test`.
 
 ### 30. `Money.currency` should be a fixed-size type `[open]`
 
