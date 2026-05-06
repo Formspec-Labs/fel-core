@@ -10,6 +10,12 @@ use crate::types::*;
 use super::super::core::Evaluator;
 use super::super::util::{dec, parse_time_str};
 
+enum DateOperand {
+    Null,
+    Ok(Date),
+    Invalid,
+}
+
 impl<'a> Evaluator<'a> {
     // ── Date helpers ────────────────────────────────────────────
 
@@ -32,14 +38,10 @@ impl<'a> Evaluator<'a> {
         args: &[Expr],
         f: fn(&Date) -> Decimal,
     ) -> Value {
-        match self.eval_arg(args, 0) {
-            Value::Date(d) => Value::Number(f(&d)),
-            Value::String(s) => match self.coerce_string_to_date(&s) {
-                Some(d) => Value::Number(f(&d)),
-                None => Value::Null,
-            },
-            Value::Null => Value::Null,
-            _ => Value::Null,
+        match self.eval_date_operand(args, 0) {
+            DateOperand::Null => Value::Null,
+            DateOperand::Ok(d) => Value::Number(f(&d)),
+            DateOperand::Invalid => Value::Null,
         }
     }
 
@@ -136,21 +138,13 @@ impl<'a> Evaluator<'a> {
     }
 
     pub(in crate::evaluator) fn fn_date_diff(&mut self, args: &[Expr]) -> Value {
-        let d1 = match self.eval_arg(args, 0) {
-            Value::Date(d) => d,
-            Value::String(s) => match self.coerce_string_to_date(&s) {
-                Some(d) => d,
-                None => return Value::Null,
-            },
-            _ => return Value::Null,
+        let d1 = match self.eval_date_operand(args, 0) {
+            DateOperand::Ok(d) => d,
+            DateOperand::Null | DateOperand::Invalid => return Value::Null,
         };
-        let d2 = match self.eval_arg(args, 1) {
-            Value::Date(d) => d,
-            Value::String(s) => match self.coerce_string_to_date(&s) {
-                Some(d) => d,
-                None => return Value::Null,
-            },
-            _ => return Value::Null,
+        let d2 = match self.eval_date_operand(args, 1) {
+            DateOperand::Ok(d) => d,
+            DateOperand::Null | DateOperand::Invalid => return Value::Null,
         };
         let unit = match self.eval_arg(args, 2) {
             Value::String(s) => s,
@@ -172,13 +166,9 @@ impl<'a> Evaluator<'a> {
     }
 
     pub(in crate::evaluator) fn fn_date_add(&mut self, args: &[Expr]) -> Value {
-        let d = match self.eval_arg(args, 0) {
-            Value::Date(d) => d,
-            Value::String(s) => match self.coerce_string_to_date(&s) {
-                Some(d) => d,
-                None => return Value::Null,
-            },
-            _ => return Value::Null,
+        let d = match self.eval_date_operand(args, 0) {
+            DateOperand::Ok(d) => d,
+            DateOperand::Null | DateOperand::Invalid => return Value::Null,
         };
         let n = match self.eval_arg(args, 1) {
             Value::Number(n) => n.to_i64().unwrap_or(0),
@@ -222,5 +212,17 @@ impl<'a> Evaluator<'a> {
     /// Try to coerce an ISO date/datetime string to Date. Returns None on failure.
     pub(in crate::evaluator) fn coerce_string_to_date(&self, s: &str) -> Option<Date> {
         parse_date_literal(&format!("@{s}")).or_else(|| parse_datetime_literal(&format!("@{s}")))
+    }
+
+    fn eval_date_operand(&mut self, args: &[Expr], idx: usize) -> DateOperand {
+        match self.eval_arg(args, idx) {
+            Value::Null => DateOperand::Null,
+            Value::Date(d) => DateOperand::Ok(d),
+            Value::String(s) => match self.coerce_string_to_date(&s) {
+                Some(d) => DateOperand::Ok(d),
+                None => DateOperand::Invalid,
+            },
+            _ => DateOperand::Invalid,
+        }
     }
 }

@@ -273,6 +273,15 @@ impl<'a> Evaluator<'a> {
         out
     }
 
+    /// Emits `{fn_name}: requires {min} arguments` and returns `false` when `args.len() < min`.
+    pub(super) fn require_min_args(&mut self, args: &[Expr], min: usize, fn_name: &str) -> bool {
+        if args.len() < min {
+            self.diag(format!("{fn_name}: requires {min} arguments"));
+            return false;
+        }
+        true
+    }
+
     /// True iff this evaluator is recording a trace. Cheap predictable branch.
     #[inline]
     pub(super) fn tracing(&self) -> bool {
@@ -1244,8 +1253,7 @@ impl<'a> Evaluator<'a> {
 
     /// Filter array elements by predicate (shared by sumWhere / avgWhere / minWhere / maxWhere / moneySumWhere).
     pub(super) fn filter_where(&mut self, args: &[Expr], fn_name: &str) -> Option<Vec<Value>> {
-        if args.len() < 2 {
-            self.diag(format!("{fn_name}: requires 2 arguments"));
+        if !self.require_min_args(args, 2, fn_name) {
             return None;
         }
         let arr_val = self.eval(&args[0]);

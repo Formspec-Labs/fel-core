@@ -99,17 +99,11 @@ Mixed patterns: some type mismatches silent → Null (`builtins/strings.rs`, `mo
 
 ### 14. Duplication across builtins `[partial]`
 
-**Landed:** `evaluator/builtins/helpers.rs` — `cmp_ordered_min_max`, `fold_min_max_choice`, `fold_money_sum`. `Evaluator::eval_under_dollar` in `core.rs` dedupes `$` binding for `filter_where`, `countWhere`, `every`, `some`.
+**Landed:** `evaluator/builtins/helpers.rs` — `cmp_ordered_min_max`, `fold_min_max_choice`, `fold_money_sum`. `Evaluator::eval_under_dollar` in `core.rs` dedupes `$` binding for `filter_where`, `countWhere`, `every`, `some`. `Evaluator::require_min_args` — used by `filter_where`, `countWhere`, `every`, `some`. `builtins/dates.rs` — `DateOperand` + `eval_date_operand` for `datePart`, `dateDiff`, `dateAdd`.
 
-**Still open:**
+**Still open:** Other builtins with manual arity checks (e.g. `if:` exact count); silent type mismatches → **#13** (`require_type`-style funnel).
 
-| Pattern | Example locations |
-|---------|-------------------|
-| Date-or-string → Date | `builtins/dates.rs` (several fns) |
-| Arity checks | scattered vs `filter_where`-style central helper |
-| Silent type mismatches (#13) | `require_arg_count` / `require_type`-style funnel |
-
-**Goal:** Continue extracting date coercion and arity helpers; then #13 on top.
+**Goal:** Normalize diagnostics (#13); optional `require_exact_args` / spread remaining arity sites.
 
 ---
 
