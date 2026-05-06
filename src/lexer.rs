@@ -542,6 +542,124 @@ pub fn sanitize_fel_identifier(s: &str) -> String {
     result
 }
 
+/// One lexeme from [`tokenize`] for host bindings and tooling (stable type names + source span).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PositionedToken {
+    /// Logical token kind (e.g. `NumberLiteral`, `Identifier`).
+    pub token_type: String,
+    /// Lexeme text from the source.
+    pub text: String,
+    /// Start offset in Unicode scalar indices.
+    pub start: usize,
+    /// End offset (exclusive) in Unicode scalar indices.
+    pub end: usize,
+}
+
+fn token_type_name(token: &Token) -> &'static str {
+    match token {
+        Token::Number(_) => "NumberLiteral",
+        Token::StringLit(_) => "StringLiteral",
+        Token::True => "True",
+        Token::False => "False",
+        Token::Null => "Null",
+        Token::DateLiteral(_) => "DateLiteral",
+        Token::DateTimeLiteral(_) => "DateTimeLiteral",
+        Token::Identifier(_) => "Identifier",
+        Token::Let => "Let",
+        Token::In => "In",
+        Token::If => "If",
+        Token::Then => "Then",
+        Token::Else => "Else",
+        Token::And => "And",
+        Token::Or => "Or",
+        Token::Not => "Not",
+        Token::Bang => "Bang",
+        Token::Plus => "Plus",
+        Token::Minus => "Minus",
+        Token::Star => "Asterisk",
+        Token::Slash => "Slash",
+        Token::Percent => "Percent",
+        Token::Ampersand => "Ampersand",
+        Token::Eq => "Equals",
+        Token::NotEq => "NotEquals",
+        Token::Lt => "Less",
+        Token::Gt => "Greater",
+        Token::LtEq => "LessEqual",
+        Token::GtEq => "GreaterEqual",
+        Token::DoubleQuestion => "DoubleQuestion",
+        Token::Question => "Question",
+        Token::LParen => "LRound",
+        Token::RParen => "RRound",
+        Token::LBracket => "LSquare",
+        Token::RBracket => "RSquare",
+        Token::LBrace => "LCurly",
+        Token::RBrace => "RCurly",
+        Token::Comma => "Comma",
+        Token::Dot => "Dot",
+        Token::Colon => "Colon",
+        Token::Dollar => "Dollar",
+        Token::At => "At",
+        Token::Eof => "EOF",
+    }
+}
+
+fn slice_by_char_offsets(input: &str, start: usize, end: usize) -> String {
+    input
+        .chars()
+        .skip(start)
+        .take(end.saturating_sub(start))
+        .collect()
+}
+
+/// Tokenizes FEL source into [`PositionedToken`]s (lexical analysis only; no parse).
+pub fn tokenize(input: &str) -> Result<Vec<PositionedToken>, String> {
+    let mut lexer = Lexer::new(input);
+    let tokens = lexer.tokenize()?;
+    Ok(tokens
+        .into_iter()
+        .map(|token| PositionedToken {
+            token_type: token_type_name(&token.token).to_string(),
+            text: slice_by_char_offsets(input, token.span.start, token.span.end),
+            start: token.span.start,
+            end: token.span.end,
+        })
+        .collect())
+}
+
+/// FEL lexer tokens as JSON for host bindings (default `camelCase`).
+pub fn tokenize_to_json_value(input: &str) -> Result<serde_json::Value, String> {
+    tokenize_to_json_value_styled(input, crate::wire_style::JsonWireStyle::JsCamel)
+}
+
+/// FEL lexer tokens as JSON with configurable key style.
+pub fn tokenize_to_json_value_styled(
+    input: &str,
+    style: crate::wire_style::JsonWireStyle,
+) -> Result<serde_json::Value, String> {
+    let tokens = tokenize(input)?;
+    Ok(serde_json::Value::Array(
+        tokens
+            .into_iter()
+            .map(|token| {
+                match style {
+                    crate::wire_style::JsonWireStyle::JsCamel => serde_json::json!({
+                        "tokenType": token.token_type,
+                        "text": token.text,
+                        "start": token.start,
+                        "end": token.end,
+                    }),
+                    crate::wire_style::JsonWireStyle::PythonSnake => serde_json::json!({
+                        "token_type": token.token_type,
+                        "text": token.text,
+                        "start": token.start,
+                        "end": token.end,
+                    }),
+                }
+            })
+            .collect(),
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(clippy::missing_docs_in_private_items)]
@@ -689,5 +807,31 @@ mod tests {
     fn test_sanitize_empty_or_all_invalid() {
         assert_eq!(sanitize_fel_identifier(""), "_");
         assert_eq!(sanitize_fel_identifier("!@#$"), "_");
+    }
+
+    #[test]
+    fn tokenize_json_respects_wire_style() {
+        use serde_json::json;
+
+        use crate::wire_style::JsonWireStyle;
+
+        let js = tokenize_to_json_value_styled("1", JsonWireStyle::JsCamel).expect("tokenize");
+        let py =
+            tokenize_to_json_value_styled("1", JsonWireStyle::PythonSnake).expect("tokenize");
+
+        assert_eq!(
+            js,
+            json!([
+                { "tokenType": "NumberLiteral", "text": "1", "start": 0, "end": 1 },
+                { "tokenType": "EOF", "text": "", "start": 1, "end": 1 }
+            ])
+        );
+        assert_eq!(
+            py,
+            json!([
+                { "token_type": "NumberLiteral", "text": "1", "start": 0, "end": 1 },
+                { "token_type": "EOF", "text": "", "start": 1, "end": 1 }
+            ])
+        );
     }
 }

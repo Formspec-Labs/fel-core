@@ -38,12 +38,13 @@ pub use dependencies::{
 };
 pub use environment::{FormspecEnvironment, MipState, RepeatContext};
 pub use error::{
-    Diagnostic, Error, Severity, has_error_diagnostics, reject_undefined_functions,
+    Diagnostic, Error, Severity, fel_diagnostics_to_json_value,
+    fel_diagnostics_to_json_value_styled, has_error_diagnostics, reject_undefined_functions,
     undefined_function_names_from_diagnostics,
 };
 pub use evaluator::{
     Environment, EvalResult, Evaluator, MapEnvironment, evaluate, evaluate_with_extensions,
-    evaluate_with_trace,
+    evaluate_with_trace, eval_with_fields,
 };
 pub use extensions::{
     ExtensionError, ExtensionFn, ExtensionFunc, ExtensionRegistry, Package,
@@ -52,7 +53,10 @@ pub use extensions::{
 };
 pub use interpolation::expr_is_interpolation_static_literal;
 pub use iso_duration::{IsoDurationParse, parse_iso8601_duration, parse_iso8601_duration_ms};
-pub use lexer::{is_valid_fel_identifier, sanitize_fel_identifier};
+pub use lexer::{
+    is_valid_fel_identifier, sanitize_fel_identifier, PositionedToken, tokenize,
+    tokenize_to_json_value, tokenize_to_json_value_styled,
+};
 pub use parser::parse;
 pub use prepare_host::{
     PrepareHostInput, PrepareHostOptions, host_options_from_json, prepare, prepare_for_host,
@@ -64,202 +68,3 @@ pub use types::{
     parse_date_literal, parse_datetime_literal,
 };
 pub use wire_style::JsonWireStyle;
-
-/// One lexeme from [`tokenize`] for host bindings and tooling (stable type names + source span).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PositionedToken {
-    /// Logical token kind (e.g. `NumberLiteral`, `Identifier`).
-    pub token_type: String,
-    /// Lexeme text from the source.
-    pub text: String,
-    /// Start offset in Unicode scalar indices.
-    pub start: usize,
-    /// End offset (exclusive) in Unicode scalar indices.
-    pub end: usize,
-}
-
-fn token_type_name(token: &lexer::Token) -> &'static str {
-    match token {
-        lexer::Token::Number(_) => "NumberLiteral",
-        lexer::Token::StringLit(_) => "StringLiteral",
-        lexer::Token::True => "True",
-        lexer::Token::False => "False",
-        lexer::Token::Null => "Null",
-        lexer::Token::DateLiteral(_) => "DateLiteral",
-        lexer::Token::DateTimeLiteral(_) => "DateTimeLiteral",
-        lexer::Token::Identifier(_) => "Identifier",
-        lexer::Token::Let => "Let",
-        lexer::Token::In => "In",
-        lexer::Token::If => "If",
-        lexer::Token::Then => "Then",
-        lexer::Token::Else => "Else",
-        lexer::Token::And => "And",
-        lexer::Token::Or => "Or",
-        lexer::Token::Not => "Not",
-        lexer::Token::Bang => "Bang",
-        lexer::Token::Plus => "Plus",
-        lexer::Token::Minus => "Minus",
-        lexer::Token::Star => "Asterisk",
-        lexer::Token::Slash => "Slash",
-        lexer::Token::Percent => "Percent",
-        lexer::Token::Ampersand => "Ampersand",
-        lexer::Token::Eq => "Equals",
-        lexer::Token::NotEq => "NotEquals",
-        lexer::Token::Lt => "Less",
-        lexer::Token::Gt => "Greater",
-        lexer::Token::LtEq => "LessEqual",
-        lexer::Token::GtEq => "GreaterEqual",
-        lexer::Token::DoubleQuestion => "DoubleQuestion",
-        lexer::Token::Question => "Question",
-        lexer::Token::LParen => "LRound",
-        lexer::Token::RParen => "RRound",
-        lexer::Token::LBracket => "LSquare",
-        lexer::Token::RBracket => "RSquare",
-        lexer::Token::LBrace => "LCurly",
-        lexer::Token::RBrace => "RCurly",
-        lexer::Token::Comma => "Comma",
-        lexer::Token::Dot => "Dot",
-        lexer::Token::Colon => "Colon",
-        lexer::Token::Dollar => "Dollar",
-        lexer::Token::At => "At",
-        lexer::Token::Eof => "EOF",
-    }
-}
-
-/// Slice `input` by Unicode scalar indices `[start, end)` (used for token text in `tokenize`).
-fn slice_by_char_offsets(input: &str, start: usize, end: usize) -> String {
-    input
-        .chars()
-        .skip(start)
-        .take(end.saturating_sub(start))
-        .collect()
-}
-
-/// Tokenize FEL source into [`PositionedToken`]s (lexical analysis only; no parse).
-pub fn tokenize(input: &str) -> Result<Vec<PositionedToken>, String> {
-    let mut lexer = lexer::Lexer::new(input);
-    let tokens = lexer.tokenize()?;
-    Ok(tokens
-        .into_iter()
-        .map(|token| PositionedToken {
-            token_type: token_type_name(&token.token).to_string(),
-            text: slice_by_char_offsets(input, token.span.start, token.span.end),
-            start: token.span.start,
-            end: token.span.end,
-        })
-        .collect())
-}
-
-/// FEL lexer tokens as JSON for host bindings (default `camelCase`).
-pub fn tokenize_to_json_value(input: &str) -> Result<serde_json::Value, String> {
-    tokenize_to_json_value_styled(input, JsonWireStyle::JsCamel)
-}
-
-/// FEL lexer tokens as JSON with configurable key style.
-pub fn tokenize_to_json_value_styled(
-    input: &str,
-    style: JsonWireStyle,
-) -> Result<serde_json::Value, String> {
-    let tokens = tokenize(input)?;
-    Ok(serde_json::Value::Array(
-        tokens
-            .into_iter()
-            .map(|token| {
-                match style {
-                    JsonWireStyle::JsCamel => serde_json::json!({
-                        "tokenType": token.token_type,
-                        "text": token.text,
-                        "start": token.start,
-                        "end": token.end,
-                    }),
-                    JsonWireStyle::PythonSnake => serde_json::json!({
-                        "token_type": token.token_type,
-                        "text": token.text,
-                        "start": token.start,
-                        "end": token.end,
-                    }),
-                }
-            })
-            .collect(),
-    ))
-}
-
-/// Evaluation diagnostics as JSON objects (default `camelCase`).
-pub fn fel_diagnostics_to_json_value(diagnostics: &[Diagnostic]) -> serde_json::Value {
-    fel_diagnostics_to_json_value_styled(diagnostics, JsonWireStyle::JsCamel)
-}
-
-/// Evaluation diagnostics as JSON objects with configurable key style.
-pub fn fel_diagnostics_to_json_value_styled(
-    diagnostics: &[Diagnostic],
-    style: JsonWireStyle,
-) -> serde_json::Value {
-    serde_json::Value::Array(
-        diagnostics
-            .iter()
-            .map(|d| {
-                match style {
-                    JsonWireStyle::JsCamel => serde_json::json!({
-                        "message": d.message,
-                        "severity": d.severity.as_wire_str(),
-                    }),
-                    JsonWireStyle::PythonSnake => serde_json::json!({
-                        "message": d.message,
-                        "severity": d.severity.as_wire_str(),
-                    }),
-                }
-            })
-            .collect(),
-    )
-}
-
-/// Parse and evaluate a FEL expression with a flat field map.
-pub fn eval_with_fields(
-    input: &str,
-    fields: std::collections::HashMap<String, Value>,
-) -> Result<EvalResult, Error> {
-    let expr = parse(input)?;
-    let env = MapEnvironment::with_fields(fields);
-    Ok(evaluate(&expr, &env))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::json;
-
-    #[test]
-    fn tokenize_json_respects_wire_style() {
-        let js = tokenize_to_json_value_styled("1", JsonWireStyle::JsCamel).expect("tokenize");
-        let py =
-            tokenize_to_json_value_styled("1", JsonWireStyle::PythonSnake).expect("tokenize");
-
-        assert_eq!(
-            js,
-            json!([
-                { "tokenType": "NumberLiteral", "text": "1", "start": 0, "end": 1 },
-                { "tokenType": "EOF", "text": "", "start": 1, "end": 1 }
-            ])
-        );
-        assert_eq!(
-            py,
-            json!([
-                { "token_type": "NumberLiteral", "text": "1", "start": 0, "end": 1 },
-                { "token_type": "EOF", "text": "", "start": 1, "end": 1 }
-            ])
-        );
-    }
-
-    #[test]
-    fn diagnostic_json_styled_matches_default_shape() {
-        let diagnostics = vec![Diagnostic::error("boom")];
-        let js = fel_diagnostics_to_json_value_styled(&diagnostics, JsonWireStyle::JsCamel);
-        let py = fel_diagnostics_to_json_value_styled(&diagnostics, JsonWireStyle::PythonSnake);
-        let default = fel_diagnostics_to_json_value(&diagnostics);
-
-        let expected = json!([{ "message": "boom", "severity": "error" }]);
-        assert_eq!(js, expected);
-        assert_eq!(py, expected);
-        assert_eq!(default, expected);
-    }
-}

@@ -275,9 +275,16 @@ All parse methods are recursive with no depth tracking. Deeply nested expression
 - Updated aggregate/money/filter callsites to iterate borrowed elements while cloning only where required for scope rebinding.
 - Verified with full `cargo test` run.
 
-### 26. Implementation logic in `lib.rs` `[open]`
+### 26. Implementation logic in `lib.rs` `[completed]`
 
 `src/lib.rs:82-195` — `token_type_name()`, `slice_by_char_offsets()`, `tokenize()`, `tokenize_to_json_value()`, `fel_diagnostics_to_json_value()`, `eval_with_fields()` all belong in domain modules (lexer, error, evaluator).
+
+**Landed (2026-05-06):**
+
+- Moved `PositionedToken`, host `tokenize` / `tokenize_to_json_value*` into `src/lexer.rs` (wire-style JSON via `crate::wire_style`).
+- Moved `fel_diagnostics_to_json_value*` into `src/error.rs`.
+- Moved `eval_with_fields` into `src/evaluator/mod.rs`.
+- `lib.rs` re-exports only; wire-style tests live next to lexer and error implementations.
 
 ### 27. `rust_decimal::Decimal` re-export couples public API to third-party version `[completed]`
 

@@ -125,6 +125,35 @@ pub fn reject_undefined_functions(diagnostics: &[Diagnostic]) -> Result<(), Stri
     }
 }
 
+/// Evaluation diagnostics as JSON objects (default `camelCase`).
+pub fn fel_diagnostics_to_json_value(diagnostics: &[Diagnostic]) -> serde_json::Value {
+    fel_diagnostics_to_json_value_styled(diagnostics, crate::wire_style::JsonWireStyle::JsCamel)
+}
+
+/// Evaluation diagnostics as JSON objects with configurable key style.
+pub fn fel_diagnostics_to_json_value_styled(
+    diagnostics: &[Diagnostic],
+    style: crate::wire_style::JsonWireStyle,
+) -> serde_json::Value {
+    serde_json::Value::Array(
+        diagnostics
+            .iter()
+            .map(|d| {
+                match style {
+                    crate::wire_style::JsonWireStyle::JsCamel => serde_json::json!({
+                        "message": d.message,
+                        "severity": d.severity.as_wire_str(),
+                    }),
+                    crate::wire_style::JsonWireStyle::PythonSnake => serde_json::json!({
+                        "message": d.message,
+                        "severity": d.severity.as_wire_str(),
+                    }),
+                }
+            })
+            .collect(),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -169,5 +198,22 @@ mod tests {
         assert_eq!(Severity::Error.as_wire_str(), "error");
         assert_eq!(Severity::Warning.as_wire_str(), "warning");
         assert_eq!(Severity::Info.as_wire_str(), "info");
+    }
+
+    #[test]
+    fn diagnostic_json_styled_matches_default_shape() {
+        use serde_json::json;
+
+        use crate::wire_style::JsonWireStyle;
+
+        let diagnostics = vec![Diagnostic::error("boom")];
+        let js = fel_diagnostics_to_json_value_styled(&diagnostics, JsonWireStyle::JsCamel);
+        let py = fel_diagnostics_to_json_value_styled(&diagnostics, JsonWireStyle::PythonSnake);
+        let default = fel_diagnostics_to_json_value(&diagnostics);
+
+        let expected = json!([{ "message": "boom", "severity": "error" }]);
+        assert_eq!(js, expected);
+        assert_eq!(py, expected);
+        assert_eq!(default, expected);
     }
 }
