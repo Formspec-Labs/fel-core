@@ -231,9 +231,15 @@ All parse methods are recursive with no depth tracking. Deeply nested expression
 - Replaced fractional-second millisecond conversion in `src/iso_duration.rs` with integer arithmetic + rounding digit.
 - Added rounding-boundary regression tests (`0.9994`, `0.9995`, `1.0005` seconds cases).
 
-### 25. `get_array` clones the entire array on every aggregate call `[open]`
+### 25. `get_array` clones the entire array on every aggregate call `[completed]`
 
 `src/evaluator/core.rs:1121-1133` — Returns `Vec<Value>` by value. A borrowed slice would suffice for most builtins.
+
+**Landed (2026-05-06):**
+
+- Refactored `get_array` to return borrowed slices (`&[Value]`) instead of cloning arrays.
+- Updated aggregate/money/filter callsites to iterate borrowed elements while cloning only where required for scope rebinding.
+- Verified with full `cargo test` run.
 
 ### 26. Implementation logic in `lib.rs` `[open]`
 

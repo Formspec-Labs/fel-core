@@ -45,7 +45,7 @@ impl<'a> Evaluator<'a> {
             None => return Value::Null,
         };
         let mut total: Option<Money> = None;
-        for elem in &arr {
+        for elem in arr {
             match elem {
                 Value::Money(m) => match &total {
                     None => total = Some(m.clone()),

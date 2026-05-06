@@ -1170,9 +1170,9 @@ impl<'a> Evaluator<'a> {
         }
     }
 
-    pub(super) fn get_array(&mut self, val: &Value, fn_name: &str) -> Option<Vec<Value>> {
+    pub(super) fn get_array<'v>(&mut self, val: &'v Value, fn_name: &str) -> Option<&'v [Value]> {
         match val {
-            Value::Array(a) => Some(a.clone()),
+            Value::Array(a) => Some(a.as_slice()),
             Value::Null => None,
             _ => {
                 self.diag(format!(
@@ -1193,7 +1193,7 @@ impl<'a> Evaluator<'a> {
         let arr_val = self.eval(&args[0]);
         let arr = self.get_array(&arr_val, fn_name)?;
         let mut matched = Vec::new();
-        for elem in &arr {
+        for elem in arr {
             self.let_scopes
                 .push(HashMap::from([("$".to_string(), elem.clone())]));
             let pred = self.eval(&args[1]);

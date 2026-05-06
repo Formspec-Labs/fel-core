@@ -121,7 +121,7 @@ impl<'a> Evaluator<'a> {
             None => return Value::Null,
         };
         let mut count = 0i64;
-        for elem in &arr {
+        for elem in arr {
             self.let_scopes
                 .push(HashMap::from([("$".to_string(), elem.clone())]));
             let pred = self.eval(&args[1]);
@@ -143,7 +143,7 @@ impl<'a> Evaluator<'a> {
             Some(a) => a,
             None => return Value::Null,
         };
-        for elem in &arr {
+        for elem in arr {
             self.let_scopes
                 .push(HashMap::from([("$".to_string(), elem.clone())]));
             let pred = self.eval(&args[1]);
@@ -165,7 +165,7 @@ impl<'a> Evaluator<'a> {
             Some(a) => a,
             None => return Value::Null,
         };
-        for elem in &arr {
+        for elem in arr {
             self.let_scopes
                 .push(HashMap::from([("$".to_string(), elem.clone())]));
             let pred = self.eval(&args[1]);
