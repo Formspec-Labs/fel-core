@@ -7,6 +7,7 @@
 mod common;
 
 use common::{dec, eval, num, obj, s};
+use fel_core::ast::{BinaryOp as AstBinaryOp, Expr};
 use fel_core::*;
 use rust_decimal::Decimal;
 use std::collections::HashMap;
@@ -17,6 +18,44 @@ fn eval_result(input: &str) -> EvalResult {
     evaluate(&expr, &env)
 }
 
+/// Correctness: decimal overflow yields null + diagnostic (no panic). Regression for LibFuzzer crash.
+#[test]
+fn decimal_multiplication_overflow_is_null_not_panic() {
+    let result = eval_result("1+2266*75555555555555555555555555555*67");
+    assert_eq!(result.value, Value::Null);
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("overflow")),
+        "expected overflow diagnostic, got {:?}",
+        result.diagnostics
+    );
+}
+
+/// Correctness: extremely deep left-associated binary AST hits evaluation depth cap (LibFuzzer stack-overflow guard).
+#[test]
+fn evaluation_depth_limit_returns_null_with_diagnostic() {
+    let mut e = Expr::Number(Decimal::ZERO);
+    for _ in 0..200 {
+        e = Expr::BinaryOp {
+            op: AstBinaryOp::Add,
+            left: Box::new(e),
+            right: Box::new(Expr::Number(Decimal::ONE)),
+        };
+    }
+    let out = evaluate(&e, &MapEnvironment::new());
+    assert_eq!(out.value, Value::Null);
+    assert!(
+        out.diagnostics
+            .iter()
+            .any(|d| d.message.contains("depth")),
+        "{:?}",
+        out.diagnostics
+    );
+    // Avoid recursive drop on a deep Expr tree (would overflow the test thread stack).
+    std::mem::forget(e);
+}
 
 // ── eval_with_fields convenience function ───────────────────────
 
