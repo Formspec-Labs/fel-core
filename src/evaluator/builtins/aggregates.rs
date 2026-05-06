@@ -25,13 +25,8 @@ impl<'a> Evaluator<'a> {
         if name == "sum" {
             let non_null: Vec<&Value> = arr.iter().filter(|v| !v.is_null()).collect();
             if !non_null.is_empty() && non_null.iter().all(|v| matches!(v, Value::Money(_))) {
-                let total = non_null.iter().fold(Decimal::ZERO, |acc, value| {
-                    acc + match value {
-                        Value::Money(m) => m.amount,
-                        _ => Decimal::ZERO,
-                    }
-                });
-                return Value::Number(total);
+                self.diag("sum: money values are not supported; use moneySum() for currency-safe aggregation");
+                return Value::Null;
             }
         }
         let nums: Vec<Decimal> = arr.iter().filter_map(|v| v.as_number()).collect();

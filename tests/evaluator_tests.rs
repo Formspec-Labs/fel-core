@@ -284,6 +284,22 @@ fn test_sum() {
 }
 
 #[test]
+fn test_sum_rejects_money_array_with_diagnostic() {
+    let expr = parse("sum([money(10, 'USD'), money(20, 'USD')])").unwrap();
+    let env = MapEnvironment::new();
+    let result = evaluate(&expr, &env);
+    assert_eq!(result.value, Value::Null);
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("use moneySum()")),
+        "expected sum(money[]) guidance diagnostic, got {:?}",
+        result.diagnostics
+    );
+}
+
+#[test]
 fn test_count() {
     assert_eq!(eval("count([1, 2, null, 4])"), num(3)); // non-null count
 }

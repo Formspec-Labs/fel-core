@@ -58,12 +58,18 @@ The doc comment in `src/extensions.rs:8-22` contradicts the implementation: it c
 - Unknown function fallback now evaluates args, attempts `ExtensionRegistry::call`, and only emits `undefined function` if no extension matches.
 - Added regression test `test_extension_registry_fallback_executes_unknown_function`.
 
-### 3. `sum()` silently strips currency from Money values `[partial]`
+### 3. `sum()` silently strips currency from Money values `[completed]`
 
 `src/evaluator/builtins/aggregates.rs:25-36` — `sum([money(10,"USD"), money(20,"USD")])` returns the number `30`, discarding currency. Mixed-currency sums would silently add raw decimals together.
 The `moneySumWhere` path now enforces currency checks, but generic `sum()` still drops currency semantics.
 
 **Fix:** Either return `Money` when all elements are same-currency money, or emit a diagnostic and return Null for money-typed arrays (direct users to `moneySum()`).
+
+**Landed (2026-05-06):**
+
+- `sum(money[])` no longer strips currency into raw numbers.
+- Behavior is now explicit: emit diagnostic and return `Null` with guidance to use `moneySum()`.
+- Added regression test `test_sum_rejects_money_array_with_diagnostic`.
 
 ### 4. `boolean()` and `is_truthy()` have incompatible truth definitions `[completed]`
 
