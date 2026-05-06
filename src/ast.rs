@@ -55,11 +55,19 @@ pub enum Expr {
         left: Box<Expr>,
         right: Box<Expr>,
     },
+    /// Symbol-form conditional (`cond ? then : else`).
+    ///
+    /// Intentionally kept separate from [`Expr::IfThenElse`] so parser/printer
+    /// preserve the original surface syntax even though evaluator semantics
+    /// are shared.
     Ternary {
         condition: Box<Expr>,
         then_branch: Box<Expr>,
         else_branch: Box<Expr>,
     },
+    /// Keyword-form conditional (`if cond then then_branch else else_branch`).
+    ///
+    /// Intentionally distinct from [`Expr::Ternary`] for round-trip fidelity.
     IfThenElse {
         condition: Box<Expr>,
         then_branch: Box<Expr>,

@@ -230,9 +230,16 @@ Note: `filter_where` reduced some duplication, but broad extraction is still pen
 - Updated eager-traceable whitelist docs in `src/evaluator/util.rs` to reflect the new single-pass behavior.
 - Verified with focused trace test and full `cargo test`.
 
-### 21. `Ternary` and `IfThenElse` are structurally identical AST nodes `[open]`
+### 21. `Ternary` and `IfThenElse` are structurally identical AST nodes `[completed/doc-intent]`
 
 `src/ast.rs:57-67` — Same fields, same evaluator behavior. Separate only for printer fidelity. Consider unifying with a `syntax` tag, or document the rationale.
+
+**Landed (2026-05-06):**
+
+- Kept both nodes and documented rationale directly in `src/ast.rs`:
+  - `Expr::Ternary` preserves symbol-form source (`? :`).
+  - `Expr::IfThenElse` preserves keyword-form source (`if/then/else`).
+- Existing parser coverage already asserts distinct AST variants for both forms.
 
 ### 22. `??` precedence is tighter than comparison (unlike JS/TS) `[completed/doc-intent]`
 
