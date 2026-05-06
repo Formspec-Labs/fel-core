@@ -1,10 +1,10 @@
 #![allow(clippy::missing_docs_in_private_items)]
 use rust_decimal::Decimal;
-use std::collections::HashMap;
 
 use crate::ast::*;
 use crate::types::*;
 
+use super::helpers::{fold_min_max_choice, fold_money_sum};
 use super::super::core::Evaluator;
 use super::super::util::dec;
 
@@ -55,24 +55,7 @@ impl<'a> Evaluator<'a> {
             if non_null.is_empty() {
                 return Value::Null;
             }
-            let mut best = non_null[0].clone();
-            for elem in &non_null[1..] {
-                let cmp = match (&best, *elem) {
-                    (Value::Number(a), Value::Number(b)) => Some(a.cmp(b)),
-                    (Value::String(a), Value::String(b)) => Some(a.cmp(b)),
-                    (Value::Date(a), Value::Date(b)) => Some(a.ordinal().cmp(&b.ordinal())),
-                    _ => {
-                        self.diag(format!("{name}: mixed types"));
-                        return Value::Null;
-                    }
-                };
-                if let Some(ord) = cmp
-                    && ((is_min && ord.is_gt()) || (!is_min && ord.is_lt()))
-                {
-                    best = (*elem).clone();
-                }
-            }
-            return best;
+            return fold_min_max_choice(self, name, &non_null, is_min).unwrap_or(Value::Null);
         }
 
         // Aggregate form: min([1, 2, 3])
@@ -85,24 +68,7 @@ impl<'a> Evaluator<'a> {
         if non_null.is_empty() {
             return Value::Null;
         }
-        let mut best = non_null[0].clone();
-        for elem in &non_null[1..] {
-            let cmp = match (&best, *elem) {
-                (Value::Number(a), Value::Number(b)) => Some(a.cmp(b)),
-                (Value::String(a), Value::String(b)) => Some(a.cmp(b)),
-                (Value::Date(a), Value::Date(b)) => Some(a.ordinal().cmp(&b.ordinal())),
-                _ => {
-                    self.diag(format!("{name}: mixed types"));
-                    return Value::Null;
-                }
-            };
-            if let Some(ord) = cmp
-                && ((is_min && ord.is_gt()) || (!is_min && ord.is_lt()))
-            {
-                best = (*elem).clone();
-            }
-        }
-        best
+        fold_min_max_choice(self, name, &non_null, is_min).unwrap_or(Value::Null)
     }
 
     pub(in crate::evaluator) fn fn_count_where(&mut self, args: &[Expr]) -> Value {
@@ -117,10 +83,7 @@ impl<'a> Evaluator<'a> {
         };
         let mut count = 0i64;
         for elem in arr {
-            self.let_scopes
-                .push(HashMap::from([("$".to_string(), elem.clone())]));
-            let pred = self.eval(&args[1]);
-            self.let_scopes.pop();
+            let pred = self.eval_under_dollar(elem, &args[1]);
             if pred.is_truthy() {
                 count += 1;
             }
@@ -139,10 +102,7 @@ impl<'a> Evaluator<'a> {
             None => return Value::Null,
         };
         for elem in arr {
-            self.let_scopes
-                .push(HashMap::from([("$".to_string(), elem.clone())]));
-            let pred = self.eval(&args[1]);
-            self.let_scopes.pop();
+            let pred = self.eval_under_dollar(elem, &args[1]);
             if !pred.is_truthy() {
                 return Value::Boolean(false);
             }
@@ -161,10 +121,7 @@ impl<'a> Evaluator<'a> {
             None => return Value::Null,
         };
         for elem in arr {
-            self.let_scopes
-                .push(HashMap::from([("$".to_string(), elem.clone())]));
-            let pred = self.eval(&args[1]);
-            self.let_scopes.pop();
+            let pred = self.eval_under_dollar(elem, &args[1]);
             if pred.is_truthy() {
                 return Value::Boolean(true);
             }
@@ -199,24 +156,7 @@ impl<'a> Evaluator<'a> {
         if non_null.is_empty() {
             return Value::Null;
         }
-        let mut best = non_null[0].clone();
-        for elem in &non_null[1..] {
-            let cmp = match (&best, *elem) {
-                (Value::Number(a), Value::Number(b)) => Some(a.cmp(b)),
-                (Value::String(a), Value::String(b)) => Some(a.cmp(b)),
-                (Value::Date(a), Value::Date(b)) => Some(a.ordinal().cmp(&b.ordinal())),
-                _ => {
-                    self.diag("minWhere: mixed types".to_string());
-                    return Value::Null;
-                }
-            };
-            if let Some(ord) = cmp
-                && ord.is_gt()
-            {
-                best = (*elem).clone();
-            }
-        }
-        best
+        fold_min_max_choice(self, "minWhere", &non_null, true).unwrap_or(Value::Null)
     }
 
     pub(in crate::evaluator) fn fn_max_where(&mut self, args: &[Expr]) -> Value {
@@ -227,56 +167,13 @@ impl<'a> Evaluator<'a> {
         if non_null.is_empty() {
             return Value::Null;
         }
-        let mut best = non_null[0].clone();
-        for elem in &non_null[1..] {
-            let cmp = match (&best, *elem) {
-                (Value::Number(a), Value::Number(b)) => Some(a.cmp(b)),
-                (Value::String(a), Value::String(b)) => Some(a.cmp(b)),
-                (Value::Date(a), Value::Date(b)) => Some(a.ordinal().cmp(&b.ordinal())),
-                _ => {
-                    self.diag("maxWhere: mixed types".to_string());
-                    return Value::Null;
-                }
-            };
-            if let Some(ord) = cmp
-                && ord.is_lt()
-            {
-                best = (*elem).clone();
-            }
-        }
-        best
+        fold_min_max_choice(self, "maxWhere", &non_null, false).unwrap_or(Value::Null)
     }
 
     pub(in crate::evaluator) fn fn_money_sum_where(&mut self, args: &[Expr]) -> Value {
         let Some(matched) = self.filter_where(args, "moneySumWhere") else {
             return Value::Null;
         };
-        let mut total: Option<Money> = None;
-        for elem in &matched {
-            match elem {
-                Value::Money(m) => match &total {
-                    None => total = Some(m.clone()),
-                    Some(t) => {
-                        if t.currency != m.currency {
-                            self.diag("moneySumWhere: mixed currencies");
-                            return Value::Null;
-                        }
-                        total = Some(Money {
-                            amount: t.amount + m.amount,
-                            currency: t.currency.clone(),
-                        });
-                    }
-                },
-                Value::Null => {}
-                _ => {
-                    self.diag("moneySumWhere: non-money element");
-                    return Value::Null;
-                }
-            }
-        }
-        match total {
-            Some(t) => Value::Money(t),
-            None => Value::Null,
-        }
+        fold_money_sum(self, "moneySumWhere", matched.iter())
     }
 }

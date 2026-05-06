@@ -99,17 +99,17 @@ Mixed patterns: some type mismatches silent → Null (`builtins/strings.rs`, `mo
 
 ### 14. Duplication across builtins `[partial]`
 
-Hotspots (approximate; re-verify when editing):
+**Landed:** `evaluator/builtins/helpers.rs` — `cmp_ordered_min_max`, `fold_min_max_choice`, `fold_money_sum`. `Evaluator::eval_under_dollar` in `core.rs` dedupes `$` binding for `filter_where`, `countWhere`, `every`, `some`.
+
+**Still open:**
 
 | Pattern | Example locations |
 |---------|-------------------|
-| Ordered min/max across discriminant | `builtins/aggregates.rs` (variadic + aggregate + minWhere + maxWhere) |
-| Money fold + currency check | `builtins/money.rs`, `aggregates.rs` moneySumWhere |
 | Date-or-string → Date | `builtins/dates.rs` (several fns) |
-| Predicate `let` loops | `aggregates.rs` count/every/some vs `filter_where` in `core.rs` |
-| Arity checks | scattered vs centralized patterns |
+| Arity checks | scattered vs `filter_where`-style central helper |
+| Silent type mismatches (#13) | `require_arg_count` / `require_type`-style funnel |
 
-**Goal:** `compare_values`, `sum_money_values`, shared predicate iteration, `require_arg_count` — see refactor notes in scout pass; preserve behavior in the first extraction pass.
+**Goal:** Continue extracting date coercion and arity helpers; then #13 on top.
 
 ---
 

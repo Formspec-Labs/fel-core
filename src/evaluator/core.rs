@@ -264,6 +264,15 @@ impl<'a> Evaluator<'a> {
         self.diagnostics.push(Diagnostic::error(msg));
     }
 
+    /// Evaluates `pred` with `$` bound to `elem` for one let-scope frame.
+    pub(super) fn eval_under_dollar(&mut self, elem: &Value, pred: &Expr) -> Value {
+        self.let_scopes
+            .push(HashMap::from([("$".to_string(), elem.clone())]));
+        let out = self.eval(pred);
+        self.let_scopes.pop();
+        out
+    }
+
     /// True iff this evaluator is recording a trace. Cheap predictable branch.
     #[inline]
     pub(super) fn tracing(&self) -> bool {
@@ -1243,10 +1252,7 @@ impl<'a> Evaluator<'a> {
         let arr = self.get_array(&arr_val, fn_name)?;
         let mut matched = Vec::new();
         for elem in arr {
-            self.let_scopes
-                .push(HashMap::from([("$".to_string(), elem.clone())]));
-            let pred = self.eval(&args[1]);
-            self.let_scopes.pop();
+            let pred = self.eval_under_dollar(elem, &args[1]);
             if pred.is_truthy() {
                 matched.push(elem.clone());
             }

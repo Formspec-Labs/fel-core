@@ -2,6 +2,7 @@
 use crate::ast::*;
 use crate::types::*;
 
+use super::helpers::fold_money_sum;
 use super::super::core::Evaluator;
 
 impl<'a> Evaluator<'a> {
@@ -44,32 +45,6 @@ impl<'a> Evaluator<'a> {
             Some(a) => a,
             None => return Value::Null,
         };
-        let mut total: Option<Money> = None;
-        for elem in arr {
-            match elem {
-                Value::Money(m) => match &total {
-                    None => total = Some(m.clone()),
-                    Some(t) => {
-                        if t.currency != m.currency {
-                            self.diag("moneySum: mixed currencies");
-                            return Value::Null;
-                        }
-                        total = Some(Money {
-                            amount: t.amount + m.amount,
-                            currency: t.currency.clone(),
-                        });
-                    }
-                },
-                Value::Null => {}
-                _ => {
-                    self.diag("moneySum: non-money element");
-                    return Value::Null;
-                }
-            }
-        }
-        match total {
-            Some(t) => Value::Money(t),
-            None => Value::Null,
-        }
+        fold_money_sum(self, "moneySum", arr.iter())
     }
 }
