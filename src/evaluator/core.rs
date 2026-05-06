@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use crate::ast::*;
 use crate::convert::fel_to_json;
 use crate::error::Diagnostic;
+use crate::extensions::ExtensionRegistry;
 use crate::trace::{Trace, TraceStep};
 use crate::types::*;
 
@@ -70,6 +71,8 @@ pub trait Environment {
 pub struct MapEnvironment {
     /// Top-level and nested values (nested via object values); keys may be dotted.
     pub fields: HashMap<String, Value>,
+    /// Clock source for `today()` / `now()` lookups.
+    pub current_datetime: Option<Date>,
 }
 
 impl MapEnvironment {
@@ -77,12 +80,29 @@ impl MapEnvironment {
     pub fn new() -> Self {
         Self {
             fields: HashMap::new(),
+            current_datetime: Some(Date::DateTime {
+                year: 2026,
+                month: 3,
+                day: 20,
+                hour: 0,
+                minute: 0,
+                second: 0,
+            }),
         }
     }
 
     /// Pre-populated field map.
     pub fn with_fields(fields: HashMap<String, Value>) -> Self {
-        Self { fields }
+        Self {
+            fields,
+            ..Self::new()
+        }
+    }
+
+    /// Override the environment clock used by `today()` and `now()`.
+    pub fn with_current_datetime(mut self, current_datetime: Option<Date>) -> Self {
+        self.current_datetime = current_datetime;
+        self
     }
 }
 
@@ -125,22 +145,25 @@ impl Environment for MapEnvironment {
     }
 
     fn current_date(&self) -> Option<Date> {
-        Some(Date::Date {
-            year: 2026,
-            month: 3,
-            day: 20,
-        })
+        match &self.current_datetime {
+            Some(Date::Date { year, month, day }) => Some(Date::Date {
+                year: *year,
+                month: *month,
+                day: *day,
+            }),
+            Some(Date::DateTime {
+                year, month, day, ..
+            }) => Some(Date::Date {
+                year: *year,
+                month: *month,
+                day: *day,
+            }),
+            None => None,
+        }
     }
 
     fn current_datetime(&self) -> Option<Date> {
-        Some(Date::DateTime {
-            year: 2026,
-            month: 3,
-            day: 20,
-            hour: 0,
-            minute: 0,
-            second: 0,
-        })
+        self.current_datetime.clone()
     }
 }
 
@@ -156,6 +179,7 @@ pub struct EvalResult {
 /// Tree-walking evaluator with `let` scopes and diagnostic collection.
 pub struct Evaluator<'a> {
     pub(super) env: &'a dyn Environment,
+    pub(super) extensions: Option<&'a ExtensionRegistry>,
     pub(super) diagnostics: Vec<Diagnostic>,
     pub(super) let_scopes: Vec<HashMap<String, Value>>,
     /// Optional evaluation trace. `None` on the hot path, `Some` when the
@@ -167,6 +191,27 @@ pub struct Evaluator<'a> {
 pub fn evaluate(expr: &Expr, env: &dyn Environment) -> EvalResult {
     let mut evaluator = Evaluator {
         env,
+        extensions: None,
+        diagnostics: Vec::new(),
+        let_scopes: Vec::new(),
+        trace: None,
+    };
+    let value = evaluator.eval(expr);
+    EvalResult {
+        value,
+        diagnostics: evaluator.diagnostics,
+    }
+}
+
+/// Evaluate an expression with optional extension registry fallback for unknown functions.
+pub fn evaluate_with_extensions(
+    expr: &Expr,
+    env: &dyn Environment,
+    extensions: &ExtensionRegistry,
+) -> EvalResult {
+    let mut evaluator = Evaluator {
+        env,
+        extensions: Some(extensions),
         diagnostics: Vec::new(),
         let_scopes: Vec::new(),
         trace: None,
@@ -187,6 +232,7 @@ pub fn evaluate(expr: &Expr, env: &dyn Environment) -> EvalResult {
 pub fn evaluate_with_trace(expr: &Expr, env: &dyn Environment) -> (EvalResult, Trace) {
     let mut evaluator = Evaluator {
         env,
+        extensions: None,
         diagnostics: Vec::new(),
         let_scopes: Vec::new(),
         trace: Some(Trace::new()),
@@ -1104,6 +1150,12 @@ impl<'a> Evaluator<'a> {
             "pluralCategory" => self.fn_plural_category(args),
 
             _ => {
+                let evaluated_args: Vec<Value> = args.iter().map(|arg| self.eval(arg)).collect();
+                if let Some(registry) = self.extensions {
+                    if let Some(result) = registry.call(name, &evaluated_args) {
+                        return result;
+                    }
+                }
                 self.diag(format!("undefined function: {name}"));
                 Value::Null
             }

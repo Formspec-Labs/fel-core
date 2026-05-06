@@ -350,6 +350,7 @@ fn test_string_functions() {
     assert_eq!(eval("trim('  hi  ')"), s("hi"));
     assert_eq!(eval("replace('hello', 'l', 'r')"), s("herro"));
     assert_eq!(eval("substring('hello', 2, 3)"), s("ell"));
+    assert_eq!(eval("length(null)"), Value::Null);
 }
 
 // ── Numeric functions ───────────────────────────────────────────
@@ -372,6 +373,28 @@ fn test_date_functions() {
     assert_eq!(eval("year(@2024-06-15)"), num(2024));
     assert_eq!(eval("month(@2024-06-15)"), num(6));
     assert_eq!(eval("day(@2024-06-15)"), num(15));
+}
+
+#[test]
+fn test_map_environment_clock_can_be_overridden() {
+    let expr = parse("today()").unwrap();
+    let env = MapEnvironment::new().with_current_datetime(Some(Date::DateTime {
+        year: 2030,
+        month: 1,
+        day: 2,
+        hour: 3,
+        minute: 4,
+        second: 5,
+    }));
+    let result = evaluate(&expr, &env);
+    assert_eq!(
+        result.value,
+        Value::Date(Date::Date {
+            year: 2030,
+            month: 1,
+            day: 2
+        })
+    );
 }
 
 #[test]
@@ -415,12 +438,12 @@ fn test_coalesce() {
 
 #[test]
 fn test_empty_present() {
-    assert_eq!(eval("empty(null)"), Value::Boolean(true));
+    assert_eq!(eval("empty(null)"), Value::Null);
     assert_eq!(eval("empty('')"), Value::Boolean(true));
     assert_eq!(eval("empty([])"), Value::Boolean(true));
     assert_eq!(eval("empty('x')"), Value::Boolean(false));
     assert_eq!(eval("present('hello')"), Value::Boolean(true));
-    assert_eq!(eval("present(null)"), Value::Boolean(false));
+    assert_eq!(eval("present(null)"), Value::Null);
 }
 
 #[test]
@@ -562,6 +585,26 @@ fn test_undefined_function() {
     let result = evaluate(&expr, &env);
     assert_eq!(result.value, Value::Null);
     assert!(!result.diagnostics.is_empty());
+}
+
+#[test]
+fn test_extension_registry_fallback_executes_unknown_function() {
+    let expr = parse("double(3)").unwrap();
+    let env = MapEnvironment::new();
+    let mut extensions = ExtensionRegistry::new();
+    extensions
+        .register("double", 1, Some(1), |args| match &args[0] {
+            Value::Number(n) => Value::Number(*n * Decimal::from(2)),
+            _ => Value::Null,
+        })
+        .unwrap();
+
+    let result = evaluate_with_extensions(&expr, &env, &extensions);
+    assert_eq!(result.value, num(6));
+    assert!(
+        result.diagnostics.is_empty(),
+        "extension fallback should avoid undefined-function diagnostics"
+    );
 }
 
 // ── MIP state queries ───────────────────────────────────────────

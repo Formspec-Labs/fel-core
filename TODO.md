@@ -44,13 +44,19 @@ Guardrails:
 - Updated `src/lexer.rs` to lex numbers only from digit-leading tokens; `-` now always lexes as `Token::Minus`.
 - Verified via focused and full suite runs (`cargo test --test lexer_tests`, `cargo test --test evaluator_tests`, `cargo test`).
 
-### 2. ExtensionRegistry is dead code — never invoked by evaluator `[open]`
+### 2. ExtensionRegistry is dead code — never invoked by evaluator `[completed]`
 
 `src/evaluator/core.rs:1106-1109` — The `_ =>` fallback arm emits a diagnostic and returns Null. It never falls through to `ExtensionRegistry.call()`. Extensions can be registered but will never execute. The two-layer defense described in `src/extensions.rs:8-22` is not implemented.
 
 The doc comment in `src/extensions.rs:8-22` contradicts the implementation: it claims the evaluator "only falls through to the extension registry for unknown names," but the dispatcher at `core.rs:1106` falls through to `Null + diagnostic` instead. Either the doc or the dispatcher is wrong.
 
 **Fix:** Add `Option<&ExtensionRegistry>` field to `Evaluator`, attempt `registry.call(name, &evaluated_args)` in the fallback arm. (Or, if extensions are deliberately unreachable, correct the doc comment.)
+
+**Landed (2026-05-06):**
+
+- Added `evaluate_with_extensions(...)` API and evaluator-side optional extension registry handle.
+- Unknown function fallback now evaluates args, attempts `ExtensionRegistry::call`, and only emits `undefined function` if no extension matches.
+- Added regression test `test_extension_registry_fallback_executes_unknown_function`.
 
 ### 3. `sum()` silently strips currency from Money values `[partial]`
 
@@ -65,11 +71,16 @@ The `moneySumWhere` path now enforces currency checks, but generic `sum()` still
 
 **Fix:** Align the definitions. Either `boolean()` accepts all non-zero numbers (matching `is_truthy()`), or document the intentional split and which builtins use which.
 
-### 5. `length(null)` returns `0`, violating null propagation `[open]`
+### 5. `length(null)` returns `0`, violating null propagation `[completed]`
 
 `src/evaluator/builtins/strings.rs:45` — Every other builtin propagates null input as null output. `length(null) → 0` and `empty(null) → true` silently conflate absence with emptiness. Meanwhile `count(null) → Null` — inconsistent.
 
 **Fix:** Decide: either both `length(null)` and `empty(null)` should return Null (consistent with null propagation), or both should return their "empty" defaults (convenient for forms). Document the decision. At minimum, make `length` and `count` agree.
+
+**Landed (2026-05-06):**
+
+- Aligned null semantics to propagation: `length(null) -> null`, `empty(null) -> null`, `present(null) -> null`.
+- Updated evaluator tests and edge-case coverage to assert the new policy.
 
 ---
 
@@ -95,11 +106,17 @@ Current convert docs describe this as intentional ("no silent date coercion"), s
 
 **Fix:** Add `$type: "date"` tagging convention in `fel_to_json` / `json_to_fel`, matching the Money pattern at `src/convert.rs:70-84`.
 
-### 9. Decimal precision loss in JSON serialization `[open]`
+### 9. Decimal precision loss in JSON serialization `[completed]`
 
 `src/convert.rs:125-128` — Non-integer Decimals go through `f64`, losing ~13 digits of precision. For a financial expression language, this matters.
 
 **Fix:** Serialize Decimal amounts as JSON strings (e.g., `"amount": "99.99"`). `json_to_fel` already supports string amounts at `src/convert.rs:85`.
+
+**Landed (2026-05-06):**
+
+- Updated `fel_to_json` to serialize non-integer decimals as strings, avoiding `f64` conversion.
+- Money serialization now preserves decimal precision in `"amount"` through string values when fractional.
+- Added precision-focused conversion tests (including high-precision decimal roundtrip shape).
 
 ### 10. `Diagnostic` lacks source spans `[open]`
 
@@ -113,11 +130,16 @@ Current convert docs describe this as intentional ("no silent date coercion"), s
 
 **Fix:** Add `Expr::VarRef(String)` variant. Parser emits `VarRef` for bare identifiers, `FieldRef` only when `$` prefix is present.
 
-### 12. `prepare_host.rs` regex can rewrite inside string literals `[open]`
+### 12. `prepare_host.rs` regex can rewrite inside string literals `[completed]`
 
 `src/prepare_host.rs:183-218` — `resolve_qualified_group_refs` does regex replacement without tracking quote state, so `$items.qty` inside a string literal would be incorrectly rewritten.
 
 **Fix:** Add quote-state tracking (like `replace_bare_current_field_refs` does at lines 144-161) to `resolve_qualified_group_refs`, or switch to AST-based transformation.
+
+**Landed (2026-05-06):**
+
+- Replaced regex-only qualified group rewrite with quote-aware scanner logic that skips quoted spans.
+- Added regression test `qualified_repeat_reference_inside_string_literal_is_not_rewritten`.
 
 ### 13. Inconsistent diagnostic messages across builtins `[partial]`
 
@@ -145,17 +167,28 @@ Note: `filter_where` reduced some duplication, but broad extraction is still pen
 
 `src/types.rs:21` — `IndexMap` (from the `indexmap` crate) would give O(1) lookup while preserving insertion order. Also: duplicate keys are silently allowed with no validation.
 
-### 16. `MapEnvironment` has a hardcoded clock `[open]`
+### 16. `MapEnvironment` has a hardcoded clock `[completed]`
 
 `src/evaluator/core.rs:127-144` — Pinned to 2026-03-20. Wrong for any production use of `MapEnvironment`. Add a way to inject or use the real clock.
+
+**Landed (2026-05-06):**
+
+- Added configurable `current_datetime` field on `MapEnvironment`.
+- Added fluent override API `with_current_datetime(...)` used by tests/hosts.
+- Added regression test `test_map_environment_clock_can_be_overridden`.
 
 ### 17. All 17 modules are `pub` — many should be `pub(crate)` `[open]`
 
 `src/lib.rs:13-29` — Modules like `iso_duration`, `interpolation`, `wire_style`, `trace`, `context_json` are implementation details. Making them `pub(crate)` would reduce the public API surface and prevent external coupling.
 
-### 18. `Error::Eval` variant is dead code `[open]`
+### 18. `Error::Eval` variant is dead code `[completed]`
 
 `src/error.rs:9-10` — Declared but never constructed anywhere in the codebase. Remove or document as reserved.
+
+**Landed (2026-05-06):**
+
+- Removed `Error::Eval` variant from `src/error.rs`.
+- Updated README wording to reflect diagnostic-first evaluation failures.
 
 ### 19. Over-broad re-exports of schema types in public API `[open]`
 
@@ -205,9 +238,13 @@ All parse methods are recursive with no depth tracking. Deeply nested expression
 
 `src/types.rs:57-62` — ISO 4217 codes are always 3 ASCII uppercase characters. A `CurrencyCode([u8; 3])` newtype with `Copy` semantics would eliminate per-instance heap allocation.
 
-### 31. `Money` has `PartialEq` but not `Eq` `[open]`
+### 31. `Money` has `PartialEq` but not `Eq` `[completed]`
 
 `src/types.rs:80-84` — `Date` derives `Eq` but `Money` only has manual `PartialEq`. Since `Decimal` is `Ord`, adding `Eq` is safe and consistent.
+
+**Landed (2026-05-06):**
+
+- `Money` now derives `PartialEq, Eq`; removed manual `PartialEq` impl.
 
 ### 32. `serde_json` default uses `BTreeMap`, losing FEL insertion order for Objects `[partial / needs verification]`
 
@@ -229,9 +266,13 @@ All parse methods are recursive with no depth tracking. Deeply nested expression
 
 `eval()`, `num()`, `dec()`, `s()`, `arr()`, `env_with()` are duplicated across 5+ test files. Create `tests/common/mod.rs`.
 
-### 36. Add unit tests for `src/error.rs` `[open]`
+### 36. Add unit tests for `src/error.rs` `[completed]`
 
 Zero tests for `undefined_function_names_from_diagnostics`, `has_error_diagnostics`, `reject_undefined_functions`, `Severity::as_wire_str()`.
+
+**Landed (2026-05-06):**
+
+- Added direct unit tests in `src/error.rs` covering all four previously untested helpers/APIs.
 
 ### 37. Add `src/context_json.rs` tests `[open]`
 

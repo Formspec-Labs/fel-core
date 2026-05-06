@@ -46,6 +46,10 @@ fn is_ident_char(c: char) -> bool {
     c.is_ascii_alphanumeric() || c == '_'
 }
 
+fn is_ident_start(c: char) -> bool {
+    c.is_ascii_alphabetic() || c == '_'
+}
+
 /// Strips trailing `[n]` from the last path segment (TS `splitIndexedPath` last + replace).
 fn current_field_leaf(item_path: &str) -> String {
     let segments = path_segments(item_path);
@@ -201,21 +205,81 @@ fn resolve_qualified_group_refs(expression: &str, repeat_ancestors: &[RepeatAnce
 
     let mut result = expression.to_string();
     for (group_name, concrete_prefix, is_innermost) in replacements {
-        let escaped = regex::escape(&group_name);
-        let pattern = Regex::new(&format!(r"\${}\.([A-Za-z_][A-Za-z0-9_]*)", escaped))
-            .expect("valid group pattern");
-        result = pattern
-            .replace_all(&result, |caps: &regex::Captures| {
-                let field = caps.get(1).expect("field").as_str();
-                if is_innermost {
-                    field.to_string()
-                } else {
-                    format!("{}.{field}", to_fel_indexed_path(&concrete_prefix))
-                }
-            })
-            .to_string();
+        result = replace_qualified_group_ref_outside_quotes(
+            &result,
+            &group_name,
+            &concrete_prefix,
+            is_innermost,
+        );
     }
     result
+}
+
+fn replace_qualified_group_ref_outside_quotes(
+    expr: &str,
+    group_name: &str,
+    concrete_prefix: &str,
+    is_innermost: bool,
+) -> String {
+    if group_name.is_empty() {
+        return expr.to_string();
+    }
+    let chars: Vec<char> = expr.chars().collect();
+    let group_chars: Vec<char> = group_name.chars().collect();
+    let mut out = String::with_capacity(expr.len());
+    let mut i = 0usize;
+    let mut quote: Option<char> = None;
+
+    while i < chars.len() {
+        let c = chars[i];
+        if let Some(q) = quote {
+            out.push(c);
+            if c == '\\' && i + 1 < chars.len() {
+                out.push(chars[i + 1]);
+                i += 2;
+                continue;
+            }
+            if c == q {
+                quote = None;
+            }
+            i += 1;
+            continue;
+        }
+
+        if c == '"' || c == '\'' {
+            quote = Some(c);
+            out.push(c);
+            i += 1;
+            continue;
+        }
+
+        let has_group = i + 1 + group_chars.len() < chars.len()
+            && chars[i] == '$'
+            && chars[i + 1..i + 1 + group_chars.len()] == group_chars[..];
+        let dot_idx = i + 1 + group_chars.len();
+        if has_group && chars[dot_idx] == '.' && dot_idx + 1 < chars.len() {
+            let field_start = dot_idx + 1;
+            if is_ident_start(chars[field_start]) {
+                let mut j = field_start + 1;
+                while j < chars.len() && is_ident_char(chars[j]) {
+                    j += 1;
+                }
+                let field: String = chars[field_start..j].iter().collect();
+                if is_innermost {
+                    out.push_str(&field);
+                } else {
+                    out.push_str(&format!("{}.{field}", to_fel_indexed_path(concrete_prefix)));
+                }
+                i = j;
+                continue;
+            }
+        }
+
+        out.push(c);
+        i += 1;
+    }
+
+    out
 }
 
 fn is_blocked_implicit_prefix(c: char) -> bool {
@@ -455,5 +519,17 @@ mod tests {
             &["rows[0].score", "rows[1].score"],
         );
         assert_eq!(out, "$rows[*].score + $rows[*].score + x.rows.score");
+    }
+
+    #[test]
+    fn qualified_repeat_reference_inside_string_literal_is_not_rewritten() {
+        let out = prep(
+            "if($line_items.qty > 0, '$line_items.qty', \"x $line_items.qty y\")",
+            "line_items[0].total",
+            false,
+            &[("line_items", 2)],
+            &[],
+        );
+        assert_eq!(out, "if(qty > 0, '$line_items.qty', \"x $line_items.qty y\")");
     }
 }

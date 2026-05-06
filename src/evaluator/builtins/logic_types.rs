@@ -63,12 +63,12 @@ impl<'a> Evaluator<'a> {
 
     pub(in crate::evaluator) fn fn_empty(&mut self, args: &[Expr]) -> Value {
         let val = self.eval_arg(args, 0);
-        Value::Boolean(match &val {
-            Value::Null => true,
-            Value::String(s) => s.is_empty(),
-            Value::Array(a) => a.is_empty(),
-            _ => false,
-        })
+        match &val {
+            Value::Null => Value::Null,
+            Value::String(s) => Value::Boolean(s.is_empty()),
+            Value::Array(a) => Value::Boolean(a.is_empty()),
+            _ => Value::Boolean(false),
+        }
     }
 
     pub(in crate::evaluator) fn fn_selected(&mut self, args: &[Expr]) -> Value {

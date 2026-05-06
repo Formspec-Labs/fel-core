@@ -511,10 +511,10 @@ fn length_of_array() {
     assert_eq!(eval("length([1, 2, 3])"), num(3));
 }
 
-/// Correctness: length of null returns 0
+/// Correctness: length of null follows null propagation
 #[test]
 fn length_of_null() {
-    assert_eq!(eval("length(null)"), num(0));
+    assert_eq!(eval("length(null)"), Value::Null);
 }
 
 /// Correctness: empty() on various types

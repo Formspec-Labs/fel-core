@@ -6,15 +6,12 @@ use std::fmt;
 pub enum Error {
     /// Lex/parse failure (message from lexer or parser).
     Parse(String),
-    /// Evaluation failure where the API returns `Err` instead of diagnostics.
-    Eval(String),
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Error::Parse(msg) => write!(f, "parse error: {msg}"),
-            Error::Eval(msg) => write!(f, "evaluation error: {msg}"),
         }
     }
 }
@@ -96,5 +93,43 @@ pub fn reject_undefined_functions(diagnostics: &[Diagnostic]) -> Result<(), Stri
         Ok(())
     } else {
         Err(format!("Unsupported FEL function: {}", names.join(", ")))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extracts_undefined_function_names() {
+        let diagnostics = vec![
+            Diagnostic::error("undefined function: foo"),
+            Diagnostic::warning("other"),
+            Diagnostic::error("undefined function: bar"),
+        ];
+        assert_eq!(
+            undefined_function_names_from_diagnostics(&diagnostics),
+            vec!["foo".to_string(), "bar".to_string()]
+        );
+    }
+
+    #[test]
+    fn detects_error_severity_presence() {
+        let diagnostics = vec![Diagnostic::warning("warn"), Diagnostic::error("err")];
+        assert!(has_error_diagnostics(&diagnostics));
+    }
+
+    #[test]
+    fn reject_undefined_functions_returns_error() {
+        let diagnostics = vec![Diagnostic::error("undefined function: randomFn")];
+        let err = reject_undefined_functions(&diagnostics).expect_err("should reject");
+        assert!(err.contains("randomFn"));
+    }
+
+    #[test]
+    fn severity_wire_strings_are_stable() {
+        assert_eq!(Severity::Error.as_wire_str(), "error");
+        assert_eq!(Severity::Warning.as_wire_str(), "warning");
+        assert_eq!(Severity::Info.as_wire_str(), "info");
     }
 }

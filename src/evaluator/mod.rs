@@ -11,5 +11,6 @@ mod core;
 mod util;
 
 pub use self::core::{
-    Environment, EvalResult, Evaluator, MapEnvironment, evaluate, evaluate_with_trace,
+    Environment, EvalResult, Evaluator, MapEnvironment, evaluate, evaluate_with_extensions,
+    evaluate_with_trace,
 };

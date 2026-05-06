@@ -42,7 +42,8 @@ pub use error::{
     undefined_function_names_from_diagnostics,
 };
 pub use evaluator::{
-    Environment, EvalResult, Evaluator, MapEnvironment, evaluate, evaluate_with_trace,
+    Environment, EvalResult, Evaluator, MapEnvironment, evaluate, evaluate_with_extensions,
+    evaluate_with_trace,
 };
 pub use extensions::{
     BuiltinFunctionCatalogEntry, Example, ExtensionError, ExtensionFn, ExtensionFunc,

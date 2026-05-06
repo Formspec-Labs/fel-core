@@ -53,7 +53,7 @@ pub enum Date {
 }
 
 /// Monetary value with ISO currency code.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Money {
     /// Decimal amount (base-10).
     pub amount: Decimal,
@@ -74,12 +74,6 @@ impl PartialEq for Value {
             (Value::Object(a), Value::Object(b)) => a == b,
             _ => false,
         }
-    }
-}
-
-impl PartialEq for Money {
-    fn eq(&self, other: &Self) -> bool {
-        self.currency == other.currency && self.amount == other.amount
     }
 }
 

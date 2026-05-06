@@ -106,7 +106,7 @@ pub fn json_to_fel(val: &Value) -> TypeValue {
 /// Conversion rules:
 /// - `Null` → `Value::Null`
 /// - `Boolean(b)` → `Value::Bool(b)`
-/// - `Number(n)` → `Value::Number` (integer when whole, f64 otherwise)
+/// - `Number(n)` → integer JSON number when whole, decimal string otherwise (precision-safe)
 /// - `String(s)` → `Value::String(s)`
 /// - `Date(d)` → `Value::String(d.format_iso())`
 /// - `Money { amount, currency }` → `{"$type": "money", "amount": <number>, "currency": <string>}`
@@ -122,10 +122,7 @@ pub fn fel_to_json(val: &TypeValue) -> Value {
             {
                 return Value::Number(serde_json::Number::from(i));
             }
-            n.to_f64()
-                .and_then(serde_json::Number::from_f64)
-                .map(Value::Number)
-                .unwrap_or(Value::Null)
+            Value::String(n.normalize().to_string())
         }
         TypeValue::String(s) => Value::String(s.clone()),
         TypeValue::Date(d) => Value::String(d.format_iso()),
@@ -185,8 +182,7 @@ mod tests {
     fn float_roundtrip() {
         let val = json_to_fel(&json!(3.14));
         let back = fel_to_json(&val);
-        let f = back.as_f64().expect("should be a number");
-        assert!((f - 3.14).abs() < 0.001, "decimal roundtrip: got {f}");
+        assert_eq!(back, json!("3.14"));
     }
 
     #[test]
@@ -284,8 +280,7 @@ mod tests {
         let json = fel_to_json(&money);
         assert_eq!(json.get("$type"), Some(&json!("money")));
         assert_eq!(json.get("currency"), Some(&json!("USD")));
-        let amount = json.get("amount").and_then(|v| v.as_f64()).unwrap();
-        assert!((amount - 99.99).abs() < 0.01, "money amount: {amount}");
+        assert_eq!(json.get("amount"), Some(&json!("99.99")));
     }
 
     #[test]
@@ -337,12 +332,14 @@ mod tests {
     fn decimal_max_produces_number() {
         let val = TypeValue::Number(Decimal::MAX);
         let json = fel_to_json(&val);
-        assert!(
-            json.is_number(),
-            "Decimal::MAX should produce a JSON number, not null"
-        );
-        let f = json.as_f64().unwrap();
-        assert!(f > 7.9e28 && f < 8.0e28, "unexpected magnitude: {f}");
+        assert!(json.is_string(), "Decimal::MAX should produce a JSON string");
+    }
+
+    #[test]
+    fn non_integer_decimal_keeps_full_precision_as_json_string() {
+        let dec = Decimal::from_str_exact("0.1234567890123456789012345678").unwrap();
+        let json = fel_to_json(&TypeValue::Number(dec));
+        assert_eq!(json, json!("0.1234567890123456789012345678"));
     }
 
     #[test]

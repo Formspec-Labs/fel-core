@@ -32,7 +32,7 @@ Source string
 ```
 
 - **Parse errors** surface as `Error::Parse`.
-- **Eval errors** usually produce `Diagnostic` entries and a null or partial value; some paths return `Error::Eval`.
+- **Eval errors** produce `Diagnostic` entries and a null or partial value (non-fatal evaluation path).
 
 ### Source modules (`src/`)
 
