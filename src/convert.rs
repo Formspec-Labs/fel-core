@@ -224,6 +224,23 @@ mod tests {
     }
 
     #[test]
+    fn object_serialization_preserves_entry_order() {
+        let value = TypeValue::Object(vec![
+            ("b".to_string(), TypeValue::Number(Decimal::from(1))),
+            ("a".to_string(), TypeValue::Number(Decimal::from(2))),
+            ("c".to_string(), TypeValue::Number(Decimal::from(3))),
+        ]);
+        let json = fel_to_json(&value);
+        let keys: Vec<String> = json
+            .as_object()
+            .expect("object")
+            .keys()
+            .cloned()
+            .collect();
+        assert_eq!(keys, vec!["b", "a", "c"]);
+    }
+
+    #[test]
     fn money_numeric_amount() {
         let val = json_to_fel(&json!({"$type": "money", "amount": 99.99, "currency": "USD"}));
         match &val {

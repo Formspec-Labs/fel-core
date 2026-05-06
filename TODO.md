@@ -318,9 +318,15 @@ All parse methods are recursive with no depth tracking. Deeply nested expression
 
 - `Money` now derives `PartialEq, Eq`; removed manual `PartialEq` impl.
 
-### 32. `serde_json` default uses `BTreeMap`, losing FEL insertion order for Objects `[partial / needs verification]`
+### 32. `serde_json` default uses `BTreeMap`, losing FEL insertion order for Objects `[completed]`
 
 `src/convert.rs:133-138` — Object key ordering from `Vec<(String, Value)>` is lost when serialized through `serde_json::Map` (which defaults to `BTreeMap`). This claim depends on serde_json build features and should be verified with an explicit test in this workspace.
+
+**Landed (2026-05-06):**
+
+- Enabled `serde_json` `preserve_order` feature in `Cargo.toml` so `serde_json::Map` preserves insertion order.
+- Added conversion regression test `object_serialization_preserves_entry_order` in `src/convert.rs`.
+- Verified with focused ordering test and full `cargo test`.
 
 ### 33. `undefined_function_names_from_diagnostics` uses string prefix matching `[completed]`
 
