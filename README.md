@@ -49,7 +49,7 @@ Source string
 | `environment.rs` | `FormspecEnvironment`, repeat + MIP + instances. |
 | `context_json.rs` | `formspec_environment_from_json_map` for WASM-style payloads. |
 | `convert.rs` | `json_to_fel`, `fel_to_json`, field maps. |
-| `extensions.rs` | Typed `BuiltinFunctionCatalogEntry` (parameters, returns, examples), `Package` host-tag enum, `builtin_function_catalog_for(Package)` filter, `emit_schema_json()` schema emitter, `ExtensionRegistry`. |
+| `extensions/` | `types.rs` / `catalog.rs` (`BUILTIN_FUNCTIONS`), `schema.rs` (`emit_schema_json`, catalog JSON), `registry.rs` (`ExtensionRegistry`). Crate-root `fel_core::extensions::*` unchanged. |
 | `iso_duration.rs` | ISO 8601 duration parser. `fn_duration` emits a warning diagnostic when input contains `Y` or date-component `M` (nominal-length lie). |
 | `printer.rs` | `print_expr` (AST → source). |
 | `prepare_host.rs` | FEL source rewriter for WASM/TS-binding parity. |
@@ -151,7 +151,7 @@ Integration-style suites live under `tests/`. Notable:
 cargo run -p fel-core --bin emit-fel-schema > ../formspec/schemas/fel-functions.schema.json
 ```
 
-The round-trip test catches any drift; if it fails, edit `BUILTIN_FUNCTIONS` in `src/extensions.rs` (the source of truth), not the JSON.
+The round-trip test catches any drift; if it fails, edit `BUILTIN_FUNCTIONS` in `src/extensions/catalog.rs` (the source of truth), not the JSON.
 
 ## License
 

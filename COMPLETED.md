@@ -338,3 +338,18 @@ No tests for very large arrays, deeply nested expressions (current deepest test 
 - Added integration suite `tests/stress_tests.rs`: large array literal `sum`, 500-key field map lookup, parentheses nesting under parser limit, bounded flat `+` chain (left-deep AST stays within eval stack), long-input tokenization.
 - Left-deep addition chains must stay modest until evaluation becomes iterative; see test comment.
 - Verified with `cargo test --test stress_tests` and full `cargo test`.
+
+---
+
+## Post-audit maintenance
+
+### Extensions module split (TODO #6) `[completed]`
+
+Single `src/extensions.rs` (~3k lines) mixed catalog data, schema emission, types, and `ExtensionRegistry`.
+
+**Landed (2026-05-06):**
+
+- Replaced with `src/extensions/mod.rs` plus `types.rs`, `catalog.rs` (`RESERVED_WORDS`, `BUILTIN_FUNCTIONS`, catalog iterators), `schema.rs` (`emit_schema_json`, UI catalog JSON helpers), `registry.rs` (`ExtensionRegistry`, `ExtensionError`).
+- `fel_core::extensions::*` public paths unchanged.
+- Docs: `README.md` module map and schema regeneration instructions point at `catalog.rs` for `BUILTIN_FUNCTIONS`.
+- Verified with full `cargo test` and `tests/schema_round_trip.rs`.

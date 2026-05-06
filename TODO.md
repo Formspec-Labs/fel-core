@@ -8,7 +8,6 @@ Audit seed: 2026-05-06 multi-agent review. Resolved work is archived in [`COMPLE
 
 | ID | Topic | Priority | Status |
 |----|-------|----------|--------|
-| 6 | Split `extensions` monolith (registry / catalog / schema) | P0 | open |
 | 7 | Builtin dispatch (`eval_function`) vs catalog drift | P0 | partial |
 | 8 | Date ↔ JSON round-trip vs “no silent coercion” policy | P1 | policy review |
 | 10 | `Diagnostic` + AST source spans | P1 | open |
@@ -25,14 +24,13 @@ Audit seed: 2026-05-06 multi-agent review. Resolved work is archived in [`COMPLE
 
 Mechanical / low coupling first; behavior-changing API milestones last.
 
-1. **#6** — File split only (no behavior change): `extensions/{mod,catalog,schema,registry,types}.rs` → run `schema_round_trip`, `builtin_catalog_consistency`, full `cargo test`.
-2. **#14** then **#13** — Shared helpers while preserving current diagnostics, then unify messages (updates tests that assumed silent null on mismatch).
-3. **#7** — Stronger `builtin_catalog_consistency` and/or table dispatch *after* #6 so merge conflicts stay localized.
-4. **#11** — Semver-major `Expr` variant; touches parser, printer, `dependencies`, evaluator.
-5. **#10** — Optional scaffolding (`Diagnostic::span: Option<…>`) early; full evaluator spans need AST spans + `diag` threading (often after #11).
-6. **#15 / #30** — Representation / API releases when profiling or semver budget allows.
-7. **#8** — Reopen only if product requires JSON round-trip for `Date`; today documented as intentional (see item body).
-8. **#38** — Add harness; builtin-heavy properties after #13 to avoid churn.
+1. **#14** then **#13** — Shared helpers while preserving current diagnostics, then unify messages (updates tests that assumed silent null on mismatch).
+2. **#7** — Stronger `builtin_catalog_consistency` and/or table dispatch (catalog now split under `src/extensions/`).
+3. **#11** — Semver-major `Expr` variant; touches parser, printer, `dependencies`, evaluator.
+4. **#10** — Optional scaffolding (`Diagnostic::span: Option<…>`) early; full evaluator spans need AST spans + `diag` threading (often after #11).
+5. **#15 / #30** — Representation / API releases when profiling or semver budget allows.
+6. **#8** — Reopen only if product requires JSON round-trip for `Date`; today documented as intentional (see item body).
+7. **#38** — Add harness; builtin-heavy properties after #13 to avoid churn.
 
 ---
 
@@ -50,16 +48,6 @@ Guardrails: one behavioral change per cycle; never ship without a test that demo
 ---
 
 ## P0 — Architecture & dispatch
-
-### 6. `extensions.rs` monolith `[open]`
-
-**Size:** ~2,966 lines (`wc -l`). ~2,096 lines are the `BUILTIN_FUNCTIONS` slice alone; registry, schema emitters, and types share one file.
-
-**Goal:** Split into focused modules (e.g. `catalog.rs`, `schema.rs`, `registry.rs`, optional `types.rs`) behind `pub mod extensions` with stable `fel_core::extensions::*` paths.
-
-**Verify:** `cargo test`, `tests/schema_round_trip.rs`, `tests/builtin_catalog_consistency.rs`, `cargo run -p fel-core --bin emit-fel-schema` if your pipeline uses it.
-
----
 
 ### 7. `eval_function` match vs builtin catalog `[partial]`
 
