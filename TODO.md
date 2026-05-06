@@ -271,9 +271,14 @@ All parse methods are recursive with no depth tracking. Deeply nested expression
 
 `src/error.rs:74` — Matches `"undefined function: "` prefix from `core.rs:1107`. If the diagnostic message format changes, this extractor silently breaks. A structured `DiagnosticKind` enum would be more robust.
 
-### 34. Chained comparisons produce confusing type errors `[open]`
+### 34. Chained comparisons produce confusing type errors `[completed]`
 
 `src/parser.rs:259-278` — `1 < 2 < 3` parses as `(1 < 2) < 3` → `true < 3` → confusing type-error diagnostic. Either reject chained comparisons or support them natively.
+
+**Landed (2026-05-06):**
+
+- Parser now rejects chained comparison forms (`1 < 2 < 3`, `1 <= 2 <= 3`) with a clear parse error.
+- Added parser rejection tests to lock behavior and avoid confusing runtime type diagnostics.
 
 ---
 

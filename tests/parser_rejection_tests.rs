@@ -155,6 +155,13 @@ fn trailing_tokens_rejected() {
     assert_rejects("1 2");
 }
 
+/// Correctness: chained comparisons are rejected with clear syntax failure.
+#[test]
+fn chained_comparisons_rejected() {
+    assert_rejects("1 < 2 < 3");
+    assert_rejects("1 <= 2 <= 3");
+}
+
 /// Correctness: extra closing delimiter
 #[test]
 fn extra_closing_paren_rejected() {

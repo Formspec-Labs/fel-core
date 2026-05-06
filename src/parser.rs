@@ -266,6 +266,18 @@ impl Parser {
                 Token::GtEq => BinaryOp::GtEq,
                 _ => break,
             };
+            if matches!(
+                left,
+                Expr::BinaryOp {
+                    op: BinaryOp::Lt | BinaryOp::Gt | BinaryOp::LtEq | BinaryOp::GtEq,
+                    ..
+                }
+            ) {
+                return Err(Error::Parse(
+                    "chained comparisons are not supported; use explicit logical conjunction"
+                        .to_string(),
+                ));
+            }
             self.advance();
             let right = self.parse_membership()?;
             left = Expr::BinaryOp {
