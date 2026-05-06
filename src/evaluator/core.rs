@@ -1156,7 +1156,7 @@ impl<'a> Evaluator<'a> {
                         return result;
                     }
                 }
-                self.diag(format!("undefined function: {name}"));
+                self.diagnostics.push(Diagnostic::undefined_function(name));
                 Value::Null
             }
         }

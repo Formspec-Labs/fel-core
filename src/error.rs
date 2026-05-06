@@ -25,6 +25,8 @@ pub struct Diagnostic {
     pub severity: Severity,
     /// Human-readable explanation.
     pub message: String,
+    /// Machine-readable category for robust downstream handling.
+    pub kind: Option<DiagnosticKind>,
 }
 
 /// Diagnostic severity for tooling and JSON wire format.
@@ -36,6 +38,16 @@ pub enum Severity {
     Warning,
     /// Informational.
     Info,
+}
+
+/// Machine-readable diagnostic categories.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DiagnosticKind {
+    /// Function name could not be resolved in builtins or extension registry.
+    UndefinedFunction {
+        /// The unresolved function identifier as written in the expression.
+        name: String,
+    },
 }
 
 impl Severity {
@@ -55,6 +67,7 @@ impl Diagnostic {
         Diagnostic {
             severity: Severity::Error,
             message: msg.into(),
+            kind: None,
         }
     }
 
@@ -63,6 +76,17 @@ impl Diagnostic {
         Diagnostic {
             severity: Severity::Warning,
             message: msg.into(),
+            kind: None,
+        }
+    }
+
+    /// Build a structured undefined-function diagnostic.
+    pub fn undefined_function(name: impl Into<String>) -> Self {
+        let name = name.into();
+        Diagnostic {
+            severity: Severity::Error,
+            message: format!("undefined function: {name}"),
+            kind: Some(DiagnosticKind::UndefinedFunction { name }),
         }
     }
 }
@@ -72,6 +96,11 @@ pub fn undefined_function_names_from_diagnostics(diagnostics: &[Diagnostic]) -> 
     diagnostics
         .iter()
         .filter_map(|d| {
+            if let Some(DiagnosticKind::UndefinedFunction { name }) = &d.kind {
+                if !name.trim().is_empty() {
+                    return Some(name.trim().to_string());
+                }
+            }
             d.message
                 .strip_prefix("undefined function: ")
                 .map(str::trim)
@@ -103,9 +132,9 @@ mod tests {
     #[test]
     fn extracts_undefined_function_names() {
         let diagnostics = vec![
-            Diagnostic::error("undefined function: foo"),
+            Diagnostic::undefined_function("foo"),
             Diagnostic::warning("other"),
-            Diagnostic::error("undefined function: bar"),
+            Diagnostic::undefined_function("bar"),
         ];
         assert_eq!(
             undefined_function_names_from_diagnostics(&diagnostics),
@@ -121,9 +150,18 @@ mod tests {
 
     #[test]
     fn reject_undefined_functions_returns_error() {
-        let diagnostics = vec![Diagnostic::error("undefined function: randomFn")];
+        let diagnostics = vec![Diagnostic::undefined_function("randomFn")];
         let err = reject_undefined_functions(&diagnostics).expect_err("should reject");
         assert!(err.contains("randomFn"));
+    }
+
+    #[test]
+    fn extracts_undefined_names_from_legacy_message_prefix() {
+        let diagnostics = vec![Diagnostic::error("undefined function: legacyFn")];
+        assert_eq!(
+            undefined_function_names_from_diagnostics(&diagnostics),
+            vec!["legacyFn".to_string()]
+        );
     }
 
     #[test]

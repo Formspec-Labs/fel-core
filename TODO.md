@@ -296,9 +296,17 @@ All parse methods are recursive with no depth tracking. Deeply nested expression
 
 `src/convert.rs:133-138` — Object key ordering from `Vec<(String, Value)>` is lost when serialized through `serde_json::Map` (which defaults to `BTreeMap`). This claim depends on serde_json build features and should be verified with an explicit test in this workspace.
 
-### 33. `undefined_function_names_from_diagnostics` uses string prefix matching `[open]`
+### 33. `undefined_function_names_from_diagnostics` uses string prefix matching `[completed]`
 
 `src/error.rs:74` — Matches `"undefined function: "` prefix from `core.rs:1107`. If the diagnostic message format changes, this extractor silently breaks. A structured `DiagnosticKind` enum would be more robust.
+
+**Landed (2026-05-06):**
+
+- Added structured diagnostic typing via `DiagnosticKind`, including `UndefinedFunction { name }`.
+- Added `Diagnostic::undefined_function(name)` constructor and switched evaluator unknown-function emission to use it.
+- Updated extractor logic to prefer structured kind data, with legacy message-prefix fallback for backward compatibility.
+- Added unit test covering legacy-prefix fallback behavior.
+- Verified with focused `error` tests and full `cargo test`.
 
 ### 34. Chained comparisons produce confusing type errors `[completed]`
 
