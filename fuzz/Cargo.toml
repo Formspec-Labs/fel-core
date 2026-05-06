@@ -1,0 +1,28 @@
+[package]
+name = "fel-core-fuzz"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+fel-core = { path = ".." }
+libfuzzer-sys = "0.4"
+
+[[bin]]
+name = "fel_pipeline"
+path = "fuzz_targets/fel_pipeline.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fel_structured"
+path = "fuzz_targets/fel_structured.rs"
+test = false
+doc = false
+bench = false
+
+[workspace]
