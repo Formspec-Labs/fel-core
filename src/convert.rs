@@ -68,30 +68,55 @@ pub fn json_to_fel(val: &Value) -> TypeValue {
         Value::String(s) => TypeValue::String(s.clone()),
         Value::Array(arr) => TypeValue::Array(arr.iter().map(json_to_fel).collect()),
         Value::Object(map) => {
-            let is_money_type = map
-                .get("$type")
-                .and_then(|v| v.as_str())
-                .map(|s| s == "money")
-                .unwrap_or(false);
-            if is_money_type
-                && let Some(currency) = map.get("currency").and_then(|v| v.as_str())
-                && let Some(amount) = map.get("amount")
-            {
-                let maybe_decimal = match amount {
-                    Value::Number(n) => n
-                        .as_i64()
-                        .map(Decimal::from)
-                        .or_else(|| n.as_u64().map(Decimal::from))
-                        .or_else(|| n.as_f64().and_then(Decimal::from_f64)),
-                    Value::String(s) => Decimal::from_str_exact(s).ok(),
-                    _ => None,
-                };
-                if let Some(amount_decimal) = maybe_decimal {
-                    if let Some(cc) = CurrencyCode::parse(currency) {
-                        return TypeValue::Money(TypeMoney {
-                            amount: amount_decimal,
-                            currency: cc,
-                        });
+            if let Some(value_type) = map.get("$type").and_then(|v| v.as_str()) {
+                if value_type == "number" {
+                    if let Some(raw) = map.get("value") {
+                        return match raw {
+                            Value::Number(n) => n
+                                .as_i64()
+                                .map(Decimal::from)
+                                .or_else(|| n.as_u64().map(Decimal::from))
+                                .or_else(|| n.as_f64().and_then(Decimal::from_f64))
+                                .map(TypeValue::Number)
+                                .unwrap_or(TypeValue::Null),
+                            Value::String(s) => Decimal::from_str_exact(s)
+                                .map(TypeValue::Number)
+                                .unwrap_or(TypeValue::Null),
+                            _ => TypeValue::Null,
+                        };
+                    }
+                }
+                if value_type == "date" {
+                    if let Some(s) = map.get("value").and_then(|v| v.as_str()) {
+                        if let Some(d) = crate::types::parse_datetime_literal(&format!("@{s}")) {
+                            return TypeValue::Date(d);
+                        }
+                        if let Some(d) = crate::types::parse_date_literal(&format!("@{s}")) {
+                            return TypeValue::Date(d);
+                        }
+                    }
+                    return TypeValue::Null;
+                }
+                if value_type == "money"
+                    && let Some(currency) = map.get("currency").and_then(|v| v.as_str())
+                    && let Some(amount) = map.get("amount")
+                {
+                    let maybe_decimal = match amount {
+                        Value::Number(n) => n
+                            .as_i64()
+                            .map(Decimal::from)
+                            .or_else(|| n.as_u64().map(Decimal::from))
+                            .or_else(|| n.as_f64().and_then(Decimal::from_f64)),
+                        Value::String(s) => Decimal::from_str_exact(s).ok(),
+                        _ => None,
+                    };
+                    if let Some(amount_decimal) = maybe_decimal {
+                        if let Some(cc) = CurrencyCode::parse(currency) {
+                            return TypeValue::Money(TypeMoney {
+                                amount: amount_decimal,
+                                currency: cc,
+                            });
+                        }
                     }
                 }
             }
@@ -109,13 +134,69 @@ pub fn json_to_fel(val: &Value) -> TypeValue {
 /// Conversion rules:
 /// - `Null` → `Value::Null`
 /// - `Boolean(b)` → `Value::Bool(b)`
-/// - `Number(n)` → integer JSON number when whole, decimal string otherwise (precision-safe)
+/// - `Number(n)` → JSON integer when whole and within `i64`; otherwise JSON number only when
+///   `n == Decimal::from_f64(n.to_f64())` (exact lossless round-trip through IEEE-754); else a
+///   normalized decimal string (host JSON variable rehydrate must not turn scalars into strings)
 /// - `String(s)` → `Value::String(s)`
 /// - `Date(d)` → `Value::String(d.format_iso())`
 /// - `Money { amount, currency }` → `{"$type": "money", "amount": <number>, "currency": <string>}`
 /// - `Array(arr)` → `Value::Array` (recursive)
 /// - `Object(entries)` → `Value::Object` (recursive)
-pub fn fel_to_json(val: &TypeValue) -> Value {
+pub fn fel_to_wire_json(val: &TypeValue) -> Value {
+    match val {
+        TypeValue::Null => Value::Null,
+        TypeValue::Boolean(b) => Value::Bool(*b),
+        TypeValue::Number(n) => {
+            let mut map = serde_json::Map::new();
+            map.insert("$type".to_string(), Value::String("number".to_string()));
+            if n.fract().is_zero()
+                && let Some(i) = n.to_i64()
+            {
+                map.insert("value".to_string(), Value::Number(serde_json::Number::from(i)));
+            } else {
+                map.insert(
+                    "value".to_string(),
+                    Value::String(n.normalize().to_string()),
+                );
+            }
+            Value::Object(map)
+        }
+        TypeValue::String(s) => Value::String(s.clone()),
+        TypeValue::Date(d) => {
+            let mut map = serde_json::Map::new();
+            map.insert("$type".to_string(), Value::String("date".to_string()));
+            map.insert("value".to_string(), Value::String(d.format_iso()));
+            Value::Object(map)
+        }
+        TypeValue::Array(arr) => Value::Array(arr.iter().map(fel_to_wire_json).collect()),
+        TypeValue::Object(entries) => {
+            let map: serde_json::Map<String, Value> = entries
+                .iter()
+                .map(|(k, v)| (k.clone(), fel_to_wire_json(v)))
+                .collect();
+            Value::Object(map)
+        }
+        TypeValue::Money(m) => {
+            let mut map = serde_json::Map::new();
+            map.insert("$type".to_string(), Value::String("money".to_string()));
+            map.insert(
+                "amount".to_string(),
+                Value::String(m.amount.normalize().to_string()),
+            );
+            map.insert(
+                "currency".to_string(),
+                Value::String(m.currency.to_string()),
+            );
+            Value::Object(map)
+        }
+    }
+}
+
+/// Convert a `TypeValue` into UI-friendly JSON (lossy for large decimals).
+///
+/// Intended for display surfaces and host APIs that do not feed values back into
+/// FEL evaluation.
+pub fn fel_to_ui_json(val: &TypeValue) -> Value {
     match val {
         TypeValue::Null => Value::Null,
         TypeValue::Boolean(b) => Value::Bool(*b),
@@ -125,25 +206,30 @@ pub fn fel_to_json(val: &TypeValue) -> Value {
             {
                 return Value::Number(serde_json::Number::from(i));
             }
+            if let Some(f) = n.to_f64() {
+                if f.is_finite()
+                    && let Some(via_f64) = Decimal::from_f64(f)
+                    && via_f64 == *n
+                    && let Some(num) = serde_json::Number::from_f64(f)
+                {
+                    return Value::Number(num);
+                }
+            }
             Value::String(n.normalize().to_string())
         }
         TypeValue::String(s) => Value::String(s.clone()),
         TypeValue::Date(d) => Value::String(d.format_iso()),
-        TypeValue::Array(arr) => Value::Array(arr.iter().map(fel_to_json).collect()),
+        TypeValue::Array(arr) => Value::Array(arr.iter().map(fel_to_ui_json).collect()),
         TypeValue::Object(entries) => {
             let map: serde_json::Map<String, Value> = entries
                 .iter()
-                .map(|(k, v)| (k.clone(), fel_to_json(v)))
+                .map(|(k, v)| (k.clone(), fel_to_ui_json(v)))
                 .collect();
             Value::Object(map)
         }
         TypeValue::Money(m) => {
             let mut map = serde_json::Map::new();
-            map.insert("$type".to_string(), Value::String("money".to_string()));
-            map.insert(
-                "amount".to_string(),
-                fel_to_json(&TypeValue::Number(m.amount)),
-            );
+            map.insert("amount".to_string(), fel_to_ui_json(&TypeValue::Number(m.amount)));
             map.insert(
                 "currency".to_string(),
                 Value::String(m.currency.to_string()),
@@ -151,6 +237,11 @@ pub fn fel_to_json(val: &TypeValue) -> Value {
             Value::Object(map)
         }
     }
+}
+
+/// Backward-compatible alias for UI-friendly encoding (`fel_to_ui_json`).
+pub fn fel_to_json(val: &TypeValue) -> Value {
+    fel_to_ui_json(val)
 }
 
 #[cfg(test)]
@@ -190,7 +281,10 @@ mod tests {
     fn float_roundtrip() {
         let val = json_to_fel(&json!(3.14));
         let back = fel_to_json(&val);
-        assert_eq!(back, json!("3.14"));
+        assert!(
+            back.as_f64().is_some() && (back.as_f64().unwrap() - 3.14_f64).abs() < 1e-9,
+            "expected JSON number near 3.14, got {back:?}"
+        );
     }
 
     #[test]
@@ -302,7 +396,7 @@ mod tests {
             amount: Decimal::from_str_exact("99.99").unwrap(),
             currency: CurrencyCode::parse("USD").unwrap(),
         });
-        let json = fel_to_json(&money);
+        let json = fel_to_wire_json(&money);
         assert_eq!(json.get("$type"), Some(&json!("money")));
         assert_eq!(json.get("currency"), Some(&json!("USD")));
         assert_eq!(json.get("amount"), Some(&json!("99.99")));
@@ -354,7 +448,7 @@ mod tests {
     }
 
     #[test]
-    fn decimal_max_produces_number() {
+    fn decimal_max_falls_back_to_json_string_when_f64_roundtrip_lossy() {
         let val = TypeValue::Number(Decimal::MAX);
         let json = fel_to_json(&val);
         assert!(json.is_string(), "Decimal::MAX should produce a JSON string");
@@ -372,6 +466,26 @@ mod tests {
         let val = json_to_fel(&json!({"outer": {"inner": 42}}));
         let back = fel_to_json(&val);
         assert_eq!(back["outer"]["inner"], json!(42));
+    }
+
+    /// Regression: values stored as `serde_json::Value` between FEL passes (e.g. definition
+    /// variables) must re-enter `json_to_fel` as **numbers**, not strings — otherwise arithmetic
+    /// and cross-field calculates receive `string` FEL types and yield null.
+    #[test]
+    fn fel_to_json_scalar_numbers_rehydrate_as_number_not_string_for_typical_decimals() {
+        for s in ["0.1", "20", "3.14"] {
+            let n = Decimal::from_str_exact(s).expect("decimal");
+            let wire = fel_to_json(&TypeValue::Number(n));
+            assert!(
+                wire.is_number(),
+                "{s}: expected JSON number wire, got {wire:?}"
+            );
+            let back = json_to_fel(&wire);
+            assert!(
+                matches!(back, TypeValue::Number(_)),
+                "{s}: expected TypeValue::Number after json_to_fel, got {back:?}"
+            );
+        }
     }
 
     #[test]
