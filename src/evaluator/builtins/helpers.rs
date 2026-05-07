@@ -64,7 +64,10 @@ where
                 None => total = Some(m.clone()),
                 Some(t) => {
                     if t.currency != m.currency {
-                        eval.diag(format!("{fn_label}: mixed currencies"));
+                        eval.diag_coded(
+                            "FEL_MONEY_SUM_MIXED_CURRENCIES",
+                            format!("{fn_label}: mixed currencies"),
+                        );
                         return Value::Null;
                     }
                     total = Some(Money {
@@ -75,7 +78,10 @@ where
             },
             Value::Null => {}
             _ => {
-                eval.diag(format!("{fn_label}: non-money element"));
+                eval.diag_coded(
+                    "FEL_MONEY_SUM_NON_MONEY",
+                    format!("{fn_label}: non-money element"),
+                );
                 return Value::Null;
             }
         }

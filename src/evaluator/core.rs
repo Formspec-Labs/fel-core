@@ -310,6 +310,11 @@ impl<'a> Evaluator<'a> {
         self.diagnostics.push(Diagnostic::error(msg));
     }
 
+    pub(super) fn diag_coded(&mut self, code: impl Into<String>, msg: impl Into<String>) {
+        self.diagnostics
+            .push(Diagnostic::error_coded(code, msg));
+    }
+
     /// Evaluates `pred` with `$` bound to `elem` for one let-scope frame.
     pub(super) fn eval_under_dollar(&mut self, elem: &Value, pred: &Expr) -> Value {
         self.let_scopes

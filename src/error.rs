@@ -63,6 +63,8 @@ pub struct Diagnostic {
     pub severity: Severity,
     /// Human-readable explanation.
     pub message: String,
+    /// Stable machine-readable code for lint/UI (e.g. `FEL_SUM_REJECTS_MONEY`).
+    pub code: Option<String>,
     /// Machine-readable category for robust downstream handling.
     pub kind: Option<DiagnosticKind>,
     /// Byte range in the source expression, when known.
@@ -116,6 +118,18 @@ impl Diagnostic {
         Diagnostic {
             severity: Severity::Error,
             message: msg.into(),
+            code: None,
+            kind: None,
+            span: None,
+        }
+    }
+
+    /// Build an error-severity diagnostic with a stable [`Diagnostic::code`].
+    pub fn error_coded(code: impl Into<String>, msg: impl Into<String>) -> Self {
+        Diagnostic {
+            severity: Severity::Error,
+            message: msg.into(),
+            code: Some(code.into()),
             kind: None,
             span: None,
         }
@@ -126,6 +140,7 @@ impl Diagnostic {
         Diagnostic {
             severity: Severity::Warning,
             message: msg.into(),
+            code: None,
             kind: None,
             span: None,
         }
@@ -137,6 +152,7 @@ impl Diagnostic {
         Diagnostic {
             severity: Severity::Error,
             message: format!("undefined function: {name}"),
+            code: None,
             kind: Some(DiagnosticKind::UndefinedFunction { name }),
             span: None,
         }
@@ -154,6 +170,7 @@ impl Diagnostic {
         Diagnostic {
             severity: Severity::Error,
             message: format!("{fn_name}: expected {expected}, got {got_type}"),
+            code: None,
             kind: Some(DiagnosticKind::TypeMismatch {
                 fn_name: fn_name.clone(),
                 expected: expected.clone(),
@@ -256,6 +273,9 @@ fn diagnostic_to_json_object(
 
     let mut map = Map::new();
     map.insert("message".to_string(), Value::String(d.message.clone()));
+    if let Some(code) = &d.code {
+        map.insert("code".to_string(), Value::String(code.clone()));
+    }
     map.insert(
         "severity".to_string(),
         Value::String(d.severity.as_wire_str().to_string()),
