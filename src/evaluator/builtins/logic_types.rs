@@ -57,10 +57,20 @@ impl<'a> Evaluator<'a> {
     pub(in crate::evaluator) fn fn_empty(&mut self, args: &[Expr]) -> Value {
         let val = self.eval_arg(args, 0);
         match &val {
-            Value::Null => Value::Null,
+            // Null is empty for bind/FEL semantics (e.g. `if empty(x) then …` with unset fields).
+            Value::Null => Value::Boolean(true),
             Value::String(s) => Value::Boolean(s.is_empty()),
             Value::Array(a) => Value::Boolean(a.is_empty()),
             _ => Value::Boolean(false),
+        }
+    }
+
+    /// Total boolean: `present(x)` ≡ `!empty(x)` with explicit handling so the result is never null.
+    pub(in crate::evaluator) fn fn_present(&mut self, args: &[Expr]) -> Value {
+        match self.fn_empty(args) {
+            Value::Boolean(b) => Value::Boolean(!b),
+            // `fn_empty` only returns Boolean; keep defensive path for API stability.
+            other => other,
         }
     }
 
@@ -68,7 +78,7 @@ impl<'a> Evaluator<'a> {
         let container = self.eval_arg(args, 0);
         let arr = match &container {
             Value::Array(a) => a,
-            Value::Null => return Value::Null,
+            Value::Null => return Value::Boolean(false),
             other => return self.reject_expected_type("selected", "array", other),
         };
         let val = self.eval_arg(args, 1);

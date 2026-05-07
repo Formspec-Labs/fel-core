@@ -351,7 +351,7 @@ fn test_string_functions() {
     assert_eq!(eval("trim('  hi  ')"), s("hi"));
     assert_eq!(eval("replace('hello', 'l', 'r')"), s("herro"));
     assert_eq!(eval("substring('hello', 2, 3)"), s("ell"));
-    assert_eq!(eval("length(null)"), Value::Null);
+    assert_eq!(eval("length(null)"), num(0));
 }
 
 // ── Numeric functions ───────────────────────────────────────────
@@ -478,12 +478,12 @@ fn test_coalesce() {
 
 #[test]
 fn test_empty_present() {
-    assert_eq!(eval("empty(null)"), Value::Null);
+    assert_eq!(eval("empty(null)"), Value::Boolean(true));
     assert_eq!(eval("empty('')"), Value::Boolean(true));
     assert_eq!(eval("empty([])"), Value::Boolean(true));
     assert_eq!(eval("empty('x')"), Value::Boolean(false));
     assert_eq!(eval("present('hello')"), Value::Boolean(true));
-    assert_eq!(eval("present(null)"), Value::Null);
+    assert_eq!(eval("present(null)"), Value::Boolean(false));
 }
 
 #[test]

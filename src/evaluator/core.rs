@@ -1287,13 +1287,7 @@ impl<'a> Evaluator<'a> {
             "if" => self.fn_if(args),
             "coalesce" => self.fn_coalesce(args),
             "empty" => self.fn_empty(args),
-            "present" => {
-                let e = self.fn_empty(args);
-                match e {
-                    Value::Boolean(b) => Value::Boolean(!b),
-                    o => o,
-                }
-            }
+            "present" => self.fn_present(args),
             "selected" => self.fn_selected(args),
 
             // Type checking

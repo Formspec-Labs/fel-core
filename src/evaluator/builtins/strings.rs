@@ -47,7 +47,7 @@ impl<'a> Evaluator<'a> {
         match self.eval_arg(args, 0) {
             Value::String(s) => Value::Number(dec(s.chars().count() as i64)),
             Value::Array(a) => Value::Number(dec(a.len() as i64)),
-            Value::Null => Value::Null,
+            Value::Null => Value::Number(Decimal::ZERO),
             other => self.reject_expected_type("length", "string or array", &other),
         }
     }
