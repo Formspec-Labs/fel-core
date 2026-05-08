@@ -1,0 +1,139 @@
+# libFuzzer dictionary for FEL — generated from lexer keywords and builtin catalog.
+# Used by `cargo fuzz` for grammar-aware mutation.
+
+# Lexer keywords
+"true"
+"false"
+"null"
+"let"
+"in"
+"if"
+"then"
+"else"
+"and"
+"or"
+"not"
+
+# Operators
+"+"
+"-"
+"*"
+"/"
+"%"
+"&"
+"="
+"!="
+"<"
+">"
+"<="
+">="
+"??"
+"?"
+":"
+
+# Delimiters
+"("
+")"
+"["
+"]"
+"{"
+"}"
+","
+"."
+
+# Prefix sigils
+"$"
+"@"
+"!"
+
+# Aggregate builtins
+"sum("
+"count("
+"countWhere("
+"sumWhere("
+"avgWhere("
+"minWhere("
+"maxWhere("
+"every("
+"some("
+"avg("
+"min("
+"max("
+
+# String builtins
+"length("
+"contains("
+"startsWith("
+"endsWith("
+"substring("
+"replace("
+"upper("
+"lower("
+"trim("
+"matches("
+"format("
+
+# Numeric builtins
+"round("
+"floor("
+"ceil("
+"abs("
+"power("
+
+# Date builtins
+"today("
+"now("
+"year("
+"month("
+"day("
+"hours("
+"minutes("
+"seconds("
+"time("
+"dateDiff("
+"dateAdd("
+"timeDiff("
+"duration("
+
+# Logical builtins
+"if("
+"coalesce("
+"empty("
+"present("
+"selected("
+
+# Type builtins
+"isNumber("
+"isString("
+"isDate("
+"isNull("
+"typeOf("
+"number("
+"string("
+"boolean("
+"date("
+
+# Money builtins
+"money("
+"moneyAmount("
+"moneyCurrency("
+"moneyAdd("
+"moneySum("
+"moneySumWhere("
+
+# MIP builtins
+"valid("
+"relevant("
+"readonly("
+"required("
+
+# Repeat builtins
+"prev("
+"next("
+"parent("
+"instance("
+
+# Locale builtins
+"locale("
+"runtimeMeta("
+"pluralCategory("

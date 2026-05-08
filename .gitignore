@@ -6,3 +6,7 @@
 /fuzz/Cargo.lock
 .DS_Store
 Cargo.lock
+
+# Snapshot test temp output
+tests/.snapshot_tests.rs.pending-snap
+tests/*.pending-snap

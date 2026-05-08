@@ -64,6 +64,40 @@ fn long_flat_addition_chain() {
     assert_eq!(out, Value::Number(Decimal::from(TERMS)));
 }
 
+/// Variadic `min()` with 50 literal arguments exercises the variadic eval path.
+#[test]
+fn variadic_min_large_arg_count() {
+    const TERMS: usize = 50;
+    let mut src = String::with_capacity(TERMS * 6);
+    src.push_str("min(50, ");
+    for i in 0..TERMS - 2 {
+        src.push_str(&format!("{}, ", 50 - i));
+    }
+    src.push_str("0");
+    src.push(')');
+    let expr = parse(&src).expect("parse variadic min");
+    let env = MapEnvironment::new();
+    let out = evaluate(&expr, &env).value;
+    assert_eq!(out, Value::Number(Decimal::ZERO));
+}
+
+/// Variadic `coalesce()` with 30 arguments exercises the variadic eval path.
+#[test]
+fn variadic_coalesce_large_arg_count() {
+    const TERMS: usize = 30;
+    let mut src = String::with_capacity(TERMS * 6);
+    src.push_str("coalesce(");
+    for _ in 0..TERMS - 1 {
+        src.push_str("null, ");
+    }
+    src.push_str("42");
+    src.push(')');
+    let expr = parse(&src).expect("parse variadic coalesce");
+    let env = MapEnvironment::new();
+    let out = evaluate(&expr, &env).value;
+    assert_eq!(out, Value::Number(Decimal::from(42)));
+}
+
 #[test]
 fn tokenize_long_expression() {
     const TERMS: usize = 400;
