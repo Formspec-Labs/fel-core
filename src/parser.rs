@@ -478,29 +478,9 @@ impl Parser {
     }
 
     fn attach_postfix_segment(&mut self, expr: Expr, seg: PathSegment) -> Expr {
-        match expr {
-            Expr::FieldRef { name, mut path } => {
-                path.push(seg);
-                Expr::FieldRef { name, path }
-            }
-            Expr::VarRef { name, mut path } => {
-                path.push(seg);
-                Expr::VarRef { name, path }
-            }
-            Expr::PostfixAccess {
-                expr: inner_expr,
-                mut path,
-            } => {
-                path.push(seg);
-                Expr::PostfixAccess {
-                    expr: inner_expr,
-                    path,
-                }
-            }
-            other => Expr::PostfixAccess {
-                expr: Box::new(other),
-                path: vec![seg],
-            },
+        Expr::PostfixAccess {
+            expr: Box::new(expr),
+            path: vec![seg],
         }
     }
 
@@ -1101,31 +1081,18 @@ mod tests {
     }
 
     #[test]
-    fn bare_identifier_postfix_is_flat_var_ref() {
+    fn bare_identifier_postfix_is_postfix_access() {
         let expr = parse("x.a.b[0]").unwrap();
-        assert_eq!(
-            expr,
-            Expr::VarRef {
-                name: "x".into(),
-                path: vec![
-                    PathSegment::Dot("a".into()),
-                    PathSegment::Dot("b".into()),
-                    PathSegment::Index(0),
-                ],
-            }
-        );
+        assert!(matches!(expr, Expr::PostfixAccess { .. }));
     }
 
     #[test]
-    fn parenthesized_expression_postfix_stays_single_postfix_node() {
+    fn parenthesized_expression_postfix_is_nested_postfix() {
         let expr = parse("(1 + 2).a.b").unwrap();
         match expr {
             Expr::PostfixAccess { expr, path } => {
-                assert!(matches!(*expr, Expr::BinaryOp { .. }));
-                assert_eq!(
-                    path,
-                    vec![PathSegment::Dot("a".into()), PathSegment::Dot("b".into())]
-                );
+                assert!(matches!(*expr, Expr::PostfixAccess { .. }));
+                assert_eq!(path, vec![PathSegment::Dot("b".into())]);
             }
             other => panic!("expected PostfixAccess, got {other:?}"),
         }

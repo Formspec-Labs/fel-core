@@ -1,0 +1,249 @@
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":30,"expression":"sum([10, null, 20])"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":0,"expression":"sum([])"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":2,"expression":"count([1, null, 3])"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":20,"expression":"avg([10, 20, 30])"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":20,"expression":"avg([10, null, 30])"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":2,"expression":"min([5, 2, 8])"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":8,"expression":"max([5, 2, 8])"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":5,"expression":"length('hello')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":0,"expression":"length(null)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"contains('hello world', 'world')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"bcd","expression":"substring('abcdef', 2, 3)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"def","expression":"substring('abcdef', 4)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"hello there","expression":"replace('hello world', 'world', 'there')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"HELLO","expression":"upper('hello')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"hello","expression":"lower('HELLO')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"hello","expression":"trim('  hello  ')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":3.46,"expression":"round(3.456, 2)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":2,"expression":"round(2.5)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":4,"expression":"round(3.5)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":3,"expression":"floor(3.7)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":-3,"expression":"floor(-2.3)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":4,"expression":"ceil(3.2)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":-2,"expression":"ceil(-2.7)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":42,"expression":"abs(-42)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":42,"expression":"abs(42)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":1024,"expression":"power(2, 10)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":100,"expression":"power(10, 2)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"2026-03-20","expression":"today()"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"2026-03-20T00:00:00","expression":"now()"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":2025,"expression":"year(@2025-07-10)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":7,"expression":"month(@2025-07-10)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":10,"expression":"day(@2025-07-10)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"hours(@2025-07-10T14:30:00Z)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"minutes(@2025-07-10T14:30:00Z)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"seconds(@2025-07-10T14:30:45Z)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"14:30:00","expression":"time(14, 30, 0)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"09:05:30","expression":"time(9, 5, 30)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":190,"expression":"dateDiff(@2025-07-10, @2025-01-01, 'days')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"2025-02-14","expression":"dateAdd(@2025-01-15, 30, 'days')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"2027-03-20","expression":"dateAdd(today(), 1, 'years')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":5400,"expression":"timeDiff('14:30:00', '13:00:00')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":-5400,"expression":"timeDiff('13:00:00', '14:30:00')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":3600000,"expression":"duration('PT1H')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":86400000,"expression":"duration('P1D')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"","expression":"coalesce(null, '', 'fallback')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"empty(null)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"empty('')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"empty([])"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":false,"expression":"empty('hello')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":false,"expression":"empty(0)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":false,"expression":"present(null)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"isNumber(42)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":false,"expression":"isNumber('42')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"isString('hello')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":false,"expression":"isString(42)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":false,"expression":"isDate('2025-07-10')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":false,"expression":"isDate('not-a-date')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"isNull(null)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":false,"expression":"isNull('')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":false,"expression":"isNull(0)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"number","expression":"typeOf(42)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"array","expression":"typeOf([1,2])"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"null","expression":"typeOf(null)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":42,"expression":"number('42')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":3.14,"expression":"number('3.14')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"number('abc')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"42","expression":"string(42)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"true","expression":"string(true)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"","expression":"string(null)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"boolean(1)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":false,"expression":"boolean(0)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"boolean('true')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":false,"expression":"boolean(null)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"2025-07-10","expression":"date('2025-07-10')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":{"amount":50000,"currency":"USD"},"expression":"money(50000, 'USD')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":{"amount":350,"currency":"USD"},"expression":"moneyAdd(money(100, 'USD'), money(250, 'USD'))"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"locale()"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"runtimeMeta('tenantId')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"pluralCategory(1)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"other","expression":"pluralCategory(2, 'en')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"prev('runningTotal')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"next('amount')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"parent('projectName')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"@instance('priorYear').totalExpenditure"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"@instance('agencies')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"null + 1"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"1 + null"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"null - 1"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"1 - null"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"null * 5"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"5 * null"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"null / 2"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"2 / null"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"null % 3"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"not null"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"-null"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"null < 1"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"1 < null"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"null > 1"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"null <= 1"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"null >= 1"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"null and true"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":false,"expression":"false and null"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"null or false"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"true or null"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"null ?? null"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"let x = null in x + 1"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"null == null"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":false,"expression":"null != null"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":false,"expression":"null == 0"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"null != 0"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":false,"expression":"null == ''"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":false,"expression":"null == false"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"0 == 0"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":false,"expression":"0 != 0"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"0 != 1"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"'abc' == 'abc'"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"'abc' != 'ABC'"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"true == true"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":false,"expression":"true == false"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"false != true"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"@2025-01-15 == @2025-01-15"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"@2025-01-15 != @2025-01-16"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"@2025-06-15T10:30:00 == @2025-06-15T10:30:00"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"[] == []"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"[1, 2] == [1, 2]"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"[1, 2] != [2, 1]"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"[null] == [null]"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"{} == {}"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"{'a': 1} == {'a': 1}"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"{'a': 1} != {'a': 2}"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"true or (1 / 0)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":false,"expression":"false and (1 / 0)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":42,"expression":"if true then 42 else (1 / 0)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":99,"expression":"if false then (1 / 0) else 99"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"2025-02-14","expression":"dateAdd(@2025-01-15, 30, 'days')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"2025-02-15","expression":"dateAdd(@2025-01-15, 1, 'months')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"2026-01-15","expression":"dateAdd(@2025-01-15, 1, 'years')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"2025-01-08","expression":"dateAdd(@2025-01-15, -7, 'days')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":190,"expression":"dateDiff(@2025-07-10, @2025-01-01, 'days')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":11,"expression":"dateDiff(@2025-12-31, @2025-01-01, 'months')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":6,"expression":"dateDiff(@2026-01-01, @2020-01-01, 'years')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":-190,"expression":"dateDiff(@2025-01-01, @2025-07-10, 'days')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":5400,"expression":"timeDiff('14:30:00', '13:00:00')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":-5400,"expression":"timeDiff('13:00:00', '14:30:00')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":3600000,"expression":"duration('PT1H')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":86400000,"expression":"duration('P1D')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":1800000,"expression":"duration('PT30M')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":{"amount":50000,"currency":"USD"},"expression":"money(50000, 'USD')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":{"amount":12500,"currency":"EUR"},"expression":"money(12500, 'EUR')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":50000,"expression":"moneyAmount(money(50000, 'USD'))"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"USD","expression":"moneyCurrency(money(50000, 'USD'))"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":{"amount":350,"currency":"USD"},"expression":"moneyAdd(money(100, 'USD'), money(250, 'USD'))"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":{"amount":350,"currency":"USD"},"expression":"money(100, 'USD') + money(250, 'USD')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":{"amount":70,"currency":"USD"},"expression":"money(100, 'USD') - money(30, 'USD')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":{"amount":200,"currency":"USD"},"expression":"money(100, 'USD') * 2"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":{"amount":200,"currency":"USD"},"expression":"2 * money(100, 'USD')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":{"amount":25,"currency":"USD"},"expression":"money(100, 'USD') / 4"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":50,"expression":"money(100, 'USD') / money(2, 'USD')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":{"amount":1,"currency":"USD"},"expression":"money(100, 'USD') % 3"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":{"amount":350,"currency":"USD"},"expression":"moneySum([money(100, 'USD'), money(200, 'USD'), money(50, 'USD')])"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":{"amount":100,"currency":"USD"},"expression":"moneySumWhere([money(10, 'USD'), money(100, 'USD'), money(20, 'USD')], moneyAmount($) > 50)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"money(100, 'USD') + money(100, 'EUR')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"moneyAdd(money(100, 'USD'), money(100, 'EUR'))"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":42,"expression":"number('42')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":3.14,"expression":"number('3.14')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"number('abc')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"42","expression":"string(42)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"true","expression":"string(true)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"","expression":"string(null)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"boolean(1)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":false,"expression":"boolean(0)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"boolean('true')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":false,"expression":"boolean(null)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"2025-07-10","expression":"date('2025-07-10')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"date('not-a-date')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"number","expression":"typeOf(42)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"array","expression":"typeOf([1, 2])"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"null","expression":"typeOf(null)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"isNumber(42)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":false,"expression":"isNumber('42')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"isString('hello')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":false,"expression":"isString(42)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"isNull(null)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":false,"expression":"isNull('')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":false,"expression":"isNull(0)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"empty(null)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"empty('')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"empty([])"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":false,"expression":"empty('hello')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":false,"expression":"empty(0)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"present('hello')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":false,"expression":"present(null)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"1 < 2"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":false,"expression":"2 < 1"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":false,"expression":"1 > 2"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"2 > 1"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"1 <= 1"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"1 >= 1"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"1 <= 2"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"2 >= 1"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"'a' < 'b'"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"'b' > 'a'"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"@2025-01-01 < @2025-12-31"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"@2025-06-15T10:30:00 > @2025-06-15T09:00:00"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":3,"expression":"1 + 2"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":2,"expression":"5 - 3"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":28,"expression":"4 * 7"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"3.3333333333333333333333333333","expression":"10 / 3"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"10 / 0"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":1,"expression":"10 % 3"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":-2,"expression":"-5 + 3"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"hello world","expression":"'hello' & ' world'"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"1 in [1, 2, 3]"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":false,"expression":"4 in [1, 2, 3]"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"4 not in [1, 2, 3]"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"'a' in ['a', 'b']"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":false,"expression":"null in [1, 2, 3]"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":false,"expression":"1 in []"}
+{"environment":{},"expectedDiagnosticKinds":["UndefinedFunction"],"expectedValue":null,"expression":"nonexistent(1, 2)"}
+{"environment":{},"expectedDiagnosticKinds":["UndefinedFunction"],"expectedValue":null,"expression":"notARealFunc()"}
+{"environment":{"x":3,"y":4},"expectedDiagnosticKinds":[],"expectedValue":7,"expression":"$x + $y"}
+{"environment":{"name":"Alice"},"expectedDiagnosticKinds":[],"expectedValue":"Alice","expression":"$name"}
+{"environment":{"a":10,"b":5},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"$a > $b"}
+{"environment":{"nested":{"a":42}},"expectedDiagnosticKinds":[],"expectedValue":42,"expression":"$nested.a"}
+{"environment":{"arr":[10,20,30]},"expectedDiagnosticKinds":[],"expectedValue":10,"expression":"$arr[1]"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":60,"expression":"sum([10, 20, 30])"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":30,"expression":"sum([10, null, 20])"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":0,"expression":"sum([])"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":2,"expression":"count([1, null, 3])"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":0,"expression":"count([])"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":20,"expression":"avg([10, 20, 30])"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":20,"expression":"avg([10, null, 30])"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":2,"expression":"min([5, 2, 8])"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":8,"expression":"max([5, 2, 8])"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":3,"expression":"countWhere([1, 2, 3, 4, 5], $ > 2)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":7,"expression":"sumWhere([1, 2, 3, 4], $ > 2)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":55,"expression":"avgWhere([40, 50, 60], $ >= 50)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":1,"expression":"minWhere([3, 1, 4], $ > 0)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":3,"expression":"maxWhere([3, 1, 4], $ < 4)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"every([1, 2, 3], $ > 0)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"every([], $ > 0)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"some([0, 2, 4], $ > 3)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":false,"expression":"some([], $ > 0)"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"not 42"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"-'hello'"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"'hello' + 1"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"true and 'x'"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"false or 1"}

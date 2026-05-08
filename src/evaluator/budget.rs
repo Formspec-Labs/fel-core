@@ -17,7 +17,9 @@ pub struct EvalBudget {
     /// Approximate allocation ceiling (bytes) before returning `BudgetExceeded { kind: Alloc }`.
     /// Tracked best-effort; does not account for internal `Vec`/`String` overhead.
     pub max_alloc_bytes: u64,
-    /// Optional wall-clock deadline; expiration returns `BudgetExceeded { kind: Deadline }`.
+    /// Wall-clock deadline for interactive/UI use (clock-bound).
+    /// Leave as `None` for throughput-bound batch / projection consumers.
+    /// Expiration returns `BudgetExceeded { kind: Deadline }`.
     pub deadline: Option<Instant>,
 }
 
@@ -43,11 +45,29 @@ impl EvalBudget {
     }
 
     /// Smallest budget guaranteed to allow at least one evaluation step.
-    pub const fn tiny() -> Self {
+    pub const fn min_viable() -> Self {
         Self {
             max_steps: 1,
             max_alloc_bytes: 1024,
             deadline: None,
+        }
+    }
+
+    /// Batch / projection use — no deadline, limited steps and allocation.
+    pub const fn for_batch(steps: u64, alloc: u64) -> Self {
+        Self {
+            max_steps: steps,
+            max_alloc_bytes: alloc,
+            deadline: None,
+        }
+    }
+
+    /// Interactive / UI use — unlimited steps and allocation, clock-bound.
+    pub fn for_interactive(deadline: Instant) -> Self {
+        Self {
+            max_steps: u64::MAX,
+            max_alloc_bytes: u64::MAX,
+            deadline: Some(deadline),
         }
     }
 

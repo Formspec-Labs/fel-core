@@ -25,4 +25,11 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "fel_budget"
+path = "fuzz_targets/fel_budget.rs"
+test = false
+doc = false
+bench = false
+
 [workspace]

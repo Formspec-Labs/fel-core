@@ -38,6 +38,17 @@ Source string
 
 Some diagnostics include structured `kind` when serialized with [`fel_diagnostics_to_json_value`](src/error.rs): **`undefinedFunction`** (`name`), **`typeMismatch`** (`fnName` / `fn_name`, `expected`, `got`). Plain message-only diagnostics omit `kind`.
 
+## Diagnostics
+
+The [`DiagnosticKind`](src/error.rs) enum defines the closed set of machine-readable diagnostic categories produced during evaluation:
+
+| Variant | Fields | Meaning |
+|---------|--------|---------|
+| `UndefinedFunction` | `name: String` | Function name could not be resolved in builtins or extension registry. |
+| `TypeMismatch` | `fn_name: String`, `expected: String`, `got: String` | Builtin or expression context expected a different runtime type. |
+
+**Stability commitment:** Diagnostic kinds are append-only. Existing kinds and their field shapes are stable through 1.0. Hosts may match exhaustively on the closed set.
+
 ### Parser limits
 
 Maximum nested expression depth is **32** recursive frames (deep parentheses); exceeding it yields a parse error before stack exhaustion.
@@ -49,6 +60,10 @@ The duration parser maps fractional seconds to milliseconds using the **first fo
 ### Crate-root API
 
 Stable entry points (`evaluate`, `Trace`, `IndexMap`, JSON helpers, …) are re-exported at the crate root. Implementation modules such as `trace` and `iso_duration` are `pub(crate)` so downstream code prefers stable paths.
+
+### Versioning posture
+
+**Pre-1.0.** Not yet published to crates.io. Consumed exclusively via `path = "../fel-core"` in the monorepo. The API will change — AST shape, builtin signatures, error wire shape, and public re-exports may break between commits without a version signal. Publication to crates.io and semver commitment are deferred until the API surface stabilizes (see TODO R33).
 
 ### JSON conversion and dates
 
@@ -160,7 +175,7 @@ cargo nextest run -p fel-core
 Integration-style suites live under `tests/`. Notable:
 
 - `schema_round_trip.rs` — `emit_schema_json()` byte-equals the canonical `formspec/schemas/fel-functions.schema.json`.
-- `civil_calendar_proptest.rs` — proptest harness validates Hinnant `days_from_civil` / `civil_from_days` / `days_in_month` against `chrono` over years `1900..=2200`.
+- `civil_calendar_proptest` — proptest harness validates Hinnant `days_from_civil` / `civil_from_days` / `days_in_month` against `chrono` over years `1900..=2200` (inline in [`src/types.rs`](src/types.rs)).
 - `parser_parse_proptest.rs` — random bytes (lossy UTF-8) fed to `parse()` (panic hunt).
 - `builtin_catalog_consistency.rs` — every entry in `BUILTIN_FUNCTIONS` is recognized by `eval_function` dispatch.
 

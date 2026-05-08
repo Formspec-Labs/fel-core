@@ -75,16 +75,28 @@ fn write_expr(buf: &mut String, expr: &Expr, needs_parens: bool) {
 
         Expr::UnaryOp { op, operand, bang } => match op {
             UnaryOp::Not => {
+                if needs_parens {
+                    buf.push('(');
+                }
                 if *bang {
                     buf.push('!');
                 } else {
                     buf.push_str("not ");
                 }
                 write_expr(buf, operand, true);
+                if needs_parens {
+                    buf.push(')');
+                }
             }
             UnaryOp::Neg => {
+                if needs_parens {
+                    buf.push('(');
+                }
                 buf.push('-');
                 write_expr(buf, operand, true);
+                if needs_parens {
+                    buf.push(')');
+                }
             }
         },
 
@@ -129,7 +141,7 @@ fn write_expr(buf: &mut String, expr: &Expr, needs_parens: bool) {
                 buf.push('(');
             }
             buf.push_str("if ");
-            write_expr(buf, condition, false);
+            write_expr(buf, condition, true);
             buf.push_str(" then ");
             write_expr(buf, then_branch, false);
             buf.push_str(" else ");
@@ -178,7 +190,7 @@ fn write_expr(buf: &mut String, expr: &Expr, needs_parens: bool) {
             buf.push_str("let ");
             buf.push_str(name);
             buf.push_str(" = ");
-            write_expr(buf, value, false);
+            write_expr(buf, value, true);
             buf.push_str(" in ");
             write_expr(buf, body, false);
             if needs_parens {
@@ -193,13 +205,27 @@ fn write_expr(buf: &mut String, expr: &Expr, needs_parens: bool) {
                 if i > 0 {
                     buf.push_str(", ");
                 }
-                write_expr(buf, arg, false);
+                write_expr(buf, arg, true);
             }
             buf.push(')');
         }
 
         Expr::PostfixAccess { expr: inner, path } => {
-            write_expr(buf, inner, true);
+            // Wrap FieldRef/VarRef in parens so the parser enters parse_atom's
+            // paren case rather than dispatch to parse_field_ref/identifier path.
+            // Without parens, parse_field_ref absorbs the postfix segments and
+            // produces FieldRef { path: [...] } instead of PostfixAccess.
+            let must_wrap = matches!(
+                inner.as_ref(),
+                Expr::FieldRef { .. } | Expr::VarRef { .. }
+            );
+            if must_wrap {
+                buf.push('(');
+                write_expr(buf, inner, false);
+                buf.push(')');
+            } else {
+                write_expr(buf, inner, true);
+            }
             write_path_segments(buf, path);
         }
     }

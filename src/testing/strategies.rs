@@ -14,20 +14,33 @@ use rust_decimal::Decimal;
 
 use crate::ast::{BinaryOp, Expr, PathSegment, UnaryOp};
 use crate::extensions::BuiltinFunctionCatalogEntry;
+use crate::lexer::is_valid_fel_identifier;
 use crate::types::{CurrencyCode, Date, Money, Value};
 
-/// Maximum depth for recursive strategies. Prevents stack overflow at generator time.
-#[allow(dead_code)]
-const MAX_STRATEGY_DEPTH: u32 = 4;
+/// Default recursion depth for [`arb_value`] and [`arb_expr`].
+pub const MAX_STRATEGY_DEPTH: u32 = 4;
 
-/// Generates all [`Value`] variants, depth-bounded to avoid OOM.
-pub fn arb_value(depth: u32) -> BoxedStrategy<Value> {
+/// Generates a valid FEL identifier (excludes reserved keywords).
+fn arb_identifier() -> impl Strategy<Value = String> {
+    "[a-zA-Z][a-zA-Z0-9_]{0,8}"
+        .prop_filter("identifier must be valid", |s| is_valid_fel_identifier(s))
+}
+
+/// Generates a valid FEL identifier of length ≥1 (excludes reserved keywords).
+fn arb_identifier_nonempty() -> impl Strategy<Value = String> {
+    "[a-zA-Z][a-zA-Z0-9_]{1,8}"
+        .prop_filter("identifier must be valid", |s| is_valid_fel_identifier(s))
+}
+///
+/// `depth` defaults to [`MAX_STRATEGY_DEPTH`] when `None`.
+pub fn arb_value(depth: impl Into<Option<u32>>) -> BoxedStrategy<Value> {
+    let depth = depth.into().unwrap_or(MAX_STRATEGY_DEPTH);
     if depth == 0 {
         return arb_leaf_value().boxed();
     }
     let leaf = arb_leaf_value();
-    let array = arb_value(depth - 1)
-        .prop_map(|v| Value::Array(vec![v]))
+    let array = prop::collection::vec(arb_value(depth - 1), 0..4)
+        .prop_map(Value::Array)
         .boxed();
     let object = prop::collection::vec(
         ("[a-z]{1,6}".prop_map(|s: String| s), arb_value(depth - 1)),
@@ -84,7 +97,10 @@ fn arb_year() -> impl Strategy<Value = i32> {
 /// Generates a well-typed [`Expr`] AST using catalog entries for function call arity.
 ///
 /// Sub-strategies compose so proptest derives structural shrinking for free.
-pub fn arb_expr(depth: u32, catalog: &[BuiltinFunctionCatalogEntry]) -> BoxedStrategy<Expr> {
+///
+/// `depth` defaults to [`MAX_STRATEGY_DEPTH`] when `None`.
+pub fn arb_expr(depth: impl Into<Option<u32>>, catalog: &[BuiltinFunctionCatalogEntry]) -> BoxedStrategy<Expr> {
+    let depth = depth.into().unwrap_or(MAX_STRATEGY_DEPTH);
     let leaf = arb_leaf_expr();
     if depth == 0 {
         return leaf.boxed();
@@ -126,7 +142,7 @@ fn arb_leaf_expr() -> BoxedStrategy<Expr> {
         "[a-zA-Z0-9 ]{0,12}".prop_map(Expr::String),
         arb_field_ref(),
         arb_var_ref(),
-        "[a-zA-Z][a-zA-Z0-9_]{0,8}".prop_map(|s| Expr::VarRef {
+        arb_identifier().prop_map(|s| Expr::VarRef {
             name: s,
             path: vec![],
         }),
@@ -140,11 +156,11 @@ fn arb_field_ref() -> BoxedStrategy<Expr> {
             name: None,
             path: vec![],
         }),
-        ("[a-zA-Z][a-zA-Z0-9_]{0,8}").prop_map(|name| Expr::FieldRef {
+        arb_identifier().prop_map(|name| Expr::FieldRef {
             name: Some(name),
             path: vec![],
         }),
-        ("[a-zA-Z][a-zA-Z0-9_]{0,8}", "[a-zA-Z][a-zA-Z0-9_]{1,6}")
+        (arb_identifier(), arb_identifier_nonempty())
             .prop_map(|(name, tail)| Expr::FieldRef {
                 name: Some(name),
                 path: vec![PathSegment::Dot(tail)],
@@ -158,11 +174,12 @@ fn arb_field_ref() -> BoxedStrategy<Expr> {
 }
 
 fn arb_var_ref() -> BoxedStrategy<Expr> {
-    ("[a-zA-Z][a-zA-Z0-9_]{0,8}").prop_map(|name| Expr::VarRef {
-        name,
-        path: vec![],
-    })
-    .boxed()
+    arb_identifier()
+        .prop_map(|name| Expr::VarRef {
+            name,
+            path: vec![],
+        })
+        .boxed()
 }
 
 fn arb_unary(sub: BoxedStrategy<Expr>) -> BoxedStrategy<Expr> {
@@ -290,7 +307,7 @@ fn arb_array_expr(sub: BoxedStrategy<Expr>) -> BoxedStrategy<Expr> {
 
 fn arb_object_expr(sub: BoxedStrategy<Expr>) -> BoxedStrategy<Expr> {
     prop::collection::vec(
-        ("[a-zA-Z][a-zA-Z0-9_]{1,8}".prop_map(|s: String| s), sub),
+        (arb_identifier_nonempty(), sub),
         0..3,
     )
     .prop_map(Expr::Object)
@@ -321,7 +338,7 @@ fn arb_null_coalesce(sub: BoxedStrategy<Expr>) -> BoxedStrategy<Expr> {
 
 fn arb_let_binding(sub: BoxedStrategy<Expr>) -> BoxedStrategy<Expr> {
     (
-        "[a-zA-Z][a-zA-Z0-9_]{1,8}",
+        arb_identifier_nonempty(),
         sub.clone(),
         sub,
     )
@@ -337,7 +354,7 @@ fn arb_postfix_access(sub: BoxedStrategy<Expr>) -> BoxedStrategy<Expr> {
     (
         sub,
         prop_oneof![
-            "[a-zA-Z][a-zA-Z0-9_]{1,6}"
+            arb_identifier_nonempty()
                 .prop_map(|s| vec![PathSegment::Dot(s)]),
             (1usize..=3).prop_map(|idx| vec![PathSegment::Index(idx)]),
         ],

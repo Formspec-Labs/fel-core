@@ -14,3 +14,20 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Check docs (deny broken intra-doc links)
         run: RUSTDOCFLAGS="-D rustdoc::broken-intra-doc-links" cargo doc --no-deps
+
+  fuzz-replay:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz
+      - name: Replay fel_pipeline crash artifacts
+        working-directory: fuzz
+        run: |
+          for artifact in artifacts/fel_pipeline/*; do
+            [ -f "$artifact" ] || continue
+            echo "Replaying $artifact..."
+            cargo +nightly fuzz run fel_pipeline "$artifact"
+          done

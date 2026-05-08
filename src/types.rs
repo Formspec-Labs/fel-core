@@ -195,6 +195,34 @@ impl Value {
     }
 }
 
+/// Best-effort estimate of the heap footprint of a [`Value`] in bytes.
+///
+/// Returns an approximation intended for allocation-budget tracking, not exact
+/// memory accounting. The estimate accounts for the value's direct heap payload
+/// (string length, array element counts, object entry counts) plus a small
+/// per-element overhead estimate.
+pub fn value_size_estimate(val: &Value) -> u64 {
+    match val {
+        Value::Null => 0,
+        Value::Boolean(_) => 0,
+        Value::Number(_) => 16,
+        Value::String(s) => s.len() as u64,
+        Value::Date(_) => 32,
+        Value::Array(arr) => {
+            (arr.len() * 16) as u64
+                + arr.iter().map(value_size_estimate).sum::<u64>()
+        }
+        Value::Object(entries) => {
+            (entries.len() * 40) as u64
+                + entries
+                    .iter()
+                    .map(|(k, v)| k.len() as u64 + value_size_estimate(v))
+                    .sum::<u64>()
+        }
+        Value::Money(_) => 32,
+    }
+}
+
 impl Date {
     /// Calendar year component.
     pub fn year(&self) -> i32 {
@@ -266,7 +294,7 @@ impl Date {
 }
 
 /// Days from civil date to days since the FEL epoch (1970-01-01) (algorithm from Howard Hinnant).
-pub fn days_from_civil(year: i32, month: u32, day: u32) -> i64 {
+pub(crate) fn days_from_civil(year: i32, month: u32, day: u32) -> i64 {
     let y = if month <= 2 {
         year as i64 - 1
     } else {
@@ -285,7 +313,7 @@ pub fn days_from_civil(year: i32, month: u32, day: u32) -> i64 {
 }
 
 /// Gregorian days in `month` for `year` (validates `month` in debug only).
-pub fn days_in_month(year: i32, month: u32) -> u32 {
+pub(crate) fn days_in_month(year: i32, month: u32) -> u32 {
     debug_assert!(
         (1..=12).contains(&month),
         "days_in_month called with invalid month: {month}"
@@ -305,6 +333,8 @@ pub fn days_in_month(year: i32, month: u32) -> u32 {
 }
 
 /// Parse "@YYYY-MM-DD" into Date.
+///
+/// Stable public API — consumed by `formspec-py` and `formspec-eval`.
 pub fn parse_date_literal(s: &str) -> Option<Date> {
     let s = s.strip_prefix('@')?;
     let parts: Vec<&str> = s.split('-').collect();
@@ -321,6 +351,8 @@ pub fn parse_date_literal(s: &str) -> Option<Date> {
 }
 
 /// Parse "@YYYY-MM-DDTHH:MM:SS..." into Date.
+///
+/// Stable public API — consumed by `formspec-py` and `formspec-eval`.
 pub fn parse_datetime_literal(s: &str) -> Option<Date> {
     let s = s.strip_prefix('@')?;
     // Strip timezone suffix
@@ -361,7 +393,7 @@ pub fn date_add_days(d: &Date, n: i64) -> Date {
 }
 
 /// Convert days since the FEL epoch (1970-01-01) back to a civil [`Date`] (date-only).
-pub fn civil_from_days(z: i64) -> Date {
+pub(crate) fn civil_from_days(z: i64) -> Date {
     let z = z + 719468;
     let era = if z >= 0 { z } else { z - 146096 } / 146097;
     let doe = (z - era * 146097) as u64;
@@ -539,6 +571,87 @@ mod tests {
             assert_eq!(
                 reconstructed, date,
                 "round-trip failed for {year}-{month:02}-{day:02}"
+            );
+        }
+    }
+
+}
+
+/// Property tests for the Hinnant civil-calendar primitives.
+///
+/// Validates `days_from_civil` / `civil_from_days` / `days_in_month`
+/// against `chrono::NaiveDate` over the Gregorian range 1900–2200.
+#[cfg(test)]
+mod proptest_civil_calendar {
+    #![allow(clippy::missing_docs_in_private_items)]
+    use super::*;
+    use chrono::Datelike;
+
+    const EPOCH_OFFSET: i32 = 719_163;
+
+    proptest::proptest! {
+        #![proptest_config(proptest::test_runner::Config {
+            cases: 256,
+            ..Default::default()
+        })]
+
+        #[test]
+        fn days_from_civil_matches_chrono(
+            year in 1900_i32..=2200_i32,
+            month in 1_u32..=12_u32,
+            day in 1_u32..=31_u32,
+        ) {
+            let max_day = days_in_month(year, month);
+            proptest::prop_assume!(day <= max_day);
+
+            let fel_days = days_from_civil(year, month, day);
+            let chrono_date = chrono::NaiveDate::from_ymd_opt(year, month, day)
+                .expect("chrono rejected a date that days_in_month accepted");
+            let chrono_days = chrono_date.num_days_from_ce();
+            let expected = (chrono_days - EPOCH_OFFSET) as i64;
+
+            proptest::prop_assert_eq!(fel_days, expected,
+                "days_from_civil({}, {}, {}) = {}, expected {}",
+                year, month, day, fel_days, expected
+            );
+        }
+
+        #[test]
+        fn round_trip_civil(
+            year in 1900_i32..=2200_i32,
+            month in 1_u32..=12_u32,
+            day in 1_u32..=31_u32,
+        ) {
+            let max_day = days_in_month(year, month);
+            proptest::prop_assume!(day <= max_day);
+
+            let days = days_from_civil(year, month, day);
+            let reconstructed = civil_from_days(days);
+            let expected = Date::Date { year, month, day };
+
+            proptest::prop_assert_eq!(reconstructed, expected,
+                "round-trip failed for {}-{:02}-{:02}",
+                year, month, day
+            );
+        }
+
+        #[test]
+        fn days_in_month_matches_chrono(
+            year in 1900_i32..=2200_i32,
+            month in 1_u32..=12_u32,
+        ) {
+            let fel_dim = days_in_month(year, month);
+
+            let next_month = if month == 12 { 1 } else { month + 1 };
+            let next_year  = if month == 12 { year + 1 } else { year };
+            let first_of_next = chrono::NaiveDate::from_ymd_opt(next_year, next_month, 1)
+                .expect("valid next-month date");
+            let last_of_this = first_of_next.pred_opt().expect("valid predecessor");
+            let chrono_dim = last_of_this.day();
+
+            proptest::prop_assert_eq!(fel_dim, chrono_dim,
+                "days_in_month({}, {}) = {}, chrono says {}",
+                year, month, fel_dim, chrono_dim
             );
         }
     }

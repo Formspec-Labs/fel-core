@@ -23,18 +23,6 @@ proptest! {
         expr in arb_expr(3, builtin_function_catalog())
     ) {
         let printed = print_expr(&expr);
-        // Skip ASTs containing constructs with known parse/print asymmetries:
-        // - bracket-based access (index vs literal number ambiguity)
-        // - let/if combinations (parser edge cases)
-        // - postfix access (parser folds `$.field` → FieldRef)
-        if printed.contains('[')
-            || printed.contains("let")
-            || printed.contains("if")
-            || printed.contains("then")
-            || printed.contains('.')
-        {
-            return Ok(());
-        }
         let reparsed = parse(&printed).expect("printed form must reparse");
         prop_assert_eq!(expr, reparsed);
     }

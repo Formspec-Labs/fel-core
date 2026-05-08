@@ -203,6 +203,8 @@ pub struct Evaluator<'a> {
     step_count: u64,
     /// Best-effort allocation counter checked against [`EvalBudget::max_alloc_bytes`].
     alloc_bytes: u64,
+    /// Set on first budget breach to suppress redundant diagnostics.
+    budget_breached: bool,
 }
 
 /// Memoizes evaluated argument [`Value`]s for one traced eager builtin call.
@@ -217,33 +219,70 @@ struct CallArgCache {
     values: Vec<Option<Value>>,
 }
 
-/// Evaluate an expression against an environment (no budget limit).
-pub fn evaluate(expr: &Expr, env: &dyn Environment) -> EvalResult {
-    evaluate_with_budget(expr, env, &EvalBudget::unlimited())
+/// Configuration for an evaluation run.
+pub struct EvaluatorOptions<'a> {
+    /// Optional trace sink — when `Some`, the evaluator records structured steps into this trace.
+    pub trace: Option<&'a mut Trace>,
+    /// Optional extension registry for resolving unknown function names.
+    pub extensions: Option<&'a ExtensionRegistry>,
+    /// Resource budget for this evaluation run.
+    pub budget: EvalBudget,
 }
 
-/// Evaluate an expression with per-operation resource budget enforcement.
-pub fn evaluate_with_budget(expr: &Expr, env: &dyn Environment, budget: &EvalBudget) -> EvalResult {
+impl Default for EvaluatorOptions<'_> {
+    fn default() -> Self {
+        Self {
+            trace: None,
+            extensions: None,
+            budget: EvalBudget::unlimited(),
+        }
+    }
+}
+
+/// Evaluate an expression against an environment (no budget, no trace, no extensions).
+pub fn evaluate(expr: &Expr, env: &dyn Environment) -> EvalResult {
+    evaluate_with(expr, env, EvaluatorOptions::default())
+}
+
+/// Evaluate with full configuration via [`EvaluatorOptions`].
+pub fn evaluate_with(expr: &Expr, env: &dyn Environment, mut options: EvaluatorOptions) -> EvalResult {
+    let caller_trace = options.trace.take();
+    let wants_trace = caller_trace.is_some();
     let mut evaluator = Evaluator {
         env,
-        extensions: None,
+        extensions: options.extensions,
         diagnostics: Vec::new(),
         let_scopes: Vec::new(),
-        trace: None,
+        trace: if wants_trace { Some(Trace::new()) } else { None },
         call_arg_cache_stack: Vec::new(),
         eval_depth: 0,
-        budget: budget.clone(),
+        budget: options.budget,
         step_count: 0,
         alloc_bytes: 0,
+        budget_breached: false,
     };
     let value = evaluator.eval(expr);
+    if let (Some(ev_trace), Some(caller)) = (evaluator.trace, caller_trace) {
+        *caller = ev_trace;
+    }
     EvalResult {
         value,
         diagnostics: evaluator.diagnostics,
     }
 }
 
+/// Evaluate an expression with per-operation resource budget enforcement.
+#[deprecated(since = "0.1.0", note = "use evaluate_with instead")]
+pub fn evaluate_with_budget(expr: &Expr, env: &dyn Environment, budget: &EvalBudget) -> EvalResult {
+    evaluate_with(expr, env, EvaluatorOptions {
+        budget: budget.clone(),
+        ..EvaluatorOptions::default()
+    })
+}
+
 /// Evaluate an expression with optional extension registry fallback for unknown functions.
+#[deprecated(since = "0.1.0", note = "use evaluate_with instead")]
+#[allow(deprecated)]
 pub fn evaluate_with_extensions(
     expr: &Expr,
     env: &dyn Environment,
@@ -253,29 +292,18 @@ pub fn evaluate_with_extensions(
 }
 
 /// Evaluate with extensions and resource budget enforcement.
+#[deprecated(since = "0.1.0", note = "use evaluate_with instead")]
 pub fn evaluate_with_budget_and_extensions(
     expr: &Expr,
     env: &dyn Environment,
     extensions: &ExtensionRegistry,
     budget: &EvalBudget,
 ) -> EvalResult {
-    let mut evaluator = Evaluator {
-        env,
+    evaluate_with(expr, env, EvaluatorOptions {
         extensions: Some(extensions),
-        diagnostics: Vec::new(),
-        let_scopes: Vec::new(),
-        trace: None,
-        call_arg_cache_stack: Vec::new(),
-        eval_depth: 0,
         budget: budget.clone(),
-        step_count: 0,
-        alloc_bytes: 0,
-    };
-    let value = evaluator.eval(expr);
-    EvalResult {
-        value,
-        diagnostics: evaluator.diagnostics,
-    }
+        ..EvaluatorOptions::default()
+    })
 }
 
 /// Evaluate and simultaneously record a structured [`Trace`] of key steps.
@@ -286,6 +314,8 @@ pub fn evaluate_with_budget_and_extensions(
 /// [`ExtensionRegistry`] must run for unknown function names.
 /// Tracing is opt-in because it allocates per-step and projects values to
 /// JSON — negligible for interactive use, but worth avoiding on hot paths.
+#[deprecated(since = "0.1.0", note = "use evaluate_with instead")]
+#[allow(deprecated)]
 pub fn evaluate_with_trace(expr: &Expr, env: &dyn Environment) -> (EvalResult, Trace) {
     evaluate_with_trace_and_budget(expr, env, &EvalBudget::unlimited())
 }
@@ -295,31 +325,20 @@ pub fn evaluate_with_trace(expr: &Expr, env: &dyn Environment) -> (EvalResult, T
 /// The trace is identical to [`evaluate_with_trace`] for the same input; only resource enforcement
 /// is added. When budget is exceeded, the result includes a `budget exceeded` diagnostic and
 /// returns [`Value::Null`].
+#[deprecated(since = "0.1.0", note = "use evaluate_with instead")]
 pub fn evaluate_with_trace_and_budget(expr: &Expr, env: &dyn Environment, budget: &EvalBudget) -> (EvalResult, Trace) {
-    let mut evaluator = Evaluator {
-        env,
-        extensions: None,
-        diagnostics: Vec::new(),
-        let_scopes: Vec::new(),
-        trace: Some(Trace::new()),
-        call_arg_cache_stack: Vec::new(),
-        eval_depth: 0,
+    let mut trace = Trace::new();
+    let result = evaluate_with(expr, env, EvaluatorOptions {
+        trace: Some(&mut trace),
         budget: budget.clone(),
-        step_count: 0,
-        alloc_bytes: 0,
-    };
-    let value = evaluator.eval(expr);
-    let trace = evaluator.trace.take().unwrap_or_default();
-    (
-        EvalResult {
-            value,
-            diagnostics: evaluator.diagnostics,
-        },
-        trace,
-    )
+        ..EvaluatorOptions::default()
+    });
+    (result, trace)
 }
 
 /// Like [`evaluate_with_trace_and_budget`], but resolves unknown functions through `extensions`.
+#[deprecated(since = "0.1.0", note = "use evaluate_with instead")]
+#[allow(deprecated)]
 pub fn evaluate_with_trace_and_extensions(
     expr: &Expr,
     env: &dyn Environment,
@@ -333,33 +352,21 @@ pub fn evaluate_with_trace_and_extensions(
 /// Combines extension resolution (for unknown function names) with step/alloc/deadline
 /// tracking. When budget is exceeded, the result includes a `budget exceeded` diagnostic
 /// and returns [`Value::Null`].
+#[deprecated(since = "0.1.0", note = "use evaluate_with instead")]
 pub fn evaluate_with_trace_and_extensions_and_budget(
     expr: &Expr,
     env: &dyn Environment,
     extensions: &ExtensionRegistry,
     budget: &EvalBudget,
 ) -> (EvalResult, Trace) {
-    let mut evaluator = Evaluator {
-        env,
+    let mut trace = Trace::new();
+    let result = evaluate_with(expr, env, EvaluatorOptions {
+        trace: Some(&mut trace),
         extensions: Some(extensions),
-        diagnostics: Vec::new(),
-        let_scopes: Vec::new(),
-        trace: Some(Trace::new()),
-        call_arg_cache_stack: Vec::new(),
-        eval_depth: 0,
         budget: budget.clone(),
-        step_count: 0,
-        alloc_bytes: 0,
-    };
-    let value = evaluator.eval(expr);
-    let trace = evaluator.trace.take().unwrap_or_default();
-    (
-        EvalResult {
-            value,
-            diagnostics: evaluator.diagnostics,
-        },
-        trace,
-    )
+        ..EvaluatorOptions::default()
+    });
+    (result, trace)
 }
 
 impl<'a> Evaluator<'a> {
@@ -372,10 +379,50 @@ impl<'a> Evaluator<'a> {
             .push(Diagnostic::error_coded(code, msg));
     }
 
+    fn make_string(&mut self, s: String) -> Value {
+        self.track_alloc(s.len() as u64);
+        if self.alloc_limit_breached() {
+            return Value::Null;
+        }
+        Value::String(s)
+    }
+
+    fn make_array(&mut self, elems: Vec<Value>) -> Value {
+        self.track_alloc(
+            (elems.len() * 16) as u64
+                + elems
+                    .iter()
+                    .map(value_size_estimate)
+                    .sum::<u64>(),
+        );
+        if self.alloc_limit_breached() {
+            return Value::Null;
+        }
+        Value::Array(elems)
+    }
+
+    fn make_object(&mut self, entries: IndexMap<String, Value>) -> Value {
+        self.track_alloc(
+            (entries.len() * 40) as u64
+                + entries
+                    .iter()
+                    .map(|(k, v)| k.len() as u64 + value_size_estimate(v))
+                    .sum::<u64>(),
+        );
+        if self.alloc_limit_breached() {
+            return Value::Null;
+        }
+        Value::Object(entries)
+    }
+
     /// Bump step counter and check budget; when exceeded, emit diagnostic and return `true`.
+    /// Suppresses duplicate budget diagnostics via [`Self::budget_breached`].
     #[inline]
     fn check_budget(&mut self) -> bool {
         self.step_count += 1;
+        if self.budget_breached {
+            return true;
+        }
         match self.budget.check(self.step_count, self.alloc_bytes) {
             Ok(()) => false,
             Err(kind) => {
@@ -385,6 +432,7 @@ impl<'a> Evaluator<'a> {
                     BudgetExceededKind::Deadline => "deadline",
                 };
                 self.diag(format!("budget exceeded ({label})"));
+                self.budget_breached = true;
                 true
             }
         }
@@ -392,11 +440,13 @@ impl<'a> Evaluator<'a> {
 
     /// Track an estimated allocation (best-effort, not byte-accurate).
     /// Also checks the updated total against the budget, emitting a diagnostic if exceeded.
+    /// Suppresses duplicate budget diagnostics via [`Self::budget_breached`].
     #[inline]
     fn track_alloc(&mut self, bytes: u64) {
         self.alloc_bytes = self.alloc_bytes.saturating_add(bytes);
-        if self.alloc_limit_breached() {
+        if self.alloc_limit_breached() && !self.budget_breached {
             self.diag("budget exceeded (alloc)");
+            self.budget_breached = true;
         }
     }
 
@@ -485,13 +535,7 @@ impl<'a> Evaluator<'a> {
             Expr::Null => Value::Null,
             Expr::Boolean(b) => Value::Boolean(*b),
             Expr::Number(n) => Value::Number(*n),
-            Expr::String(s) => {
-                self.track_alloc(s.len() as u64);
-                if self.alloc_limit_breached() {
-                    return Value::Null;
-                }
-                Value::String(s.clone())
-            }
+            Expr::String(s) => self.make_string(s.clone()),
             Expr::DateLiteral(s) => match parse_date_literal(s) {
                 Some(d) => Value::Date(d),
                 None => {
@@ -507,23 +551,13 @@ impl<'a> Evaluator<'a> {
                 }
             },
             Expr::Array(elems) => {
-                self.track_alloc((elems.len() * 16) as u64);
-                if self.alloc_limit_breached() {
-                    return Value::Null;
-                }
-                Value::Array(elems.iter().map(|e| self.eval(e)).collect())
+                let values: Vec<Value> = elems.iter().map(|e| self.eval(e)).collect();
+                self.make_array(values)
             }
             Expr::Object(entries) => {
-                self.track_alloc((entries.len() * 40) as u64);
-                if self.alloc_limit_breached() {
-                    return Value::Null;
-                }
-                Value::Object(
-                    entries
-                        .iter()
-                        .map(|(k, v)| (k.clone(), self.eval(v)))
-                        .collect::<IndexMap<_, _>>(),
-                )
+                let pairs: IndexMap<String, Value> =
+                    entries.iter().map(|(k, v)| (k.clone(), self.eval(v))).collect();
+                self.make_object(pairs)
             }
             Expr::FieldRef { name, path } => {
                 let value = self.eval_field_ref(name, path);
@@ -815,11 +849,11 @@ impl<'a> Evaluator<'a> {
                         if remaining.is_empty() {
                             return current;
                         }
-                        return Value::Array(
-                            arr.iter()
-                                .map(|e| self.access_path(e.clone(), remaining))
-                                .collect(),
-                        );
+                        let elems: Vec<Value> = arr
+                            .iter()
+                            .map(|e| self.access_path(e.clone(), remaining))
+                            .collect();
+                        return self.make_array(elems);
                     }
                     Value::Null => return Value::Null,
                     _ => {
@@ -848,7 +882,9 @@ impl<'a> Evaluator<'a> {
                 Value::Null => Value::Null,
                 Value::Number(n) => Value::Number(-n),
                 Value::Array(arr) => {
-                    Value::Array(arr.iter().map(|v| self.eval_unary(op, v.clone())).collect())
+                    let values: Vec<Value> =
+                        arr.iter().map(|v| self.eval_unary(op, v.clone())).collect();
+                    self.make_array(values)
                 }
                 _ => {
                     self.diag(format!("cannot negate {}", val.type_name()));
@@ -1005,22 +1041,26 @@ impl<'a> Evaluator<'a> {
                     ));
                     return Value::Null;
                 }
-                return Value::Array(
-                    la.iter()
+                return {
+                    let values: Vec<Value> = la
+                        .iter()
                         .zip(ra.iter())
                         .map(|(l, r)| self.apply_binary(op, l, r))
-                        .collect(),
-                );
+                        .collect();
+                    self.make_array(values)
+                };
             }
             (Value::Array(la), _) => {
-                return Value::Array(
-                    la.iter()
-                        .map(|l| self.apply_binary(op, l, &right))
-                        .collect(),
-                );
+                return {
+                    let values: Vec<Value> =
+                        la.iter().map(|l| self.apply_binary(op, l, &right)).collect();
+                    self.make_array(values)
+                };
             }
             (_, Value::Array(ra)) => {
-                return Value::Array(ra.iter().map(|r| self.apply_binary(op, &left, r)).collect());
+                let values: Vec<Value> =
+                    ra.iter().map(|r| self.apply_binary(op, &left, r)).collect();
+                return self.make_array(values);
             }
             _ => {}
         }
@@ -1145,7 +1185,7 @@ impl<'a> Evaluator<'a> {
             }
             BinaryOp::Concat => {
                 if let (Value::String(a), Value::String(b)) = (left, right) {
-                    Value::String(format!("{a}{b}"))
+                    self.make_string(format!("{a}{b}"))
                 } else {
                     self.diag(format!(
                         "cannot concat {} and {}",
@@ -1468,6 +1508,18 @@ impl<'a> Evaluator<'a> {
                 let evaluated_args: Vec<Value> = args.iter().map(|arg| self.eval(arg)).collect();
                 if let Some(registry) = self.extensions {
                     if let Some(result) = registry.call(name, &evaluated_args) {
+                        let result = match result {
+                            Value::String(s) => self.make_string(s),
+                            Value::Array(arr) => self.make_array(arr),
+                            Value::Object(obj) => self.make_object(obj),
+                            other => {
+                                self.track_alloc(value_size_estimate(&other));
+                                if self.alloc_limit_breached() {
+                                    return Value::Null;
+                                }
+                                other
+                            }
+                        };
                         if self.tracing() {
                             self.trace_step(TraceStep::FunctionCalled {
                                 name: name.to_string(),

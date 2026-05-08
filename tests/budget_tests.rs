@@ -4,7 +4,10 @@
 //! without panicking, and that the default evaluate entry points are unaffected.
 #![allow(clippy::missing_docs_in_private_items)]
 
-use fel_core::{evaluate_with_budget, parse, EvalBudget, MapEnvironment, Value};
+use fel_core::{
+    evaluate_with_budget, evaluate_with_budget_and_extensions, parse, EvalBudget,
+    ExtensionRegistry, MapEnvironment, Value,
+};
 use std::time::Instant;
 
 fn eval_budget(src: &str, budget: &EvalBudget) -> fel_core::EvalResult {
@@ -171,4 +174,140 @@ fn alloc_budget_stops_string_literal() {
         .any(|d| d.message.contains("budget exceeded (alloc)"));
     assert!(has_budget_diag);
     assert!(matches!(result.value, Value::Null));
+}
+
+// ── R21: duplicate budget diagnostics ────────────────────────
+
+#[test]
+fn alloc_breach_emits_exactly_one_diagnostic() {
+    let budget = EvalBudget {
+        max_steps: u64::MAX,
+        max_alloc_bytes: 10,
+        deadline: None,
+    };
+    let result = eval_budget("[1 + 2, 3 + 4, 5 + 6]", &budget);
+    let budget_count = result
+        .diagnostics
+        .iter()
+        .filter(|d| d.message.contains("budget exceeded"))
+        .count();
+    assert_eq!(
+        budget_count,
+        1,
+        "expected exactly one budget diagnostic, got {budget_count}: {:?}",
+        result.diagnostics
+    );
+    assert!(matches!(result.value, Value::Null));
+}
+
+#[test]
+fn step_breach_emits_exactly_one_diagnostic() {
+    let budget = EvalBudget {
+        max_steps: 5,
+        ..EvalBudget::unlimited()
+    };
+    let chain = "0".to_string() + &" + 1".repeat(200);
+    let result = eval_budget(&chain, &budget);
+    let budget_count = result
+        .diagnostics
+        .iter()
+        .filter(|d| d.message.contains("budget exceeded"))
+        .count();
+    assert_eq!(
+        budget_count,
+        1,
+        "expected exactly one budget diagnostic, got {budget_count}"
+    );
+}
+
+// ── R22: Concat alloc budget enforcement ─────────────────────
+
+#[test]
+fn concat_respects_alloc_budget() {
+    let budget = EvalBudget {
+        max_steps: u64::MAX,
+        max_alloc_bytes: 12,
+        deadline: None,
+    };
+    // 'hello' (5 bytes) + ' world' (6 bytes) = 11 bytes from literals.
+    // The concat tracks 5+6=11, pushing total to 22 > 12 → breach.
+    let result = eval_budget("'hello' & ' world'", &budget);
+    let has_budget_diag = result
+        .diagnostics
+        .iter()
+        .any(|d| d.message.contains("budget exceeded (alloc)"));
+    assert!(has_budget_diag);
+    assert!(matches!(result.value, Value::Null));
+}
+
+#[test]
+fn deep_concat_tree_respects_alloc_budget() {
+    let budget = EvalBudget {
+        max_steps: u64::MAX,
+        max_alloc_bytes: 31,
+        deadline: None,
+    };
+    // 'abcde' & 'abcde' (10) & 'abcde' (15) & 'abcde' (20)
+    // & 'abcde' (25) & 'abcde' (30) & 'abcde' (35 → breach at 35 > 31)
+    let expr = "'abcde' & 'abcde' & 'abcde' & 'abcde' & 'abcde' & 'abcde' & 'abcde'";
+    let result = eval_budget(expr, &budget);
+    let budget_count = result
+        .diagnostics
+        .iter()
+        .filter(|d| d.message.contains("budget exceeded (alloc)"))
+        .count();
+    assert_eq!(budget_count, 1);
+    assert!(matches!(result.value, Value::Null));
+}
+
+// ── R32: extension result alloc budget enforcement ───────────
+
+#[test]
+fn extension_result_respects_alloc_budget() {
+    let mut registry = ExtensionRegistry::new();
+    registry
+        .register(
+            "bigResult",
+            0,
+            None,
+            |_args| Value::String("x".repeat(1024)),
+        )
+        .expect("register");
+    let budget = EvalBudget {
+        max_steps: u64::MAX,
+        max_alloc_bytes: 64,
+        deadline: None,
+    };
+    let expr = parse("bigResult()").unwrap();
+    let env = MapEnvironment::new();
+    let result = evaluate_with_budget_and_extensions(&expr, &env, &registry, &budget);
+    let has_budget_diag = result
+        .diagnostics
+        .iter()
+        .any(|d| d.message.contains("budget exceeded (alloc)"));
+    assert!(has_budget_diag);
+    assert!(matches!(result.value, Value::Null));
+}
+
+#[test]
+fn extension_small_result_within_alloc_budget() {
+    let mut registry = ExtensionRegistry::new();
+    registry
+        .register(
+            "smallResult",
+            0,
+            None,
+            |_args| Value::String("ok".to_string()),
+        )
+        .expect("register");
+    let budget = EvalBudget {
+        max_steps: u64::MAX,
+        max_alloc_bytes: 1024,
+        deadline: None,
+    };
+    let expr = parse("smallResult()").unwrap();
+    let env = MapEnvironment::new();
+    let result = evaluate_with_budget_and_extensions(&expr, &env, &registry, &budget);
+    assert!(result.diagnostics.is_empty());
+    assert_eq!(result.value, Value::String("ok".to_string()));
 }

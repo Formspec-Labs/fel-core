@@ -49,9 +49,10 @@ pub use error::{
     undefined_function_names_from_diagnostics,
 };
 pub use evaluator::{
-    BudgetExceededKind, Environment, EvalBudget, EvalResult, Evaluator, MapEnvironment, evaluate,
-    evaluate_with_budget, evaluate_with_budget_and_extensions, evaluate_with_extensions,
-    evaluate_with_trace, evaluate_with_trace_and_budget, evaluate_with_trace_and_extensions,
+    BudgetExceededKind, Environment, EvalBudget, EvalResult, Evaluator, EvaluatorOptions,
+    MapEnvironment, evaluate, evaluate_with, evaluate_with_budget,
+    evaluate_with_budget_and_extensions, evaluate_with_extensions, evaluate_with_trace,
+    evaluate_with_trace_and_budget, evaluate_with_trace_and_extensions,
     evaluate_with_trace_and_extensions_and_budget, eval_with_fields,
 };
 pub use indexmap::IndexMap;
@@ -73,7 +74,7 @@ pub use prepare_host::{
 pub use printer::print_expr;
 pub use trace::{Trace, TraceStep};
 pub use types::{
-    CurrencyCode, Date, Money, Value, civil_from_days, days_from_civil, days_in_month,
-    parse_date_literal, parse_datetime_literal,
+    CurrencyCode, Date, Money, Value, parse_date_literal, parse_datetime_literal,
+    value_size_estimate,
 };
 pub use wire_style::JsonWireStyle;
