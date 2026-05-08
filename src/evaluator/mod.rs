@@ -6,13 +6,17 @@
 //! The [`Evaluator`] owns `let` scopes and builtins; private `eval` / `fn_*` methods implement the tree walk.
 #![allow(clippy::missing_docs_in_private_items)]
 
+mod budget;
 mod builtins;
 mod core;
 mod util;
 
+pub use self::budget::{BudgetExceededKind, EvalBudget};
 pub use self::core::{
-    Environment, EvalResult, Evaluator, MapEnvironment, evaluate, evaluate_with_extensions,
-    evaluate_with_trace, evaluate_with_trace_and_extensions,
+    Environment, EvalResult, Evaluator, MapEnvironment, evaluate, evaluate_with_budget,
+    evaluate_with_budget_and_extensions, evaluate_with_extensions, evaluate_with_trace,
+    evaluate_with_trace_and_budget, evaluate_with_trace_and_extensions,
+    evaluate_with_trace_and_extensions_and_budget,
 };
 
 use std::collections::HashMap;

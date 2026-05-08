@@ -28,6 +28,9 @@ pub(crate) mod trace;
 pub mod types;
 pub(crate) mod wire_style;
 
+#[cfg(any(test, feature = "proptest-strategies"))]
+pub mod testing;
+
 // Re-export key types
 pub use ast::Expr;
 pub use context_json::formspec_environment_from_json_map;
@@ -46,8 +49,10 @@ pub use error::{
     undefined_function_names_from_diagnostics,
 };
 pub use evaluator::{
-    Environment, EvalResult, Evaluator, MapEnvironment, evaluate, evaluate_with_extensions,
-    evaluate_with_trace, evaluate_with_trace_and_extensions, eval_with_fields,
+    BudgetExceededKind, Environment, EvalBudget, EvalResult, Evaluator, MapEnvironment, evaluate,
+    evaluate_with_budget, evaluate_with_budget_and_extensions, evaluate_with_extensions,
+    evaluate_with_trace, evaluate_with_trace_and_budget, evaluate_with_trace_and_extensions,
+    evaluate_with_trace_and_extensions_and_budget, eval_with_fields,
 };
 pub use indexmap::IndexMap;
 pub use extensions::{
