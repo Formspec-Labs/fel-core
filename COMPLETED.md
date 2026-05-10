@@ -498,3 +498,178 @@ Moved from [`TODO.md`](TODO.md) — short index of closed backlog IDs and relate
 **formspec-core (same initiative):** `FelAnalysisError.span`; `fel_analysis_to_json_value` → `errors[]` as `{ message, span }`; condition-group lift adds `span` on parse failure; `fel_rewrite_exact` uses span-aligned parse errors.
 
 **Cross-stack bindings (2026-05 — no fel-core code changes):** TypeScript engine normalizes WASM `errors[]` to `line`/`column`/`offset` + optional `span`; Python `analyze_expression` doc + native test; rustdoc/API.llm drift fixes; optional wos-lint parse messages append char span; formspec-wasm `analyzeFEL` snapshot test. Optional evaluator/AST spans on every subexpression remain **out of scope** here (same as **#10**).
+
+---
+
+## Chaos / pressure / edge-case initiative (C1–C10)
+
+Seed: 2026-05-07. Frame = harden the foundational expression-language substrate against semantic regression, cross-runtime divergence, and resource exhaustion before downstream consumers (formspec engine TS, formspec-py, wos-server, case-portal) calcify around the current behavior.
+
+Architectural prerequisite chain (sequence is design-driven, not calendar-driven):
+
+```
+C4 (EvalBudget seam) → C1 (AST proptest strategies) → C2, C3, C5 (properties built on C1)
+C6, C7 (fuzz pipeline)         independent
+C8 (coverage audit)            run last; validates prior coverage
+C9, C10 (cheap insurance)      independent
+```
+
+### C1. AST-generative proptest strategies `[done]`
+
+`src/testing/strategies.rs` behind `cfg(any(test, feature = "proptest-strategies"))`. `arb_value`, `arb_expr`, `arb_decimal` composed for structural shrinking. Tests in `tests/ast_proptest.rs`.
+
+Properties delivered (`tests/ast_proptest.rs`):
+1. `parse(print(ast)) == ast` — printer/parser fixpoint over full AST.
+2. `eval(parse(s), env) == eval(parse(s), env)` — determinism across two evaluations.
+3. No panic on `tokenize/parse/print/eval` for any generated AST.
+4. Every `Decimal` operation in eval returns `Ok(_)` or a typed error.
+
+### C2. Semantic invariant property table `[done]`
+
+### C3. Cross-runtime differential oracle `[done]`
+
+### C4. Resource-budget enforcement (`EvalBudget` seam) `[done]`
+
+### C5. Decimal property coverage extension `[done]`
+
+### C6. Fuzz-to-regression pipeline `[done]`
+
+### C7. Conformance corpus as fuzz seed + dictionary `[done]`
+
+### C8. Coverage-guided gap audit `[done]`
+
+### C9. Concurrency smoke `[done]`
+
+### C10. Snapshot error messages `[done]`
+
+`tests/parser_rejection_tests.rs` and evaluator diagnostic paths produce error prose that nothing previously pinned. Added `insta` as dev-dep; snapshot every error message produced by the rejection suite and the evaluator diagnostic suite.
+
+---
+
+## 2026-05-08 Multi-lens review follow-ups (R21–R41)
+
+Seed: 2026-05-08 swarm of three Sonnet reviewers — semi-formal-code-review, data-intensive-systems, platform-strategist. Validated 2026-05-08 by code-scout (opus) read-only pass against actual sources; corrections folded in (R24, R31, R32, R36) and five new findings appended (R37–R41).
+
+### HIGH — correctness
+
+#### R21. Duplicate `budget exceeded (alloc)` diagnostics on breach `[done]`
+
+`src/evaluator/core.rs:396-400` (`track_alloc`) emits the diag when `alloc_limit_breached()` fires; the **next** `eval()` then hits `check_budget()` which re-checks alloc and emits again. Repeats every recursion.
+
+**Fix:** added `budget_breached: bool` flag on `Evaluator`; first emission sets, subsequent budget diags suppressed. Added budget-test that asserts diagnostic count = 1 for breach scenarios.
+
+#### R22. `BinaryOp::Concat` bypasses alloc budget entirely `[done]`
+
+`src/evaluator/core.rs:1146-1157` produced `format!("{a}{b}")` without `track_alloc`. Every other heap-producing node (string literal, array, object, let) tracked.
+
+**Fix:** `track_alloc((a.len() + b.len()) as u64)` before format!; early-return on breach.
+
+#### R32. `ExtensionRegistry` results bypass alloc budget categorically `[done]`
+
+`src/evaluator/core.rs:1469-1479`: `registry.call(name, &evaluated_args)` returned a `Value` never run through `track_alloc`.
+
+**Fix:** post-charge `track_alloc(value_size_estimate(&result))` immediately after `registry.call` returns; on breach, replace with `Value::Null` + `budget exceeded (extension result)` diag. Defined `value_size_estimate` in `src/types.rs`.
+
+### HIGH — cross-runtime integrity
+
+#### R23. TS/WASM differential oracle missing `[done]`
+
+`tests/differential_oracle.rs` covered Rust↔Python only. No TS/WASM oracle existed.
+
+**Fix:** created `scripts/fel-wasm-eval.mjs` (Node stdin-to-JSON WASM evaluator), added `rust_wasm_parity` proptest, `wasm_val()` harness. `make test-differential` runs both Python and TS oracles.
+
+#### R24. `power()` fractional/negative exponent falls to f64 — not in oracle corpus `[done]`
+
+Integer exponent uses a hand-written `checked_mul` loop; fractional or negative exponent falls to `base_f.powf(exp_f)` (f64). Most likely divergence point.
+
+**Fix:** seeded the oracle corpus with 10 hand-picked fractional/negative power cases. Added `power_fractional_negative_does_not_panic`, `power_fractional_negative_is_deterministic`, and `power_fractional_negative_rust_python_parity` tests.
+
+### MEDIUM — coverage debt
+
+#### R25. Phantom proptests in `tests/fel_proptest.rs` `[done]`
+
+Three tests used `_ in any::<u8>()` and asserted constant string-literal expressions.
+
+**Fix:** replaced with meaningful generators via `arb_value` / `arb_expr`.
+
+#### R26. `parse_print_identity` skips most of `arb_expr` `[done]`
+
+Five escape clauses (`.`, `let`, `if`, `then`, `[`) returned `Ok(())` unconditionally.
+
+**Fix:** addressed the printer's asymmetric cases until all escape clauses could be removed. Each removal was one TDD cycle: reproduce the round-trip failure, fix the printer, drop the escape.
+
+#### R27. Fuzz targets call unlimited `evaluate()` `[done]`
+
+**Fix:** created `fuzz/fuzz_targets/fel_budget.rs` — calls `evaluate_with_budget` (later migrated to `evaluate_with` + `EvaluatorOptions`) with constrained budget.
+
+#### R28. Differential oracle swallows Python failures `[done]`
+
+`python_val()` returned `None` on any non-zero exit or non-JSON output.
+
+**Fix:** distinguish parse errors (skip) from panics (fail). Capture stderr; pattern-match against expected parse-error prose.
+
+#### R29. `arb_value` generates single-element arrays only `[done]`
+
+**Fix:** `prop::collection::vec(arb_value(depth-1), 0..4).prop_map(Value::Array)`.
+
+#### R30. Fuzz crash artifacts not replayed in CI `[done]`
+
+**Fix:** CI step added to `.github/workflows/doc.yml` for fuzz artifact replay.
+
+### MEDIUM — design / API surface
+
+#### R31. `EvalBudget` API hygiene `[done]`
+
+**Fix:** added `EvalBudget::for_batch(steps, alloc)` and `EvalBudget::for_interactive(deadline)` constructors. Doc-comment on `deadline` field.
+
+### MEDIUM — platform positioning
+
+#### R33. No semver / stability commitment, not on crates.io `[done]`
+
+**Fix:** added "Versioning posture" section to README — pre-1.0, no crates.io, path-coupled only. Chose option B (hold 1.0) over A (publish 0.x).
+
+#### R34. No external FEL semantics spec doc `[done]`
+
+**Fix:** created `docs/SPEC.md` — 255-line FEL semantics specification covering grammar, evaluation rules, builtin catalog, budget contract, diagnostic wire shape.
+
+#### R35. External conformance corpus `[done]`
+
+**Fix:** created `conformance/` directory with README + `fel-conformance.jsonl` (249 fixtures). Added `make conformance` target and `src/bin/emit-conformance-fixtures.rs`.
+
+#### R36. Diagnostic taxonomy partial; calendar internals leaked `[done]`
+
+**Fix:** 
+- Added README Diagnostics section with full closed taxonomy, stability commitment.
+- Moved `civil_from_days`/`days_from_civil`/`days_in_month` to `pub(crate)` in `src/types.rs`.
+
+### New observations from opus validation pass (R37–R41)
+
+#### R37. `make_string` / value-constructor seam — prevent future Concat-style omissions `[done]`
+
+**Fix:** introduced `Evaluator::make_{string,array,object}()` helpers; migrated all heap-producing eval sites; removed manual `track_alloc` calls at construction sites.
+
+#### R38. `EvalBudget::tiny()` misnamed `[done]`
+
+**Fix:** renamed to `EvalBudget::min_viable()`.
+
+#### R39. `MAX_STRATEGY_DEPTH` constant is dead `[done]`
+
+**Fix:** wired as the default depth parameter, removed `#[allow(dead_code)]`.
+
+#### R40. `evaluate*` API surface is parameter-object smell `[done]`
+
+**Fix:** introduced `EvaluatorOptions { trace, extensions, budget }` with `Default::default()`. Collapsed 8 entry points to `evaluate()` and `evaluate_with()`. Deprecated old functions.
+
+#### R41. `Concat` is the worst untracked heap-grower but other format!-bearing paths exist `[done]`
+
+**Fix:** closed as no-op once R37 landed. The value-vs-diagnostic distinction via `make_string` helper made this a non-issue.
+
+### Post-review fixes (2026-05-08)
+
+The semi-formal code review identified three findings that were fixed after the main implementation:
+
+- **Finding 2 (WARNING):** Builtin string functions (`upper`, `lower`, `trim`, `replace`, `format`, `substring`, `string()`, `typeOf`, `moneyCurrency`) bypassed alloc budget. Fixed: `fn_str1` signature changed from `fn(&str) -> Value` to `fn(&str) -> String` + wraps through `make_string`; all direct `Value::String(...)` sites in builtin files routed through `make_string`. `make_string` visibility widened to `pub(in crate::evaluator)`.
+- **Finding 5 (NIT):** `fel_budget` fuzz target used deprecated `evaluate_with_budget`. Fixed: switched to `evaluate_with` + `EvaluatorOptions`.
+- **Finding 9 (NIT):** Power oracle no-panic test had vacuous diagnostic assertion. Fixed: removed the vacuous `!message.contains("panic")` assertion (test value is that it completes without panicking).
+
+All 575 tests pass across 23 test targets.
