@@ -3,16 +3,14 @@
 //! consistent results.
 #![allow(clippy::missing_docs_in_private_items)]
 
-use fel_core::{evaluate, parse, MapEnvironment, Value};
+use fel_core::{MapEnvironment, Value, evaluate, parse};
 use std::sync::Arc;
 use std::thread;
 
 #[test]
 fn concurrent_evaluation_against_arc_env() {
     let env = Arc::new(MapEnvironment::new());
-    let exprs: Vec<String> = (0..16)
-        .map(|i| format!("{} + 1", i % 10))
-        .collect();
+    let exprs: Vec<String> = (0..16).map(|i| format!("{} + 1", i % 10)).collect();
 
     let mut handles = Vec::new();
     for src in &exprs {
@@ -25,10 +23,7 @@ fn concurrent_evaluation_against_arc_env() {
         }));
     }
 
-    let results: Vec<Value> = handles
-        .into_iter()
-        .map(|h| h.join().unwrap())
-        .collect();
+    let results: Vec<Value> = handles.into_iter().map(|h| h.join().unwrap()).collect();
 
     let serial: Vec<Value> = exprs
         .iter()
@@ -65,10 +60,7 @@ fn concurrent_evaluation_with_fields() {
         }));
     }
 
-    let results: Vec<Value> = handles
-        .into_iter()
-        .map(|h| h.join().unwrap())
-        .collect();
+    let results: Vec<Value> = handles.into_iter().map(|h| h.join().unwrap()).collect();
 
     assert_eq!(
         results,

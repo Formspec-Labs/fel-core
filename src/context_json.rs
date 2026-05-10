@@ -139,7 +139,10 @@ mod tests {
         });
         let obj = ctx.as_object().unwrap();
         let env = formspec_environment_from_json_map(obj);
-        assert_eq!(env.data.get("n"), Some(&CoreValue::Number(Decimal::from(3))));
+        assert_eq!(
+            env.data.get("n"),
+            Some(&CoreValue::Number(Decimal::from(3)))
+        );
         assert!(env.current_datetime.is_some());
     }
 
@@ -163,7 +166,10 @@ mod tests {
         });
         let env = formspec_environment_from_json_map(ctx.as_object().unwrap());
 
-        assert_eq!(env.data.get("a"), Some(&CoreValue::Number(Decimal::from(1))));
+        assert_eq!(
+            env.data.get("a"),
+            Some(&CoreValue::Number(Decimal::from(1)))
+        );
         assert_eq!(
             env.variables.get("v"),
             Some(&CoreValue::String("x".to_string()))

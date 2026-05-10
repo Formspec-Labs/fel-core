@@ -35,8 +35,8 @@ pub mod testing;
 pub use ast::Expr;
 pub use context_json::formspec_environment_from_json_map;
 pub use convert::{
-    fel_to_json, fel_to_ui_json, fel_to_wire_json, field_map_from_json_str, json_object_to_field_map,
-    json_to_fel,
+    fel_to_json, fel_to_ui_json, fel_to_wire_json, field_map_from_json_str,
+    json_object_to_field_map, json_to_fel,
 };
 pub use dependencies::{
     Dependencies, dependencies_to_json_value, dependencies_to_json_value_styled,
@@ -50,21 +50,21 @@ pub use error::{
 };
 pub use evaluator::{
     BudgetExceededKind, Environment, EvalBudget, EvalResult, Evaluator, EvaluatorOptions,
-    MapEnvironment, evaluate, evaluate_with, evaluate_with_budget,
+    MapEnvironment, eval_with_fields, evaluate, evaluate_with, evaluate_with_budget,
     evaluate_with_budget_and_extensions, evaluate_with_extensions, evaluate_with_trace,
     evaluate_with_trace_and_budget, evaluate_with_trace_and_extensions,
-    evaluate_with_trace_and_extensions_and_budget, eval_with_fields,
+    evaluate_with_trace_and_extensions_and_budget,
 };
-pub use indexmap::IndexMap;
 pub use extensions::{
     ExtensionError, ExtensionFn, ExtensionFunc, ExtensionRegistry, Package,
     builtin_function_catalog, builtin_function_catalog_for, builtin_function_catalog_json_value,
     builtin_function_catalog_json_value_for,
 };
+pub use indexmap::IndexMap;
 pub use interpolation::expr_is_interpolation_static_literal;
 pub use iso_duration::{IsoDurationParse, parse_iso8601_duration, parse_iso8601_duration_ms};
 pub use lexer::{
-    is_valid_fel_identifier, sanitize_fel_identifier, PositionedToken, tokenize,
+    PositionedToken, is_valid_fel_identifier, sanitize_fel_identifier, tokenize,
     tokenize_to_json_value, tokenize_to_json_value_styled,
 };
 pub use parser::parse;

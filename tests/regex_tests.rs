@@ -167,10 +167,7 @@ fn backslash_s_matches_single_whitespace() {
 /// \\d+ matches one or more digits
 #[test]
 fn backslash_d_plus() {
-    assert_eq!(
-        eval(r#"matches('abc123', '\\d+')"#),
-        Value::Boolean(true)
-    );
+    assert_eq!(eval(r#"matches('abc123', '\\d+')"#), Value::Boolean(true));
 }
 
 /// \\w+ matches one or more word characters
@@ -218,10 +215,7 @@ fn email_like_pattern() {
 /// Anchored \\d+ pattern
 #[test]
 fn anchored_digit_pattern() {
-    assert_eq!(
-        eval(r#"matches('12345', '^\\d+$')"#),
-        Value::Boolean(true)
-    );
+    assert_eq!(eval(r#"matches('12345', '^\\d+$')"#), Value::Boolean(true));
 }
 
 // ── Escape sequences in patterns (literal escapes, no quantifier) ──

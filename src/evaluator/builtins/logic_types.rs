@@ -109,23 +109,21 @@ impl<'a> Evaluator<'a> {
             },
             Value::Boolean(b) => Value::Number(if b { Decimal::ONE } else { Decimal::ZERO }),
             Value::Null => Value::Null,
-            other => self.reject_expected_type(
-                "number",
-                "number, string, boolean, or null",
-                &other,
-            ),
+            other => {
+                self.reject_expected_type("number", "number, string, boolean, or null", &other)
+            }
         }
     }
 
     pub(in crate::evaluator) fn fn_cast_string(&mut self, args: &[Expr]) -> Value {
         let val = self.eval_arg(args, 0);
         match &val {
-            Value::Null => Value::String(String::new()),
+            Value::Null => self.make_string(String::new()),
             Value::String(_) => val,
-            Value::Number(n) => Value::String(format_number(*n)),
-            Value::Boolean(b) => Value::String(if *b { "true" } else { "false" }.into()),
-            Value::Date(d) => Value::String(d.format_iso()),
-            _ => Value::String(val.to_string()),
+            Value::Number(n) => self.make_string(format_number(*n)),
+            Value::Boolean(b) => self.make_string(if *b { "true" } else { "false" }.into()),
+            Value::Date(d) => self.make_string(d.format_iso()),
+            _ => self.make_string(val.to_string()),
         }
     }
 
@@ -148,11 +146,9 @@ impl<'a> Evaluator<'a> {
                     Value::Boolean(true)
                 }
             }
-            other => self.reject_expected_type(
-                "boolean",
-                "boolean, number, string, or null",
-                &other,
-            ),
+            other => {
+                self.reject_expected_type("boolean", "boolean, number, string, or null", &other)
+            }
         }
     }
 

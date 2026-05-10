@@ -245,7 +245,11 @@ pub fn evaluate(expr: &Expr, env: &dyn Environment) -> EvalResult {
 }
 
 /// Evaluate with full configuration via [`EvaluatorOptions`].
-pub fn evaluate_with(expr: &Expr, env: &dyn Environment, mut options: EvaluatorOptions) -> EvalResult {
+pub fn evaluate_with(
+    expr: &Expr,
+    env: &dyn Environment,
+    mut options: EvaluatorOptions,
+) -> EvalResult {
     let caller_trace = options.trace.take();
     let wants_trace = caller_trace.is_some();
     let mut evaluator = Evaluator {
@@ -253,7 +257,11 @@ pub fn evaluate_with(expr: &Expr, env: &dyn Environment, mut options: EvaluatorO
         extensions: options.extensions,
         diagnostics: Vec::new(),
         let_scopes: Vec::new(),
-        trace: if wants_trace { Some(Trace::new()) } else { None },
+        trace: if wants_trace {
+            Some(Trace::new())
+        } else {
+            None
+        },
         call_arg_cache_stack: Vec::new(),
         eval_depth: 0,
         budget: options.budget,
@@ -274,10 +282,14 @@ pub fn evaluate_with(expr: &Expr, env: &dyn Environment, mut options: EvaluatorO
 /// Evaluate an expression with per-operation resource budget enforcement.
 #[deprecated(since = "0.1.0", note = "use evaluate_with instead")]
 pub fn evaluate_with_budget(expr: &Expr, env: &dyn Environment, budget: &EvalBudget) -> EvalResult {
-    evaluate_with(expr, env, EvaluatorOptions {
-        budget: budget.clone(),
-        ..EvaluatorOptions::default()
-    })
+    evaluate_with(
+        expr,
+        env,
+        EvaluatorOptions {
+            budget: budget.clone(),
+            ..EvaluatorOptions::default()
+        },
+    )
 }
 
 /// Evaluate an expression with optional extension registry fallback for unknown functions.
@@ -299,11 +311,15 @@ pub fn evaluate_with_budget_and_extensions(
     extensions: &ExtensionRegistry,
     budget: &EvalBudget,
 ) -> EvalResult {
-    evaluate_with(expr, env, EvaluatorOptions {
-        extensions: Some(extensions),
-        budget: budget.clone(),
-        ..EvaluatorOptions::default()
-    })
+    evaluate_with(
+        expr,
+        env,
+        EvaluatorOptions {
+            extensions: Some(extensions),
+            budget: budget.clone(),
+            ..EvaluatorOptions::default()
+        },
+    )
 }
 
 /// Evaluate and simultaneously record a structured [`Trace`] of key steps.
@@ -326,13 +342,21 @@ pub fn evaluate_with_trace(expr: &Expr, env: &dyn Environment) -> (EvalResult, T
 /// is added. When budget is exceeded, the result includes a `budget exceeded` diagnostic and
 /// returns [`Value::Null`].
 #[deprecated(since = "0.1.0", note = "use evaluate_with instead")]
-pub fn evaluate_with_trace_and_budget(expr: &Expr, env: &dyn Environment, budget: &EvalBudget) -> (EvalResult, Trace) {
+pub fn evaluate_with_trace_and_budget(
+    expr: &Expr,
+    env: &dyn Environment,
+    budget: &EvalBudget,
+) -> (EvalResult, Trace) {
     let mut trace = Trace::new();
-    let result = evaluate_with(expr, env, EvaluatorOptions {
-        trace: Some(&mut trace),
-        budget: budget.clone(),
-        ..EvaluatorOptions::default()
-    });
+    let result = evaluate_with(
+        expr,
+        env,
+        EvaluatorOptions {
+            trace: Some(&mut trace),
+            budget: budget.clone(),
+            ..EvaluatorOptions::default()
+        },
+    );
     (result, trace)
 }
 
@@ -360,12 +384,16 @@ pub fn evaluate_with_trace_and_extensions_and_budget(
     budget: &EvalBudget,
 ) -> (EvalResult, Trace) {
     let mut trace = Trace::new();
-    let result = evaluate_with(expr, env, EvaluatorOptions {
-        trace: Some(&mut trace),
-        extensions: Some(extensions),
-        budget: budget.clone(),
-        ..EvaluatorOptions::default()
-    });
+    let result = evaluate_with(
+        expr,
+        env,
+        EvaluatorOptions {
+            trace: Some(&mut trace),
+            extensions: Some(extensions),
+            budget: budget.clone(),
+            ..EvaluatorOptions::default()
+        },
+    );
     (result, trace)
 }
 
@@ -375,11 +403,10 @@ impl<'a> Evaluator<'a> {
     }
 
     pub(super) fn diag_coded(&mut self, code: impl Into<String>, msg: impl Into<String>) {
-        self.diagnostics
-            .push(Diagnostic::error_coded(code, msg));
+        self.diagnostics.push(Diagnostic::error_coded(code, msg));
     }
 
-    fn make_string(&mut self, s: String) -> Value {
+    pub(in crate::evaluator) fn make_string(&mut self, s: String) -> Value {
         self.track_alloc(s.len() as u64);
         if self.alloc_limit_breached() {
             return Value::Null;
@@ -389,11 +416,7 @@ impl<'a> Evaluator<'a> {
 
     fn make_array(&mut self, elems: Vec<Value>) -> Value {
         self.track_alloc(
-            (elems.len() * 16) as u64
-                + elems
-                    .iter()
-                    .map(value_size_estimate)
-                    .sum::<u64>(),
+            (elems.len() * 16) as u64 + elems.iter().map(value_size_estimate).sum::<u64>(),
         );
         if self.alloc_limit_breached() {
             return Value::Null;
@@ -555,8 +578,10 @@ impl<'a> Evaluator<'a> {
                 self.make_array(values)
             }
             Expr::Object(entries) => {
-                let pairs: IndexMap<String, Value> =
-                    entries.iter().map(|(k, v)| (k.clone(), self.eval(v))).collect();
+                let pairs: IndexMap<String, Value> = entries
+                    .iter()
+                    .map(|(k, v)| (k.clone(), self.eval(v)))
+                    .collect();
                 self.make_object(pairs)
             }
             Expr::FieldRef { name, path } => {
@@ -818,10 +843,7 @@ impl<'a> Evaluator<'a> {
             match seg {
                 PathSegment::Dot(name) => match &current {
                     Value::Object(entries) => {
-                        current = entries
-                            .get(name.as_str())
-                            .cloned()
-                            .unwrap_or(Value::Null);
+                        current = entries.get(name.as_str()).cloned().unwrap_or(Value::Null);
                     }
                     Value::Null => return Value::Null,
                     _ => {
@@ -1052,8 +1074,10 @@ impl<'a> Evaluator<'a> {
             }
             (Value::Array(la), _) => {
                 return {
-                    let values: Vec<Value> =
-                        la.iter().map(|l| self.apply_binary(op, l, &right)).collect();
+                    let values: Vec<Value> = la
+                        .iter()
+                        .map(|l| self.apply_binary(op, l, &right))
+                        .collect();
                     self.make_array(values)
                 };
             }
@@ -1255,30 +1279,26 @@ impl<'a> Evaluator<'a> {
                     }
                 }
             }
-            (Value::Money(m), Value::Number(n)) if sym == "*" => {
-                match m.amount.checked_mul(*n) {
-                    Some(amount) => Value::Money(Money {
-                        amount,
-                        currency: m.currency.clone(),
-                    }),
-                    None => {
-                        self.diag("arithmetic overflow (*)");
-                        Value::Null
-                    }
+            (Value::Money(m), Value::Number(n)) if sym == "*" => match m.amount.checked_mul(*n) {
+                Some(amount) => Value::Money(Money {
+                    amount,
+                    currency: m.currency.clone(),
+                }),
+                None => {
+                    self.diag("arithmetic overflow (*)");
+                    Value::Null
                 }
-            }
-            (Value::Number(n), Value::Money(m)) if sym == "*" => {
-                match n.checked_mul(m.amount) {
-                    Some(amount) => Value::Money(Money {
-                        amount,
-                        currency: m.currency.clone(),
-                    }),
-                    None => {
-                        self.diag("arithmetic overflow (*)");
-                        Value::Null
-                    }
+            },
+            (Value::Number(n), Value::Money(m)) if sym == "*" => match n.checked_mul(m.amount) {
+                Some(amount) => Value::Money(Money {
+                    amount,
+                    currency: m.currency.clone(),
+                }),
+                None => {
+                    self.diag("arithmetic overflow (*)");
+                    Value::Null
                 }
-            }
+            },
             _ => {
                 self.diag(format!(
                     "cannot apply '{sym}' to {} and {}",
@@ -1411,9 +1431,9 @@ impl<'a> Evaluator<'a> {
             "endsWith" => self.fn_str2(args, "endsWith", |s, p| Value::Boolean(s.ends_with(p))),
             "substring" => self.fn_substring(args),
             "replace" => self.fn_replace(args),
-            "upper" => self.fn_str1(args, "upper", |s| Value::String(s.to_uppercase())),
-            "lower" => self.fn_str1(args, "lower", |s| Value::String(s.to_lowercase())),
-            "trim" => self.fn_str1(args, "trim", |s| Value::String(s.trim().to_string())),
+            "upper" => self.fn_str1(args, "upper", |s| s.to_uppercase()),
+            "lower" => self.fn_str1(args, "lower", |s| s.to_lowercase()),
+            "trim" => self.fn_str1(args, "trim", |s| s.trim().to_string()),
             "matches" => self.fn_matches(args),
             "format" => self.fn_format(args),
 
@@ -1456,7 +1476,7 @@ impl<'a> Evaluator<'a> {
             }
             "typeOf" => {
                 let v = self.eval_arg(args, 0);
-                Value::String(v.type_name().to_string())
+                self.make_string(v.type_name().to_string())
             }
 
             // Casting
@@ -1478,7 +1498,7 @@ impl<'a> Evaluator<'a> {
             "moneyCurrency" => {
                 let v = self.eval_arg(args, 0);
                 match v {
-                    Value::Money(m) => Value::String(m.currency.to_string()),
+                    Value::Money(m) => self.make_string(m.currency.to_string()),
                     Value::Null => Value::Null,
                     other => self.reject_expected_type("moneyCurrency", "money", &other),
                 }
@@ -1587,17 +1607,11 @@ impl<'a> Evaluator<'a> {
     fn finish_call_arg_cache_as_json(&mut self, args: &[Expr]) -> Vec<serde_json::Value> {
         let Some(mut cache) = self.call_arg_cache_stack.pop() else {
             self.diag("internal: missing call arg cache frame");
-            return args
-                .iter()
-                .map(|e| fel_to_json(&self.eval(e)))
-                .collect();
+            return args.iter().map(|e| fel_to_json(&self.eval(e))).collect();
         };
         if cache.args_ptr != args.as_ptr() {
             self.diag("internal: call arg cache pointer mismatch");
-            return args
-                .iter()
-                .map(|e| fel_to_json(&self.eval(e)))
-                .collect();
+            return args.iter().map(|e| fel_to_json(&self.eval(e))).collect();
         }
         cache
             .values

@@ -187,10 +187,9 @@ fn resolve_path(val: &TypeValue, segments: &[String]) -> TypeValue {
                     entries
                         .iter()
                         .map(|entry| match entry {
-                            TypeValue::Object(fields) => fields
-                                .get(seg.as_str())
-                                .cloned()
-                                .unwrap_or(TypeValue::Null),
+                            TypeValue::Object(fields) => {
+                                fields.get(seg.as_str()).cloned().unwrap_or(TypeValue::Null)
+                            }
                             _ => TypeValue::Null,
                         })
                         .collect(),
@@ -202,7 +201,10 @@ fn resolve_path(val: &TypeValue, segments: &[String]) -> TypeValue {
     current
 }
 
-fn project_repeat_field(data: &HashMap<String, TypeValue>, segments: &[String]) -> Option<TypeValue> {
+fn project_repeat_field(
+    data: &HashMap<String, TypeValue>,
+    segments: &[String],
+) -> Option<TypeValue> {
     if segments.len() < 2 {
         return None;
     }
@@ -413,8 +415,8 @@ impl Environment for FormspecEnvironment {
 #[cfg(test)]
 mod tests {
     #![allow(clippy::missing_docs_in_private_items)]
-    use indexmap::IndexMap;
     use super::*;
+    use indexmap::IndexMap;
 
     fn s(v: &str) -> TypeValue {
         TypeValue::String(v.to_string())
@@ -542,12 +544,18 @@ mod tests {
         );
 
         assert_eq!(env.mip_valid(&["email".into()]), TypeValue::Boolean(false));
-        assert_eq!(env.mip_relevant(&["email".into()]), TypeValue::Boolean(true));
+        assert_eq!(
+            env.mip_relevant(&["email".into()]),
+            TypeValue::Boolean(true)
+        );
         assert_eq!(
             env.mip_readonly(&["email".into()]),
             TypeValue::Boolean(false)
         );
-        assert_eq!(env.mip_required(&["email".into()]), TypeValue::Boolean(true));
+        assert_eq!(
+            env.mip_required(&["email".into()]),
+            TypeValue::Boolean(true)
+        );
 
         // Default MIP for unknown fields
         assert_eq!(env.mip_valid(&["unknown".into()]), TypeValue::Boolean(true));

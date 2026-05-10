@@ -373,7 +373,11 @@ fn test_builtin_type_and_arity_diagnostics_normalize() {
 
     let out = evaluate(&parse("round('x')").unwrap(), &env);
     assert_eq!(out.value, Value::Null);
-    assert!(out.diagnostics.iter().any(|d| d.message.contains("expected number")));
+    assert!(
+        out.diagnostics
+            .iter()
+            .any(|d| d.message.contains("expected number"))
+    );
 
     let out = evaluate(&parse("round(1, 'x')").unwrap(), &env);
     assert_eq!(out.value, Value::Null);
@@ -381,10 +385,11 @@ fn test_builtin_type_and_arity_diagnostics_normalize() {
 
     let out = evaluate(&parse("power(2)").unwrap(), &env);
     assert_eq!(out.value, Value::Null);
-    assert!(out
-        .diagnostics
-        .iter()
-        .any(|d| d.message.contains("requires at least 2 arguments")));
+    assert!(
+        out.diagnostics
+            .iter()
+            .any(|d| d.message.contains("requires at least 2 arguments"))
+    );
 
     let out = evaluate(&parse("power('a', 2)").unwrap(), &env);
     assert_eq!(out.value, Value::Null);
@@ -392,10 +397,11 @@ fn test_builtin_type_and_arity_diagnostics_normalize() {
 
     let out = evaluate(&parse("if(true, 1, 2, 3)").unwrap(), &env);
     assert_eq!(out.value, Value::Null);
-    assert!(out
-        .diagnostics
-        .iter()
-        .any(|d| d.message.contains("exactly 3 arguments")));
+    assert!(
+        out.diagnostics
+            .iter()
+            .any(|d| d.message.contains("exactly 3 arguments"))
+    );
 
     let out = evaluate(&parse("selected(1, 2)").unwrap(), &env);
     assert_eq!(out.value, Value::Null);
@@ -488,10 +494,7 @@ fn test_empty_present() {
 
 #[test]
 fn test_selected() {
-    assert_eq!(
-        eval("selected(['a', 'b', 'c'], 'b')"),
-        Value::Boolean(true)
-    );
+    assert_eq!(eval("selected(['a', 'b', 'c'], 'b')"), Value::Boolean(true));
     assert_eq!(
         eval("selected(['a', 'b', 'c'], 'd')"),
         Value::Boolean(false)
@@ -899,11 +902,7 @@ fn test_count_where_wrong_arity() {
     let expr = parse("countWhere([1, 2, 3])").unwrap();
     let env = MapEnvironment::new();
     let result = evaluate(&expr, &env);
-    assert_eq!(
-        result.value,
-        Value::Null,
-        "countWhere with 1 arg must fail"
-    );
+    assert_eq!(result.value, Value::Null, "countWhere with 1 arg must fail");
     assert!(
         !result.diagnostics.is_empty(),
         "countWhere arity mismatch must produce diagnostic"
@@ -918,11 +917,7 @@ fn test_number_cast_invalid_string() {
     let expr = parse("number('abc')").unwrap();
     let env = MapEnvironment::new();
     let result = evaluate(&expr, &env);
-    assert_eq!(
-        result.value,
-        Value::Null,
-        "number('abc') must return null"
-    );
+    assert_eq!(result.value, Value::Null, "number('abc') must return null");
     assert!(
         !result.diagnostics.is_empty(),
         "number('abc') must produce a diagnostic"
@@ -985,10 +980,7 @@ fn test_matches_literal_substring() {
         eval("matches('hello world', 'world')"),
         Value::Boolean(true)
     );
-    assert_eq!(
-        eval("matches('hello world', 'xyz')"),
-        Value::Boolean(false)
-    );
+    assert_eq!(eval("matches('hello world', 'xyz')"), Value::Boolean(false));
 }
 
 #[test]
@@ -1041,10 +1033,7 @@ fn test_matches_character_class_question() {
 fn test_matches_full_anchored_digit_pattern() {
     // Full string must be digits only
     assert_eq!(eval(r"matches('12345', '^\\d+$')"), Value::Boolean(true));
-    assert_eq!(
-        eval(r"matches('123abc', '^\\d+$')"),
-        Value::Boolean(false)
-    );
+    assert_eq!(eval(r"matches('123abc', '^\\d+$')"), Value::Boolean(false));
 }
 
 #[test]

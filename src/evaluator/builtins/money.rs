@@ -2,8 +2,8 @@
 use crate::ast::*;
 use crate::types::*;
 
-use super::helpers::fold_money_sum;
 use super::super::core::Evaluator;
+use super::helpers::fold_money_sum;
 
 impl<'a> Evaluator<'a> {
     // ── Money helpers ───────────────────────────────────────────

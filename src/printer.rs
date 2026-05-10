@@ -215,10 +215,7 @@ fn write_expr(buf: &mut String, expr: &Expr, needs_parens: bool) {
             // paren case rather than dispatch to parse_field_ref/identifier path.
             // Without parens, parse_field_ref absorbs the postfix segments and
             // produces FieldRef { path: [...] } instead of PostfixAccess.
-            let must_wrap = matches!(
-                inner.as_ref(),
-                Expr::FieldRef { .. } | Expr::VarRef { .. }
-            );
+            let must_wrap = matches!(inner.as_ref(), Expr::FieldRef { .. } | Expr::VarRef { .. });
             if must_wrap {
                 buf.push('(');
                 write_expr(buf, inner, false);

@@ -209,8 +209,7 @@ pub fn value_size_estimate(val: &Value) -> u64 {
         Value::String(s) => s.len() as u64,
         Value::Date(_) => 32,
         Value::Array(arr) => {
-            (arr.len() * 16) as u64
-                + arr.iter().map(value_size_estimate).sum::<u64>()
+            (arr.len() * 16) as u64 + arr.iter().map(value_size_estimate).sum::<u64>()
         }
         Value::Object(entries) => {
             (entries.len() * 40) as u64
@@ -411,7 +410,6 @@ pub(crate) fn civil_from_days(z: i64) -> Date {
     }
 }
 
-
 /// Format a Decimal: strip trailing zeros, show as integer when possible.
 pub fn format_number(n: Decimal) -> String {
     n.normalize().to_string()
@@ -574,7 +572,6 @@ mod tests {
             );
         }
     }
-
 }
 
 /// Property tests for the Hinnant civil-calendar primitives.

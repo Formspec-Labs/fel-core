@@ -114,10 +114,7 @@ fn mip_defaults_for_unknown_field() {
     let env = FormspecEnvironment::new();
 
     assert_eq!(eval_value("valid($unknown)", &env), Value::Boolean(true));
-    assert_eq!(
-        eval_value("relevant($unknown)", &env),
-        Value::Boolean(true)
-    );
+    assert_eq!(eval_value("relevant($unknown)", &env), Value::Boolean(true));
     assert_eq!(
         eval_value("readonly($unknown)", &env),
         Value::Boolean(false)
@@ -243,10 +240,7 @@ fn repeat_current_in_arithmetic() {
 #[test]
 fn variable_resolution() {
     let mut env = FormspecEnvironment::new();
-    env.set_variable(
-        "taxRate",
-        Value::Number(Decimal::from_str("0.08").unwrap()),
-    );
+    env.set_variable("taxRate", Value::Number(Decimal::from_str("0.08").unwrap()));
     env.set_field("subtotal", num(100));
 
     assert_eq!(
@@ -379,10 +373,7 @@ fn wasm_shaped_json_context_evaluates_field_variable_mip_and_locale() {
     assert_eq!(out.value, Value::Number(Decimal::from(12)));
 
     let valid_expr = parse("valid($score)").unwrap();
-    assert_eq!(
-        evaluate(&valid_expr, &env).value,
-        Value::Boolean(true)
-    );
+    assert_eq!(evaluate(&valid_expr, &env).value, Value::Boolean(true));
 
     assert_eq!(
         evaluate(&parse("locale()").unwrap(), &env).value,

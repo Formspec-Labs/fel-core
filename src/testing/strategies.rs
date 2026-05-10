@@ -46,9 +46,7 @@ pub fn arb_value(depth: impl Into<Option<u32>>) -> BoxedStrategy<Value> {
         ("[a-z]{1,6}".prop_map(|s: String| s), arb_value(depth - 1)),
         0..4,
     )
-    .prop_map(|pairs| {
-        Value::Object(pairs.into_iter().collect())
-    })
+    .prop_map(|pairs| Value::Object(pairs.into_iter().collect()))
     .boxed();
     prop_oneof![leaf, array, object].boxed()
 }
@@ -65,19 +63,15 @@ fn arb_leaf_value() -> impl Strategy<Value = Value> {
 }
 
 fn arb_date() -> impl Strategy<Value = Date> {
-    (arb_year(), 1u32..=12, 1u32..=28)
-        .prop_map(|(y, m, d)| Date::Date {
-            year: y,
-            month: m,
-            day: d,
-        })
+    (arb_year(), 1u32..=12, 1u32..=28).prop_map(|(y, m, d)| Date::Date {
+        year: y,
+        month: m,
+        day: d,
+    })
 }
 
 fn arb_money() -> impl Strategy<Value = Money> {
-    (
-        arb_decimal().prop_map(|d| d.abs()),
-        arb_currency_code(),
-    )
+    (arb_decimal().prop_map(|d| d.abs()), arb_currency_code())
         .prop_map(|(amount, currency)| Money { amount, currency })
 }
 
@@ -99,7 +93,10 @@ fn arb_year() -> impl Strategy<Value = i32> {
 /// Sub-strategies compose so proptest derives structural shrinking for free.
 ///
 /// `depth` defaults to [`MAX_STRATEGY_DEPTH`] when `None`.
-pub fn arb_expr(depth: impl Into<Option<u32>>, catalog: &[BuiltinFunctionCatalogEntry]) -> BoxedStrategy<Expr> {
+pub fn arb_expr(
+    depth: impl Into<Option<u32>>,
+    catalog: &[BuiltinFunctionCatalogEntry],
+) -> BoxedStrategy<Expr> {
     let depth = depth.into().unwrap_or(MAX_STRATEGY_DEPTH);
     let leaf = arb_leaf_expr();
     if depth == 0 {
@@ -160,11 +157,10 @@ fn arb_field_ref() -> BoxedStrategy<Expr> {
             name: Some(name),
             path: vec![],
         }),
-        (arb_identifier(), arb_identifier_nonempty())
-            .prop_map(|(name, tail)| Expr::FieldRef {
-                name: Some(name),
-                path: vec![PathSegment::Dot(tail)],
-            }),
+        (arb_identifier(), arb_identifier_nonempty()).prop_map(|(name, tail)| Expr::FieldRef {
+            name: Some(name),
+            path: vec![PathSegment::Dot(tail)],
+        }),
         (1usize..=5).prop_map(|idx| Expr::FieldRef {
             name: Some("items".to_string()),
             path: vec![PathSegment::Index(idx)],
@@ -175,10 +171,7 @@ fn arb_field_ref() -> BoxedStrategy<Expr> {
 
 fn arb_var_ref() -> BoxedStrategy<Expr> {
     arb_identifier()
-        .prop_map(|name| Expr::VarRef {
-            name,
-            path: vec![],
-        })
+        .prop_map(|name| Expr::VarRef { name, path: vec![] })
         .boxed()
 }
 
@@ -246,7 +239,10 @@ fn arb_if_then_else(sub: BoxedStrategy<Expr>) -> BoxedStrategy<Expr> {
         .boxed()
 }
 
-fn arb_function_call(sub: BoxedStrategy<Expr>, catalog: &[BuiltinFunctionCatalogEntry]) -> BoxedStrategy<Expr> {
+fn arb_function_call(
+    sub: BoxedStrategy<Expr>,
+    catalog: &[BuiltinFunctionCatalogEntry],
+) -> BoxedStrategy<Expr> {
     let entries: Vec<(String, usize, usize)> = catalog
         .iter()
         .map(|e| {
@@ -277,10 +273,7 @@ fn arb_function_call(sub: BoxedStrategy<Expr>, catalog: &[BuiltinFunctionCatalog
                 .unwrap_or((0, 3));
             let count_range = if min == max { min..=min } else { min..=max };
             let sub2 = sub.clone();
-            (
-                Just(name.clone()),
-                prop::collection::vec(sub2, count_range),
-            )
+            (Just(name.clone()), prop::collection::vec(sub2, count_range))
                 .prop_map(|(name, args)| Expr::FunctionCall { name, args })
         })
         .boxed()
@@ -293,25 +286,20 @@ fn min_max_arity(entry: &BuiltinFunctionCatalogEntry) -> Option<(usize, usize)> 
     let required = entry.parameters.iter().filter(|p| p.required).count();
     let total = entry.parameters.len();
     let variadic = entry.parameters.last().is_some_and(|p| p.variadic);
-    let max = if variadic {
-        required + 5
-    } else {
-        total
-    };
+    let max = if variadic { required + 5 } else { total };
     Some((required, max))
 }
 
 fn arb_array_expr(sub: BoxedStrategy<Expr>) -> BoxedStrategy<Expr> {
-    prop::collection::vec(sub, 0..4).prop_map(Expr::Array).boxed()
+    prop::collection::vec(sub, 0..4)
+        .prop_map(Expr::Array)
+        .boxed()
 }
 
 fn arb_object_expr(sub: BoxedStrategy<Expr>) -> BoxedStrategy<Expr> {
-    prop::collection::vec(
-        (arb_identifier_nonempty(), sub),
-        0..3,
-    )
-    .prop_map(Expr::Object)
-    .boxed()
+    prop::collection::vec((arb_identifier_nonempty(), sub), 0..3)
+        .prop_map(Expr::Object)
+        .boxed()
 }
 
 fn arb_membership(sub: BoxedStrategy<Expr>) -> BoxedStrategy<Expr> {
@@ -329,19 +317,16 @@ fn arb_membership(sub: BoxedStrategy<Expr>) -> BoxedStrategy<Expr> {
 }
 
 fn arb_null_coalesce(sub: BoxedStrategy<Expr>) -> BoxedStrategy<Expr> {
-    (sub.clone(), sub).prop_map(|(left, right)| Expr::NullCoalesce {
-        left: Box::new(left),
-        right: Box::new(right),
-    })
-    .boxed()
+    (sub.clone(), sub)
+        .prop_map(|(left, right)| Expr::NullCoalesce {
+            left: Box::new(left),
+            right: Box::new(right),
+        })
+        .boxed()
 }
 
 fn arb_let_binding(sub: BoxedStrategy<Expr>) -> BoxedStrategy<Expr> {
-    (
-        arb_identifier_nonempty(),
-        sub.clone(),
-        sub,
-    )
+    (arb_identifier_nonempty(), sub.clone(), sub)
         .prop_map(|(name, value, body)| Expr::LetBinding {
             name,
             value: Box::new(value),
@@ -354,8 +339,7 @@ fn arb_postfix_access(sub: BoxedStrategy<Expr>) -> BoxedStrategy<Expr> {
     (
         sub,
         prop_oneof![
-            arb_identifier_nonempty()
-                .prop_map(|s| vec![PathSegment::Dot(s)]),
+            arb_identifier_nonempty().prop_map(|s| vec![PathSegment::Dot(s)]),
             (1usize..=3).prop_map(|idx| vec![PathSegment::Index(idx)]),
         ],
     )

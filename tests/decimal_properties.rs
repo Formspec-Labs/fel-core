@@ -3,7 +3,7 @@
 //! Tests for Decimal arithmetic safety: overflow, coercion, JSON round-trip, and money.
 #![allow(clippy::missing_docs_in_private_items)]
 
-use fel_core::{evaluate, fel_to_json, json_to_fel, parse, MapEnvironment, Value};
+use fel_core::{MapEnvironment, Value, evaluate, fel_to_json, json_to_fel, parse};
 
 fn eval(src: &str) -> Value {
     let expr = parse(src).unwrap();
@@ -107,8 +107,10 @@ fn money_mixed_currency_add_errors() {
     let env = MapEnvironment::new();
     let result = evaluate(&expr, &env);
     assert!(matches!(result.value, Value::Null));
-    assert!(result
-        .diagnostics
-        .iter()
-        .any(|d| d.message.contains("currency mismatch")));
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("currency mismatch"))
+    );
 }

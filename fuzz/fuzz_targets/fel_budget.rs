@@ -1,10 +1,10 @@
-//! LibFuzzer harness: arbitrary bytes → parse → evaluate_with_budget (500 steps, 64 KiB alloc).
+//! LibFuzzer harness: arbitrary bytes → parse → evaluate_with (500 steps, 64 KiB alloc).
 //!
 //! Asserts that budget-limited evaluation never panics and that the result is consistent:
 //! either a valid Value, or Value::Null with a budget exceeded diagnostic.
 #![no_main]
 
-use fel_core::{evaluate_with_budget, parse, EvalBudget, MapEnvironment, Value};
+use fel_core::{evaluate_with, parse, EvalBudget, EvaluatorOptions, MapEnvironment, Value};
 
 libfuzzer_sys::fuzz_target!(|data: &[u8]| {
     let src = String::from_utf8_lossy(data);
@@ -19,7 +19,10 @@ libfuzzer_sys::fuzz_target!(|data: &[u8]| {
         max_alloc_bytes: 64 * 1024,
         deadline: None,
     };
-    let result = evaluate_with_budget(&expr, &env, &budget);
+    let result = evaluate_with(&expr, &env, EvaluatorOptions {
+        budget,
+        ..EvaluatorOptions::default()
+    });
 
     let has_budget_diag = result
         .diagnostics

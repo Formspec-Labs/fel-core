@@ -3,7 +3,7 @@
 //! Uses `insta` to pin exact wording; PR diffs surface message changes for review.
 #![allow(clippy::missing_docs_in_private_items)]
 
-use fel_core::{evaluate, parse, MapEnvironment};
+use fel_core::{MapEnvironment, evaluate, parse};
 use insta::assert_snapshot;
 
 fn diag_first(src: &str) -> String {

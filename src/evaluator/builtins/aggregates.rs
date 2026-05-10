@@ -4,9 +4,9 @@ use rust_decimal::Decimal;
 use crate::ast::*;
 use crate::types::*;
 
-use super::helpers::{fold_min_max_choice, fold_money_sum};
 use super::super::core::Evaluator;
 use super::super::util::dec;
+use super::helpers::{fold_min_max_choice, fold_money_sum};
 
 impl<'a> Evaluator<'a> {
     // ── Aggregate helpers ───────────────────────────────────────

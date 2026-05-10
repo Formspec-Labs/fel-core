@@ -24,14 +24,28 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         returns: FelType::Number,
         return_description: None,
         description: "Sums all numeric elements in the array. Money values are rejected; use moneySum() for currency-safe aggregation.",
-        null_handling: Some("Null elements are skipped. Arrays containing money emit FEL_SUM_REJECTS_MONEY and return null."),
+        null_handling: Some(
+            "Null elements are skipped. Arrays containing money emit FEL_SUM_REJECTS_MONEY and return null.",
+        ),
         deterministic: true,
         emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
-            Example { expression: "sum($items[*].amount)", result_json: "1500", note: None },
-            Example { expression: "sum([10, null, 20])", result_json: "30", note: None },
-            Example { expression: "sum([])", result_json: "0", note: None },
+            Example {
+                expression: "sum($items[*].amount)",
+                result_json: "1500",
+                note: None,
+            },
+            Example {
+                expression: "sum([10, null, 20])",
+                result_json: "30",
+                note: None,
+            },
+            Example {
+                expression: "sum([])",
+                result_json: "0",
+                note: None,
+            },
         ],
         since_version: "1.0",
         package: Package::Universal,
@@ -55,8 +69,16 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
-            Example { expression: "count($items[*].name)", result_json: "3", note: None },
-            Example { expression: "count([1, null, 3])", result_json: "3", note: None },
+            Example {
+                expression: "count($items[*].name)",
+                result_json: "3",
+                note: None,
+            },
+            Example {
+                expression: "count([1, null, 3])",
+                result_json: "3",
+                note: None,
+            },
         ],
         since_version: "1.0",
         package: Package::Universal,
@@ -76,7 +98,9 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
             Parameter {
                 name: "predicate",
                 fel_type: FelType::Boolean,
-                description: Some("FEL expression evaluated per element with '$' rebound to the current element."),
+                description: Some(
+                    "FEL expression evaluated per element with '$' rebound to the current element.",
+                ),
                 required: true,
                 variadic: false,
                 allowed_values: None,
@@ -90,8 +114,16 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         emit_deterministic_explicitly: false,
         short_circuit: true,
         examples: &[
-            Example { expression: "countWhere($items[*].amount, $ > 100)", result_json: "2", note: None },
-            Example { expression: "countWhere($scores[*], $ >= 60)", result_json: "4", note: None },
+            Example {
+                expression: "countWhere($items[*].amount, $ > 100)",
+                result_json: "2",
+                note: None,
+            },
+            Example {
+                expression: "countWhere($scores[*], $ >= 60)",
+                result_json: "4",
+                note: None,
+            },
         ],
         since_version: "1.0",
         package: Package::Universal,
@@ -103,7 +135,9 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
             Parameter {
                 name: "values",
                 fel_type: FelType::Array,
-                description: Some("Array of numbers (or elements from which numeric matches are taken)."),
+                description: Some(
+                    "Array of numbers (or elements from which numeric matches are taken).",
+                ),
                 required: true,
                 variadic: false,
                 allowed_values: None,
@@ -111,7 +145,9 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
             Parameter {
                 name: "predicate",
                 fel_type: FelType::Boolean,
-                description: Some("FEL expression evaluated per element with '$' rebound to the current element."),
+                description: Some(
+                    "FEL expression evaluated per element with '$' rebound to the current element.",
+                ),
                 required: true,
                 variadic: false,
                 allowed_values: None,
@@ -120,13 +156,17 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         returns: FelType::Number,
         return_description: None,
         description: "Sums numeric array elements for which the predicate evaluates to true. The predicate is NOT pre-evaluated — it is evaluated once per element.",
-        null_handling: Some("Null array returns null. Non-numeric matches are skipped. No numeric matches returns 0."),
+        null_handling: Some(
+            "Null array returns null. Non-numeric matches are skipped. No numeric matches returns 0.",
+        ),
         deterministic: true,
         emit_deterministic_explicitly: false,
         short_circuit: true,
-        examples: &[
-            Example { expression: "sumWhere([1, 2, 3, 4], $ > 2)", result_json: "7", note: None },
-        ],
+        examples: &[Example {
+            expression: "sumWhere([1, 2, 3, 4], $ > 2)",
+            result_json: "7",
+            note: None,
+        }],
         since_version: "1.0",
         package: Package::Universal,
     },
@@ -145,7 +185,9 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
             Parameter {
                 name: "predicate",
                 fel_type: FelType::Boolean,
-                description: Some("FEL expression evaluated per element with '$' rebound to the current element."),
+                description: Some(
+                    "FEL expression evaluated per element with '$' rebound to the current element.",
+                ),
                 required: true,
                 variadic: false,
                 allowed_values: None,
@@ -158,9 +200,11 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         deterministic: true,
         emit_deterministic_explicitly: false,
         short_circuit: true,
-        examples: &[
-            Example { expression: "avgWhere([40, 50, 60], $ >= 50)", result_json: "55", note: None },
-        ],
+        examples: &[Example {
+            expression: "avgWhere([40, 50, 60], $ >= 50)",
+            result_json: "55",
+            note: None,
+        }],
         since_version: "1.0",
         package: Package::Universal,
     },
@@ -179,7 +223,9 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
             Parameter {
                 name: "predicate",
                 fel_type: FelType::Boolean,
-                description: Some("FEL expression evaluated per element with '$' rebound to the current element."),
+                description: Some(
+                    "FEL expression evaluated per element with '$' rebound to the current element.",
+                ),
                 required: true,
                 variadic: false,
                 allowed_values: None,
@@ -192,9 +238,11 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         deterministic: true,
         emit_deterministic_explicitly: false,
         short_circuit: true,
-        examples: &[
-            Example { expression: "minWhere([3, 1, 4], $ > 0)", result_json: "1", note: None },
-        ],
+        examples: &[Example {
+            expression: "minWhere([3, 1, 4], $ > 0)",
+            result_json: "1",
+            note: None,
+        }],
         since_version: "1.0",
         package: Package::Universal,
     },
@@ -213,7 +261,9 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
             Parameter {
                 name: "predicate",
                 fel_type: FelType::Boolean,
-                description: Some("FEL expression evaluated per element with '$' rebound to the current element."),
+                description: Some(
+                    "FEL expression evaluated per element with '$' rebound to the current element.",
+                ),
                 required: true,
                 variadic: false,
                 allowed_values: None,
@@ -226,9 +276,11 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         deterministic: true,
         emit_deterministic_explicitly: false,
         short_circuit: true,
-        examples: &[
-            Example { expression: "maxWhere([3, 1, 4], $ < 4)", result_json: "3", note: None },
-        ],
+        examples: &[Example {
+            expression: "maxWhere([3, 1, 4], $ < 4)",
+            result_json: "3",
+            note: None,
+        }],
         since_version: "1.0",
         package: Package::Universal,
     },
@@ -247,7 +299,9 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
             Parameter {
                 name: "predicate",
                 fel_type: FelType::Boolean,
-                description: Some("FEL expression evaluated per element with '$' rebound to the current element."),
+                description: Some(
+                    "FEL expression evaluated per element with '$' rebound to the current element.",
+                ),
                 required: true,
                 variadic: false,
                 allowed_values: None,
@@ -256,13 +310,23 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         returns: FelType::Boolean,
         return_description: None,
         description: "True if the array is empty or the predicate is true for every element. The predicate is NOT pre-evaluated — it is evaluated once per element.",
-        null_handling: Some("Null array returns null. Null predicate result is not true (element fails every, does not satisfy some)."),
+        null_handling: Some(
+            "Null array returns null. Null predicate result is not true (element fails every, does not satisfy some).",
+        ),
         deterministic: true,
         emit_deterministic_explicitly: false,
         short_circuit: true,
         examples: &[
-            Example { expression: "every([1, 2, 3], $ > 0)", result_json: "true", note: None },
-            Example { expression: "every([], $ > 0)", result_json: "true", note: None },
+            Example {
+                expression: "every([1, 2, 3], $ > 0)",
+                result_json: "true",
+                note: None,
+            },
+            Example {
+                expression: "every([], $ > 0)",
+                result_json: "true",
+                note: None,
+            },
         ],
         since_version: "1.0",
         package: Package::Universal,
@@ -282,7 +346,9 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
             Parameter {
                 name: "predicate",
                 fel_type: FelType::Boolean,
-                description: Some("FEL expression evaluated per element with '$' rebound to the current element."),
+                description: Some(
+                    "FEL expression evaluated per element with '$' rebound to the current element.",
+                ),
                 required: true,
                 variadic: false,
                 allowed_values: None,
@@ -296,8 +362,16 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         emit_deterministic_explicitly: false,
         short_circuit: true,
         examples: &[
-            Example { expression: "some([0, 2, 4], $ > 3)", result_json: "true", note: None },
-            Example { expression: "some([], $ > 0)", result_json: "false", note: None },
+            Example {
+                expression: "some([0, 2, 4], $ > 3)",
+                result_json: "true",
+                note: None,
+            },
+            Example {
+                expression: "some([], $ > 0)",
+                result_json: "false",
+                note: None,
+            },
         ],
         since_version: "1.0",
         package: Package::Universal,
@@ -316,13 +390,23 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         returns: FelType::Number,
         return_description: None,
         description: "Arithmetic mean of all finite numeric elements. Skips nulls and non-numeric values.",
-        null_handling: Some("Null/non-numeric elements skipped. Empty array or all-null returns 0."),
+        null_handling: Some(
+            "Null/non-numeric elements skipped. Empty array or all-null returns 0.",
+        ),
         deterministic: true,
         emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
-            Example { expression: "avg([10, 20, 30])", result_json: "20", note: None },
-            Example { expression: "avg([10, null, 30])", result_json: "20", note: None },
+            Example {
+                expression: "avg([10, 20, 30])",
+                result_json: "20",
+                note: None,
+            },
+            Example {
+                expression: "avg([10, null, 30])",
+                result_json: "20",
+                note: None,
+            },
         ],
         since_version: "1.0",
         package: Package::Universal,
@@ -346,8 +430,16 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
-            Example { expression: "min([5, 2, 8])", result_json: "2", note: None },
-            Example { expression: "min($items[*].amount)", result_json: "100", note: None },
+            Example {
+                expression: "min([5, 2, 8])",
+                result_json: "2",
+                note: None,
+            },
+            Example {
+                expression: "min($items[*].amount)",
+                result_json: "100",
+                note: None,
+            },
         ],
         since_version: "1.0",
         package: Package::Universal,
@@ -370,9 +462,11 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         deterministic: true,
         emit_deterministic_explicitly: false,
         short_circuit: false,
-        examples: &[
-            Example { expression: "max([5, 2, 8])", result_json: "8", note: None },
-        ],
+        examples: &[Example {
+            expression: "max([5, 2, 8])",
+            result_json: "8",
+            note: None,
+        }],
         since_version: "1.0",
         package: Package::Universal,
     },
@@ -396,9 +490,21 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
-            Example { expression: "length('hello')", result_json: "5", note: None },
-            Example { expression: "length(null)", result_json: "0", note: None },
-            Example { expression: "length($name)", result_json: "12", note: None },
+            Example {
+                expression: "length('hello')",
+                result_json: "5",
+                note: None,
+            },
+            Example {
+                expression: "length(null)",
+                result_json: "0",
+                note: None,
+            },
+            Example {
+                expression: "length($name)",
+                result_json: "12",
+                note: None,
+            },
         ],
         since_version: "1.0",
         package: Package::Universal,
@@ -432,8 +538,16 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
-            Example { expression: "contains('hello world', 'world')", result_json: "true", note: None },
-            Example { expression: "contains($email, '@')", result_json: "true", note: None },
+            Example {
+                expression: "contains('hello world', 'world')",
+                result_json: "true",
+                note: None,
+            },
+            Example {
+                expression: "contains($email, '@')",
+                result_json: "true",
+                note: None,
+            },
         ],
         since_version: "1.0",
         package: Package::Universal,
@@ -466,9 +580,11 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         deterministic: true,
         emit_deterministic_explicitly: false,
         short_circuit: false,
-        examples: &[
-            Example { expression: "startsWith($url, 'https://')", result_json: "true", note: None },
-        ],
+        examples: &[Example {
+            expression: "startsWith($url, 'https://')",
+            result_json: "true",
+            note: None,
+        }],
         since_version: "1.0",
         package: Package::Universal,
     },
@@ -500,9 +616,11 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         deterministic: true,
         emit_deterministic_explicitly: false,
         short_circuit: false,
-        examples: &[
-            Example { expression: "endsWith($email, '.gov')", result_json: "true", note: None },
-        ],
+        examples: &[Example {
+            expression: "endsWith($email, '.gov')",
+            result_json: "true",
+            note: None,
+        }],
         since_version: "1.0",
         package: Package::Universal,
     },
@@ -543,8 +661,16 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
-            Example { expression: "substring('abcdef', 2, 3)", result_json: "\"bcd\"", note: None },
-            Example { expression: "substring('abcdef', 4)", result_json: "\"def\"", note: None },
+            Example {
+                expression: "substring('abcdef', 2, 3)",
+                result_json: "\"bcd\"",
+                note: None,
+            },
+            Example {
+                expression: "substring('abcdef', 4)",
+                result_json: "\"def\"",
+                note: None,
+            },
         ],
         since_version: "1.0",
         package: Package::Universal,
@@ -586,8 +712,16 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
-            Example { expression: "replace('hello world', 'world', 'there')", result_json: "\"hello there\"", note: None },
-            Example { expression: "replace($phone, '-', '')", result_json: "\"5551234567\"", note: None },
+            Example {
+                expression: "replace('hello world', 'world', 'there')",
+                result_json: "\"hello there\"",
+                note: None,
+            },
+            Example {
+                expression: "replace($phone, '-', '')",
+                result_json: "\"5551234567\"",
+                note: None,
+            },
         ],
         since_version: "1.0",
         package: Package::Universal,
@@ -610,9 +744,11 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         deterministic: true,
         emit_deterministic_explicitly: false,
         short_circuit: false,
-        examples: &[
-            Example { expression: "upper('hello')", result_json: "\"HELLO\"", note: None },
-        ],
+        examples: &[Example {
+            expression: "upper('hello')",
+            result_json: "\"HELLO\"",
+            note: None,
+        }],
         since_version: "1.0",
         package: Package::Universal,
     },
@@ -634,9 +770,11 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         deterministic: true,
         emit_deterministic_explicitly: false,
         short_circuit: false,
-        examples: &[
-            Example { expression: "lower('HELLO')", result_json: "\"hello\"", note: None },
-        ],
+        examples: &[Example {
+            expression: "lower('HELLO')",
+            result_json: "\"hello\"",
+            note: None,
+        }],
         since_version: "1.0",
         package: Package::Universal,
     },
@@ -658,9 +796,11 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         deterministic: true,
         emit_deterministic_explicitly: false,
         short_circuit: false,
-        examples: &[
-            Example { expression: "trim('  hello  ')", result_json: "\"hello\"", note: None },
-        ],
+        examples: &[Example {
+            expression: "trim('  hello  ')",
+            result_json: "\"hello\"",
+            note: None,
+        }],
         since_version: "1.0",
         package: Package::Universal,
     },
@@ -693,8 +833,16 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
-            Example { expression: "matches($ein, '^[0-9]{2}-[0-9]{7}$')", result_json: "true", note: None },
-            Example { expression: "matches($email, '^[^@]+@[^@]+$')", result_json: "true", note: None },
+            Example {
+                expression: "matches($ein, '^[0-9]{2}-[0-9]{7}$')",
+                result_json: "true",
+                note: None,
+            },
+            Example {
+                expression: "matches($email, '^[^@]+@[^@]+$')",
+                result_json: "true",
+                note: None,
+            },
         ],
         since_version: "1.0",
         package: Package::Universal,
@@ -723,13 +871,23 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         returns: FelType::String,
         return_description: None,
         description: "Positional string interpolation. Replaces {0}, {1}, etc. in the template with stringified arguments. Null arguments become empty string. Numbers strip trailing zeros. Booleans become 'true'/'false'.",
-        null_handling: Some("Null template returns empty string. Null arguments substituted as empty string."),
+        null_handling: Some(
+            "Null template returns empty string. Null arguments substituted as empty string.",
+        ),
         deterministic: true,
         emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
-            Example { expression: "format('{0} of {1}', $current, $total)", result_json: "\"3 of 10\"", note: None },
-            Example { expression: "format('Hello, {0}!', $name)", result_json: "\"Hello, Alice!\"", note: None },
+            Example {
+                expression: "format('{0} of {1}', $current, $total)",
+                result_json: "\"3 of 10\"",
+                note: None,
+            },
+            Example {
+                expression: "format('Hello, {0}!', $name)",
+                result_json: "\"Hello, Alice!\"",
+                note: None,
+            },
         ],
         since_version: "1.0",
         package: Package::Universal,
@@ -764,9 +922,21 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
-            Example { expression: "round(3.456, 2)", result_json: "3.46", note: None },
-            Example { expression: "round(2.5)", result_json: "2", note: Some("Banker's rounding: half rounds to even") },
-            Example { expression: "round(3.5)", result_json: "4", note: None },
+            Example {
+                expression: "round(3.456, 2)",
+                result_json: "3.46",
+                note: None,
+            },
+            Example {
+                expression: "round(2.5)",
+                result_json: "2",
+                note: Some("Banker's rounding: half rounds to even"),
+            },
+            Example {
+                expression: "round(3.5)",
+                result_json: "4",
+                note: None,
+            },
         ],
         since_version: "1.0",
         package: Package::Universal,
@@ -790,8 +960,16 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
-            Example { expression: "floor(3.7)", result_json: "3", note: None },
-            Example { expression: "floor(-2.3)", result_json: "-3", note: None },
+            Example {
+                expression: "floor(3.7)",
+                result_json: "3",
+                note: None,
+            },
+            Example {
+                expression: "floor(-2.3)",
+                result_json: "-3",
+                note: None,
+            },
         ],
         since_version: "1.0",
         package: Package::Universal,
@@ -815,8 +993,16 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
-            Example { expression: "ceil(3.2)", result_json: "4", note: None },
-            Example { expression: "ceil(-2.7)", result_json: "-2", note: None },
+            Example {
+                expression: "ceil(3.2)",
+                result_json: "4",
+                note: None,
+            },
+            Example {
+                expression: "ceil(-2.7)",
+                result_json: "-2",
+                note: None,
+            },
         ],
         since_version: "1.0",
         package: Package::Universal,
@@ -840,8 +1026,16 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
-            Example { expression: "abs(-42)", result_json: "42", note: None },
-            Example { expression: "abs(42)", result_json: "42", note: None },
+            Example {
+                expression: "abs(-42)",
+                result_json: "42",
+                note: None,
+            },
+            Example {
+                expression: "abs(42)",
+                result_json: "42",
+                note: None,
+            },
         ],
         since_version: "1.0",
         package: Package::Universal,
@@ -875,8 +1069,16 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
-            Example { expression: "power(2, 10)", result_json: "1024", note: None },
-            Example { expression: "power(10, 2)", result_json: "100", note: None },
+            Example {
+                expression: "power(2, 10)",
+                result_json: "1024",
+                note: None,
+            },
+            Example {
+                expression: "power(10, 2)",
+                result_json: "100",
+                note: None,
+            },
         ],
         since_version: "1.0",
         package: Package::Universal,
@@ -893,9 +1095,11 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         deterministic: false,
         emit_deterministic_explicitly: false,
         short_circuit: false,
-        examples: &[
-            Example { expression: "today()", result_json: "\"2025-07-10\"", note: None },
-        ],
+        examples: &[Example {
+            expression: "today()",
+            result_json: "\"2025-07-10\"",
+            note: None,
+        }],
         since_version: "1.0",
         package: Package::Universal,
     },
@@ -910,9 +1114,11 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         deterministic: false,
         emit_deterministic_explicitly: false,
         short_circuit: false,
-        examples: &[
-            Example { expression: "now()", result_json: "\"2025-07-10T14:30:00.000Z\"", note: None },
-        ],
+        examples: &[Example {
+            expression: "now()",
+            result_json: "\"2025-07-10T14:30:00.000Z\"",
+            note: None,
+        }],
         since_version: "1.0",
         package: Package::Universal,
     },
@@ -935,8 +1141,16 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
-            Example { expression: "year(@2025-07-10)", result_json: "2025", note: None },
-            Example { expression: "year($birthDate)", result_json: "1990", note: None },
+            Example {
+                expression: "year(@2025-07-10)",
+                result_json: "2025",
+                note: None,
+            },
+            Example {
+                expression: "year($birthDate)",
+                result_json: "1990",
+                note: None,
+            },
         ],
         since_version: "1.0",
         package: Package::Universal,
@@ -959,9 +1173,11 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         deterministic: true,
         emit_deterministic_explicitly: false,
         short_circuit: false,
-        examples: &[
-            Example { expression: "month(@2025-07-10)", result_json: "7", note: None },
-        ],
+        examples: &[Example {
+            expression: "month(@2025-07-10)",
+            result_json: "7",
+            note: None,
+        }],
         since_version: "1.0",
         package: Package::Universal,
     },
@@ -983,9 +1199,11 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         deterministic: true,
         emit_deterministic_explicitly: false,
         short_circuit: false,
-        examples: &[
-            Example { expression: "day(@2025-07-10)", result_json: "10", note: None },
-        ],
+        examples: &[Example {
+            expression: "day(@2025-07-10)",
+            result_json: "10",
+            note: None,
+        }],
         since_version: "1.0",
         package: Package::Universal,
     },
@@ -1007,9 +1225,11 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         deterministic: true,
         emit_deterministic_explicitly: false,
         short_circuit: false,
-        examples: &[
-            Example { expression: "hours(@2025-07-10T14:30:00Z)", result_json: "14", note: None },
-        ],
+        examples: &[Example {
+            expression: "hours(@2025-07-10T14:30:00Z)",
+            result_json: "14",
+            note: None,
+        }],
         since_version: "1.0",
         package: Package::Universal,
     },
@@ -1031,9 +1251,11 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         deterministic: true,
         emit_deterministic_explicitly: false,
         short_circuit: false,
-        examples: &[
-            Example { expression: "minutes(@2025-07-10T14:30:00Z)", result_json: "30", note: None },
-        ],
+        examples: &[Example {
+            expression: "minutes(@2025-07-10T14:30:00Z)",
+            result_json: "30",
+            note: None,
+        }],
         since_version: "1.0",
         package: Package::Universal,
     },
@@ -1055,9 +1277,11 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         deterministic: true,
         emit_deterministic_explicitly: false,
         short_circuit: false,
-        examples: &[
-            Example { expression: "seconds(@2025-07-10T14:30:45Z)", result_json: "45", note: None },
-        ],
+        examples: &[Example {
+            expression: "seconds(@2025-07-10T14:30:45Z)",
+            result_json: "45",
+            note: None,
+        }],
         since_version: "1.0",
         package: Package::Universal,
     },
@@ -1098,8 +1322,16 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
-            Example { expression: "time(14, 30, 0)", result_json: "\"14:30:00\"", note: None },
-            Example { expression: "time(9, 5, 30)", result_json: "\"09:05:30\"", note: None },
+            Example {
+                expression: "time(14, 30, 0)",
+                result_json: "\"14:30:00\"",
+                note: None,
+            },
+            Example {
+                expression: "time(9, 5, 30)",
+                result_json: "\"09:05:30\"",
+                note: None,
+            },
         ],
         since_version: "1.0",
         package: Package::Universal,
@@ -1141,9 +1373,21 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
-            Example { expression: "dateDiff(@2025-07-10, @2025-01-01, 'days')", result_json: "190", note: None },
-            Example { expression: "dateDiff($endDate, $startDate, 'months')", result_json: "6", note: None },
-            Example { expression: "dateDiff(today(), $birthDate, 'years')", result_json: "35", note: Some("Age calculation") },
+            Example {
+                expression: "dateDiff(@2025-07-10, @2025-01-01, 'days')",
+                result_json: "190",
+                note: None,
+            },
+            Example {
+                expression: "dateDiff($endDate, $startDate, 'months')",
+                result_json: "6",
+                note: None,
+            },
+            Example {
+                expression: "dateDiff(today(), $birthDate, 'years')",
+                result_json: "35",
+                note: Some("Age calculation"),
+            },
         ],
         since_version: "1.0",
         package: Package::Universal,
@@ -1185,9 +1429,21 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
-            Example { expression: "dateAdd(@2025-01-15, 30, 'days')", result_json: "\"2025-02-14\"", note: None },
-            Example { expression: "dateAdd(today(), 1, 'years')", result_json: "\"2026-07-10\"", note: None },
-            Example { expression: "dateAdd($startDate, -6, 'months')", result_json: "\"2025-01-10\"", note: None },
+            Example {
+                expression: "dateAdd(@2025-01-15, 30, 'days')",
+                result_json: "\"2025-02-14\"",
+                note: None,
+            },
+            Example {
+                expression: "dateAdd(today(), 1, 'years')",
+                result_json: "\"2026-07-10\"",
+                note: None,
+            },
+            Example {
+                expression: "dateAdd($startDate, -6, 'months')",
+                result_json: "\"2025-01-10\"",
+                note: None,
+            },
         ],
         since_version: "1.0",
         package: Package::Universal,
@@ -1214,15 +1470,25 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
             },
         ],
         returns: FelType::Number,
-        return_description: Some("Signed difference in whole seconds: laterTime minus earlierTime (positive when the first argument is later in the day)."),
+        return_description: Some(
+            "Signed difference in whole seconds: laterTime minus earlierTime (positive when the first argument is later in the day).",
+        ),
         description: "Difference in seconds between two time-of-day strings. Distinct from duration(), which parses an ISO 8601 duration and returns milliseconds.",
         null_handling: Some("Invalid time strings produce a diagnostic and null."),
         deterministic: true,
         emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
-            Example { expression: "timeDiff('14:30:00', '13:00:00')", result_json: "5400", note: None },
-            Example { expression: "timeDiff('13:00:00', '14:30:00')", result_json: "-5400", note: None },
+            Example {
+                expression: "timeDiff('14:30:00', '13:00:00')",
+                result_json: "5400",
+                note: None,
+            },
+            Example {
+                expression: "timeDiff('13:00:00', '14:30:00')",
+                result_json: "-5400",
+                note: None,
+            },
         ],
         since_version: "1.0",
         package: Package::Universal,
@@ -1241,13 +1507,23 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         returns: FelType::Number,
         return_description: None,
         description: "Parses a duration string and returns its length in milliseconds. Years/months in the date part use fixed 365-day years and 30-day months (not calendar arithmetic). Distinct from timeDiff, which compares two clock times in seconds.",
-        null_handling: Some("Null argument returns null. Invalid strings produce an error diagnostic and null."),
+        null_handling: Some(
+            "Null argument returns null. Invalid strings produce an error diagnostic and null.",
+        ),
         deterministic: true,
         emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
-            Example { expression: "duration('PT1H')", result_json: "3600000", note: None },
-            Example { expression: "duration('P1D')", result_json: "86400000", note: None },
+            Example {
+                expression: "duration('PT1H')",
+                result_json: "3600000",
+                note: None,
+            },
+            Example {
+                expression: "duration('P1D')",
+                result_json: "86400000",
+                note: None,
+            },
         ],
         since_version: "1.0",
         package: Package::Universal,
@@ -1290,8 +1566,16 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         emit_deterministic_explicitly: false,
         short_circuit: true,
         examples: &[
-            Example { expression: "if($age >= 18, 'adult', 'minor')", result_json: "\"adult\"", note: None },
-            Example { expression: "if($status = 'married', $income * 0.75, $income)", result_json: "45000", note: None },
+            Example {
+                expression: "if($age >= 18, 'adult', 'minor')",
+                result_json: "\"adult\"",
+                note: None,
+            },
+            Example {
+                expression: "if($status = 'married', $income * 0.75, $income)",
+                result_json: "45000",
+                note: None,
+            },
         ],
         since_version: "1.0",
         package: Package::Universal,
@@ -1310,13 +1594,23 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         returns: FelType::Any,
         return_description: None,
         description: "Returns the first argument that is not null, undefined, or empty string. If all arguments are null/empty, returns null.",
-        null_handling: Some("Core purpose is null handling — returns first non-null, non-empty value."),
+        null_handling: Some(
+            "Core purpose is null handling — returns first non-null, non-empty value.",
+        ),
         deterministic: true,
         emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
-            Example { expression: "coalesce($preferredName, $firstName, 'Unknown')", result_json: "\"Alice\"", note: None },
-            Example { expression: "coalesce(null, '', 'fallback')", result_json: "\"fallback\"", note: None },
+            Example {
+                expression: "coalesce($preferredName, $firstName, 'Unknown')",
+                result_json: "\"Alice\"",
+                note: None,
+            },
+            Example {
+                expression: "coalesce(null, '', 'fallback')",
+                result_json: "\"fallback\"",
+                note: None,
+            },
         ],
         since_version: "1.0",
         package: Package::Universal,
@@ -1340,11 +1634,31 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
-            Example { expression: "empty(null)", result_json: "true", note: None },
-            Example { expression: "empty('')", result_json: "true", note: None },
-            Example { expression: "empty([])", result_json: "true", note: None },
-            Example { expression: "empty('hello')", result_json: "false", note: None },
-            Example { expression: "empty(0)", result_json: "false", note: Some("0 is not empty") },
+            Example {
+                expression: "empty(null)",
+                result_json: "true",
+                note: None,
+            },
+            Example {
+                expression: "empty('')",
+                result_json: "true",
+                note: None,
+            },
+            Example {
+                expression: "empty([])",
+                result_json: "true",
+                note: None,
+            },
+            Example {
+                expression: "empty('hello')",
+                result_json: "false",
+                note: None,
+            },
+            Example {
+                expression: "empty(0)",
+                result_json: "false",
+                note: Some("0 is not empty"),
+            },
         ],
         since_version: "1.0",
         package: Package::Universal,
@@ -1368,9 +1682,21 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
-            Example { expression: "present($email)", result_json: "true", note: None },
-            Example { expression: "present(null)", result_json: "false", note: None },
-            Example { expression: "not empty($email) or not empty($phone)", result_json: "true", note: Some("Equivalent to: present($email) or present($phone)") },
+            Example {
+                expression: "present($email)",
+                result_json: "true",
+                note: None,
+            },
+            Example {
+                expression: "present(null)",
+                result_json: "false",
+                note: None,
+            },
+            Example {
+                expression: "not empty($email) or not empty($phone)",
+                result_json: "true",
+                note: Some("Equivalent to: present($email) or present($phone)"),
+            },
         ],
         since_version: "1.0",
         package: Package::Universal,
@@ -1404,8 +1730,16 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
-            Example { expression: "selected($categories, 'personnel')", result_json: "true", note: Some("multiChoice field") },
-            Example { expression: "selected($status, 'active')", result_json: "true", note: Some("choice field") },
+            Example {
+                expression: "selected($categories, 'personnel')",
+                result_json: "true",
+                note: Some("multiChoice field"),
+            },
+            Example {
+                expression: "selected($status, 'active')",
+                result_json: "true",
+                note: Some("choice field"),
+            },
         ],
         since_version: "1.0",
         package: Package::Universal,
@@ -1430,8 +1764,16 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
-            Example { expression: "isNumber(42)", result_json: "true", note: None },
-            Example { expression: "isNumber('42')", result_json: "false", note: None },
+            Example {
+                expression: "isNumber(42)",
+                result_json: "true",
+                note: None,
+            },
+            Example {
+                expression: "isNumber('42')",
+                result_json: "false",
+                note: None,
+            },
         ],
         since_version: "1.0",
         package: Package::Universal,
@@ -1455,8 +1797,16 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
-            Example { expression: "isString('hello')", result_json: "true", note: None },
-            Example { expression: "isString(42)", result_json: "false", note: None },
+            Example {
+                expression: "isString('hello')",
+                result_json: "true",
+                note: None,
+            },
+            Example {
+                expression: "isString(42)",
+                result_json: "false",
+                note: None,
+            },
         ],
         since_version: "1.0",
         package: Package::Universal,
@@ -1480,8 +1830,16 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
-            Example { expression: "isDate('2025-07-10')", result_json: "true", note: None },
-            Example { expression: "isDate('not-a-date')", result_json: "false", note: None },
+            Example {
+                expression: "isDate('2025-07-10')",
+                result_json: "true",
+                note: None,
+            },
+            Example {
+                expression: "isDate('not-a-date')",
+                result_json: "false",
+                note: None,
+            },
         ],
         since_version: "1.0",
         package: Package::Universal,
@@ -1505,9 +1863,21 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
-            Example { expression: "isNull(null)", result_json: "true", note: None },
-            Example { expression: "isNull('')", result_json: "true", note: None },
-            Example { expression: "isNull(0)", result_json: "false", note: None },
+            Example {
+                expression: "isNull(null)",
+                result_json: "true",
+                note: None,
+            },
+            Example {
+                expression: "isNull('')",
+                result_json: "true",
+                note: None,
+            },
+            Example {
+                expression: "isNull(0)",
+                result_json: "false",
+                note: None,
+            },
         ],
         since_version: "1.0",
         package: Package::Universal,
@@ -1524,16 +1894,30 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
             allowed_values: None,
         }],
         returns: FelType::String,
-        return_description: Some("One of: 'string', 'number', 'boolean', 'array', 'object', 'null'."),
+        return_description: Some(
+            "One of: 'string', 'number', 'boolean', 'array', 'object', 'null'.",
+        ),
         description: "Returns the FEL type name of the value.",
         null_handling: Some("Null returns 'null'."),
         deterministic: true,
         emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
-            Example { expression: "typeOf(42)", result_json: "\"number\"", note: None },
-            Example { expression: "typeOf([1,2])", result_json: "\"array\"", note: None },
-            Example { expression: "typeOf(null)", result_json: "\"null\"", note: None },
+            Example {
+                expression: "typeOf(42)",
+                result_json: "\"number\"",
+                note: None,
+            },
+            Example {
+                expression: "typeOf([1,2])",
+                result_json: "\"array\"",
+                note: None,
+            },
+            Example {
+                expression: "typeOf(null)",
+                result_json: "\"null\"",
+                note: None,
+            },
         ],
         since_version: "1.0",
         package: Package::Universal,
@@ -1558,9 +1942,21 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
-            Example { expression: "number('42')", result_json: "42", note: None },
-            Example { expression: "number('3.14')", result_json: "3.14", note: None },
-            Example { expression: "number('abc')", result_json: "null", note: None },
+            Example {
+                expression: "number('42')",
+                result_json: "42",
+                note: None,
+            },
+            Example {
+                expression: "number('3.14')",
+                result_json: "3.14",
+                note: None,
+            },
+            Example {
+                expression: "number('abc')",
+                result_json: "null",
+                note: None,
+            },
         ],
         since_version: "1.0",
         package: Package::Universal,
@@ -1584,9 +1980,21 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
-            Example { expression: "string(42)", result_json: "\"42\"", note: None },
-            Example { expression: "string(true)", result_json: "\"true\"", note: None },
-            Example { expression: "string(null)", result_json: "\"\"", note: None },
+            Example {
+                expression: "string(42)",
+                result_json: "\"42\"",
+                note: None,
+            },
+            Example {
+                expression: "string(true)",
+                result_json: "\"true\"",
+                note: None,
+            },
+            Example {
+                expression: "string(null)",
+                result_json: "\"\"",
+                note: None,
+            },
         ],
         since_version: "1.0",
         package: Package::Universal,
@@ -1610,10 +2018,26 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
-            Example { expression: "boolean(1)", result_json: "true", note: None },
-            Example { expression: "boolean(0)", result_json: "false", note: None },
-            Example { expression: "boolean('true')", result_json: "true", note: None },
-            Example { expression: "boolean(null)", result_json: "false", note: None },
+            Example {
+                expression: "boolean(1)",
+                result_json: "true",
+                note: None,
+            },
+            Example {
+                expression: "boolean(0)",
+                result_json: "false",
+                note: None,
+            },
+            Example {
+                expression: "boolean('true')",
+                result_json: "true",
+                note: None,
+            },
+            Example {
+                expression: "boolean(null)",
+                result_json: "false",
+                note: None,
+            },
         ],
         since_version: "1.0",
         package: Package::Universal,
@@ -1636,9 +2060,11 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         deterministic: true,
         emit_deterministic_explicitly: false,
         short_circuit: false,
-        examples: &[
-            Example { expression: "date('2025-07-10')", result_json: "\"2025-07-10\"", note: None },
-        ],
+        examples: &[Example {
+            expression: "date('2025-07-10')",
+            result_json: "\"2025-07-10\"",
+            note: None,
+        }],
         since_version: "1.0",
         package: Package::Universal,
     },
@@ -1672,8 +2098,16 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
-            Example { expression: "money(50000, 'USD')", result_json: "{\"amount\": 50000, \"currency\": \"USD\"}", note: None },
-            Example { expression: "money($total, 'EUR')", result_json: "{\"amount\": 12500, \"currency\": \"EUR\"}", note: None },
+            Example {
+                expression: "money(50000, 'USD')",
+                result_json: "{\"amount\": 50000, \"currency\": \"USD\"}",
+                note: None,
+            },
+            Example {
+                expression: "money($total, 'EUR')",
+                result_json: "{\"amount\": 12500, \"currency\": \"EUR\"}",
+                note: None,
+            },
         ],
         since_version: "1.0",
         package: Package::Universal,
@@ -1696,9 +2130,11 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         deterministic: true,
         emit_deterministic_explicitly: false,
         short_circuit: false,
-        examples: &[
-            Example { expression: "moneyAmount($budget)", result_json: "50000", note: None },
-        ],
+        examples: &[Example {
+            expression: "moneyAmount($budget)",
+            result_json: "50000",
+            note: None,
+        }],
         since_version: "1.0",
         package: Package::Universal,
     },
@@ -1720,9 +2156,11 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         deterministic: true,
         emit_deterministic_explicitly: false,
         short_circuit: false,
-        examples: &[
-            Example { expression: "moneyCurrency($budget)", result_json: "\"USD\"", note: None },
-        ],
+        examples: &[Example {
+            expression: "moneyCurrency($budget)",
+            result_json: "\"USD\"",
+            note: None,
+        }],
         since_version: "1.0",
         package: Package::Universal,
     },
@@ -1754,9 +2192,11 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         deterministic: true,
         emit_deterministic_explicitly: false,
         short_circuit: false,
-        examples: &[
-            Example { expression: "moneyAdd(money(100, 'USD'), money(250, 'USD'))", result_json: "{\"amount\": 350, \"currency\": \"USD\"}", note: None },
-        ],
+        examples: &[Example {
+            expression: "moneyAdd(money(100, 'USD'), money(250, 'USD'))",
+            result_json: "{\"amount\": 350, \"currency\": \"USD\"}",
+            note: None,
+        }],
         since_version: "1.0",
         package: Package::Universal,
     },
@@ -1778,9 +2218,11 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         deterministic: true,
         emit_deterministic_explicitly: false,
         short_circuit: false,
-        examples: &[
-            Example { expression: "moneySum($lineItems[*].cost)", result_json: "{\"amount\": 1500, \"currency\": \"USD\"}", note: None },
-        ],
+        examples: &[Example {
+            expression: "moneySum($lineItems[*].cost)",
+            result_json: "{\"amount\": 1500, \"currency\": \"USD\"}",
+            note: None,
+        }],
         since_version: "1.0",
         package: Package::Universal,
     },
@@ -1799,7 +2241,9 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
             Parameter {
                 name: "predicate",
                 fel_type: FelType::Boolean,
-                description: Some("FEL expression evaluated per element with '$' rebound to the current money value."),
+                description: Some(
+                    "FEL expression evaluated per element with '$' rebound to the current money value.",
+                ),
                 required: true,
                 variadic: false,
                 allowed_values: None,
@@ -1812,9 +2256,11 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         deterministic: true,
         emit_deterministic_explicitly: false,
         short_circuit: true,
-        examples: &[
-            Example { expression: "moneySumWhere([money(100,'USD'), money(200,'USD')], moneyAmount($) > 50)", result_json: "{\"amount\": 300, \"currency\": \"USD\"}", note: None },
-        ],
+        examples: &[Example {
+            expression: "moneySumWhere([money(100,'USD'), money(200,'USD')], moneyAmount($) > 50)",
+            result_json: "{\"amount\": 300, \"currency\": \"USD\"}",
+            note: None,
+        }],
         since_version: "1.0",
         package: Package::Universal,
     },
@@ -1830,9 +2276,11 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         deterministic: false,
         emit_deterministic_explicitly: false,
         short_circuit: false,
-        examples: &[
-            Example { expression: "locale()", result_json: "\"en-US\"", note: None },
-        ],
+        examples: &[Example {
+            expression: "locale()",
+            result_json: "\"en-US\"",
+            note: None,
+        }],
         since_version: "1.0",
         package: Package::Formspec,
     },
@@ -1854,9 +2302,11 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         deterministic: false,
         emit_deterministic_explicitly: false,
         short_circuit: false,
-        examples: &[
-            Example { expression: "runtimeMeta('tenantId')", result_json: "\"acme-42\"", note: None },
-        ],
+        examples: &[Example {
+            expression: "runtimeMeta('tenantId')",
+            result_json: "\"acme-42\"",
+            note: None,
+        }],
         since_version: "1.0",
         package: Package::Formspec,
     },
@@ -1889,8 +2339,16 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         emit_deterministic_explicitly: true,
         short_circuit: false,
         examples: &[
-            Example { expression: "pluralCategory(1)", result_json: "\"one\"", note: None },
-            Example { expression: "pluralCategory(2, 'en')", result_json: "\"other\"", note: None },
+            Example {
+                expression: "pluralCategory(1)",
+                result_json: "\"one\"",
+                note: None,
+            },
+            Example {
+                expression: "pluralCategory(2, 'en')",
+                result_json: "\"other\"",
+                note: None,
+            },
         ],
         since_version: "1.0",
         package: Package::Formspec,
@@ -1902,7 +2360,9 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         parameters: &[Parameter {
             name: "path",
             fel_type: FelType::String,
-            description: Some("Field path (NOT evaluated as expression — extracted as literal path string)."),
+            description: Some(
+                "Field path (NOT evaluated as expression — extracted as literal path string).",
+            ),
             required: true,
             variadic: false,
             allowed_values: None,
@@ -1915,8 +2375,16 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
-            Example { expression: "valid($totalBudget)", result_json: "true", note: None },
-            Example { expression: "valid($email) and valid($phone)", result_json: "false", note: None },
+            Example {
+                expression: "valid($totalBudget)",
+                result_json: "true",
+                note: None,
+            },
+            Example {
+                expression: "valid($email) and valid($phone)",
+                result_json: "false",
+                note: None,
+            },
         ],
         since_version: "1.0",
         package: Package::Formspec,
@@ -1939,9 +2407,11 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         deterministic: true,
         emit_deterministic_explicitly: false,
         short_circuit: false,
-        examples: &[
-            Example { expression: "relevant($spouseInfo)", result_json: "false", note: None },
-        ],
+        examples: &[Example {
+            expression: "relevant($spouseInfo)",
+            result_json: "false",
+            note: None,
+        }],
         since_version: "1.0",
         package: Package::Formspec,
     },
@@ -1963,9 +2433,11 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         deterministic: true,
         emit_deterministic_explicitly: false,
         short_circuit: false,
-        examples: &[
-            Example { expression: "readonly($approvedAmount)", result_json: "true", note: None },
-        ],
+        examples: &[Example {
+            expression: "readonly($approvedAmount)",
+            result_json: "true",
+            note: None,
+        }],
         since_version: "1.0",
         package: Package::Formspec,
     },
@@ -1987,9 +2459,11 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         deterministic: true,
         emit_deterministic_explicitly: false,
         short_circuit: false,
-        examples: &[
-            Example { expression: "required($email)", result_json: "true", note: None },
-        ],
+        examples: &[Example {
+            expression: "required($email)",
+            result_json: "true",
+            note: None,
+        }],
         since_version: "1.0",
         package: Package::Formspec,
     },
@@ -2000,7 +2474,9 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         parameters: &[Parameter {
             name: "fieldName",
             fel_type: FelType::String,
-            description: Some("Name of the sibling field to read from the previous repeat instance."),
+            description: Some(
+                "Name of the sibling field to read from the previous repeat instance.",
+            ),
             required: true,
             variadic: false,
             allowed_values: None,
@@ -2012,9 +2488,11 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         deterministic: true,
         emit_deterministic_explicitly: false,
         short_circuit: false,
-        examples: &[
-            Example { expression: "prev('runningTotal')", result_json: "500", note: Some("Value from previous row") },
-        ],
+        examples: &[Example {
+            expression: "prev('runningTotal')",
+            result_json: "500",
+            note: Some("Value from previous row"),
+        }],
         since_version: "1.0",
         package: Package::Formspec,
     },
@@ -2036,9 +2514,11 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         deterministic: true,
         emit_deterministic_explicitly: false,
         short_circuit: false,
-        examples: &[
-            Example { expression: "next('amount')", result_json: "200", note: Some("Peek at next row's value") },
-        ],
+        examples: &[Example {
+            expression: "next('amount')",
+            result_json: "200",
+            note: Some("Peek at next row's value"),
+        }],
         since_version: "1.0",
         package: Package::Formspec,
     },
@@ -2060,9 +2540,11 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         deterministic: true,
         emit_deterministic_explicitly: false,
         short_circuit: false,
-        examples: &[
-            Example { expression: "parent('projectName')", result_json: "\"Infrastructure Upgrade\"", note: None },
-        ],
+        examples: &[Example {
+            expression: "parent('projectName')",
+            result_json: "\"Infrastructure Upgrade\"",
+            note: None,
+        }],
         since_version: "1.0",
         package: Package::Formspec,
     },
@@ -2075,7 +2557,9 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
             Parameter {
                 name: "name",
                 fel_type: FelType::String,
-                description: Some("Name of the secondary data source (must match a key in the definition's 'instances' object)."),
+                description: Some(
+                    "Name of the secondary data source (must match a key in the definition's 'instances' object).",
+                ),
                 required: true,
                 variadic: false,
                 allowed_values: None,
@@ -2092,13 +2576,23 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
         returns: FelType::Any,
         return_description: None,
         description: "Retrieves data from a named secondary instance. Typically invoked via the '@instance(\"name\")' context reference syntax in FEL, which the parser translates to this function call. The optional path parameter drills into the instance data.",
-        null_handling: Some("Returns null/undefined if instance name not found or path doesn't exist."),
+        null_handling: Some(
+            "Returns null/undefined if instance name not found or path doesn't exist.",
+        ),
         deterministic: true,
         emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[
-            Example { expression: "@instance('priorYear').totalExpenditure", result_json: "200000", note: None },
-            Example { expression: "@instance('agencies')", result_json: "[{\"code\": \"DOE\", \"name\": \"Dept of Energy\"}]", note: None },
+            Example {
+                expression: "@instance('priorYear').totalExpenditure",
+                result_json: "200000",
+                note: None,
+            },
+            Example {
+                expression: "@instance('agencies')",
+                result_json: "[{\"code\": \"DOE\", \"name\": \"Dept of Energy\"}]",
+                note: None,
+            },
         ],
         since_version: "1.0",
         package: Package::Formspec,

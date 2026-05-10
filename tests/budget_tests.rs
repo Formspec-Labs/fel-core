@@ -5,8 +5,8 @@
 #![allow(clippy::missing_docs_in_private_items)]
 
 use fel_core::{
-    evaluate_with_budget, evaluate_with_budget_and_extensions, parse, EvalBudget,
-    ExtensionRegistry, MapEnvironment, Value,
+    EvalBudget, ExtensionRegistry, MapEnvironment, Value, evaluate_with_budget,
+    evaluate_with_budget_and_extensions, parse,
 };
 use std::time::Instant;
 
@@ -87,10 +87,7 @@ fn budget_never_panics_on_pathological_input() {
 
 #[test]
 fn budget_does_not_affect_normal_callers() {
-    let result = fel_core::evaluate(
-        &parse("1 + 2 + 3").unwrap(),
-        &MapEnvironment::new(),
-    );
+    let result = fel_core::evaluate(&parse("1 + 2 + 3").unwrap(), &MapEnvironment::new());
     assert_eq!(result.value, Value::Number(6.into()));
 }
 
@@ -192,8 +189,7 @@ fn alloc_breach_emits_exactly_one_diagnostic() {
         .filter(|d| d.message.contains("budget exceeded"))
         .count();
     assert_eq!(
-        budget_count,
-        1,
+        budget_count, 1,
         "expected exactly one budget diagnostic, got {budget_count}: {:?}",
         result.diagnostics
     );
@@ -214,8 +210,7 @@ fn step_breach_emits_exactly_one_diagnostic() {
         .filter(|d| d.message.contains("budget exceeded"))
         .count();
     assert_eq!(
-        budget_count,
-        1,
+        budget_count, 1,
         "expected exactly one budget diagnostic, got {budget_count}"
     );
 }
@@ -266,12 +261,9 @@ fn deep_concat_tree_respects_alloc_budget() {
 fn extension_result_respects_alloc_budget() {
     let mut registry = ExtensionRegistry::new();
     registry
-        .register(
-            "bigResult",
-            0,
-            None,
-            |_args| Value::String("x".repeat(1024)),
-        )
+        .register("bigResult", 0, None, |_args| {
+            Value::String("x".repeat(1024))
+        })
         .expect("register");
     let budget = EvalBudget {
         max_steps: u64::MAX,
@@ -293,12 +285,9 @@ fn extension_result_respects_alloc_budget() {
 fn extension_small_result_within_alloc_budget() {
     let mut registry = ExtensionRegistry::new();
     registry
-        .register(
-            "smallResult",
-            0,
-            None,
-            |_args| Value::String("ok".to_string()),
-        )
+        .register("smallResult", 0, None, |_args| {
+            Value::String("ok".to_string())
+        })
         .expect("register");
     let budget = EvalBudget {
         max_steps: u64::MAX,

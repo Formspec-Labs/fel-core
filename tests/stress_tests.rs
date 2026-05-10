@@ -107,7 +107,11 @@ fn tokenize_long_expression() {
         src.push_str(" + 1");
     }
     let toks = tokenize(&src).expect("tokenize");
-    assert!(toks.len() > TERMS, "expected many tokens, got {}", toks.len());
+    assert!(
+        toks.len() > TERMS,
+        "expected many tokens, got {}",
+        toks.len()
+    );
 }
 
 #[test]

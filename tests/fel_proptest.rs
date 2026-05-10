@@ -2,9 +2,8 @@
 #![allow(clippy::missing_docs_in_private_items)]
 
 use fel_core::{
-    evaluate, fel_to_json, json_to_fel, parse, print_expr, Expr, MapEnvironment, Value,
-    ast::BinaryOp,
-    testing::strategies::arb_value,
+    Expr, MapEnvironment, Value, ast::BinaryOp, evaluate, fel_to_json, json_to_fel, parse,
+    print_expr, testing::strategies::arb_value,
 };
 use proptest::prelude::*;
 use serde_json::Value as JsonValue;
@@ -18,7 +17,10 @@ fn value_to_expr(v: &Value) -> Expr {
         Value::Date(d) => Expr::DateLiteral(format!("@{}", d.format_iso())),
         Value::Array(items) => Expr::Array(items.iter().map(value_to_expr).collect()),
         Value::Object(entries) => Expr::Object(
-            entries.iter().map(|(k, v)| (k.clone(), value_to_expr(v))).collect(),
+            entries
+                .iter()
+                .map(|(k, v)| (k.clone(), value_to_expr(v)))
+                .collect(),
         ),
         Value::Money(_) => Expr::Null,
     }

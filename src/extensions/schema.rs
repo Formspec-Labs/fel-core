@@ -1,7 +1,7 @@
 //! JSON Schema emission and UI-facing catalog JSON for builtin functions.
 #![allow(clippy::missing_docs_in_private_items)]
 
-use super::catalog::{builtin_function_catalog_for, BUILTIN_FUNCTIONS};
+use super::catalog::{BUILTIN_FUNCTIONS, builtin_function_catalog_for};
 use super::types::*;
 
 /// Synthesize a human-readable signature string from structured catalog data.
@@ -10,7 +10,11 @@ use super::types::*;
 /// - Required parameter: `name`
 /// - Optional parameter: `name?`
 /// - Variadic parameter: `...name`
-pub(crate) fn synthesize_signature(name: &str, parameters: &[Parameter], returns: FelType) -> String {
+pub(crate) fn synthesize_signature(
+    name: &str,
+    parameters: &[Parameter],
+    returns: FelType,
+) -> String {
     let params: Vec<String> = parameters
         .iter()
         .map(|p| {
@@ -30,7 +34,10 @@ pub(crate) fn synthesize_signature(name: &str, parameters: &[Parameter], returns
 fn emit_parameter(p: &Parameter) -> serde_json::Value {
     let mut obj = serde_json::Map::new();
     obj.insert("name".into(), serde_json::Value::String(p.name.into()));
-    obj.insert("type".into(), serde_json::Value::String(p.fel_type.as_str().into()));
+    obj.insert(
+        "type".into(),
+        serde_json::Value::String(p.fel_type.as_str().into()),
+    );
     if let Some(desc) = p.description {
         obj.insert("description".into(), serde_json::Value::String(desc.into()));
     }
@@ -44,7 +51,9 @@ fn emit_parameter(p: &Parameter) -> serde_json::Value {
         obj.insert(
             "enum".into(),
             serde_json::Value::Array(
-                vals.iter().map(|v| serde_json::Value::String((*v).into())).collect(),
+                vals.iter()
+                    .map(|v| serde_json::Value::String((*v).into()))
+                    .collect(),
             ),
         );
     }
@@ -56,7 +65,10 @@ fn emit_example(ex: &Example) -> serde_json::Value {
     let result: serde_json::Value = serde_json::from_str(ex.result_json)
         .unwrap_or_else(|e| panic!("invalid result_json for example '{}': {e}", ex.expression));
     let mut obj = serde_json::Map::new();
-    obj.insert("expression".into(), serde_json::Value::String(ex.expression.into()));
+    obj.insert(
+        "expression".into(),
+        serde_json::Value::String(ex.expression.into()),
+    );
     obj.insert("result".into(), result);
     if let Some(note) = ex.note {
         obj.insert("note".into(), serde_json::Value::String(note.into()));
@@ -68,16 +80,28 @@ fn emit_example(ex: &Example) -> serde_json::Value {
 fn emit_function_entry(e: &BuiltinFunctionCatalogEntry) -> serde_json::Value {
     let mut obj = serde_json::Map::new();
     obj.insert("name".into(), serde_json::Value::String(e.name.into()));
-    obj.insert("category".into(), serde_json::Value::String(e.category.into()));
+    obj.insert(
+        "category".into(),
+        serde_json::Value::String(e.category.into()),
+    );
     obj.insert(
         "parameters".into(),
         serde_json::Value::Array(e.parameters.iter().map(emit_parameter).collect()),
     );
-    obj.insert("returns".into(), serde_json::Value::String(e.returns.as_str().into()));
+    obj.insert(
+        "returns".into(),
+        serde_json::Value::String(e.returns.as_str().into()),
+    );
     if let Some(rd) = e.return_description {
-        obj.insert("returnDescription".into(), serde_json::Value::String(rd.into()));
+        obj.insert(
+            "returnDescription".into(),
+            serde_json::Value::String(rd.into()),
+        );
     }
-    obj.insert("description".into(), serde_json::Value::String(e.description.into()));
+    obj.insert(
+        "description".into(),
+        serde_json::Value::String(e.description.into()),
+    );
     if let Some(nh) = e.null_handling {
         obj.insert("nullHandling".into(), serde_json::Value::String(nh.into()));
     }
@@ -90,7 +114,10 @@ fn emit_function_entry(e: &BuiltinFunctionCatalogEntry) -> serde_json::Value {
     // Emit `deterministic` when it differs from the default (true) or when the entry opts in to
     // explicit emission for canonical-schema clarity (`emit_deterministic_explicitly`).
     if !e.deterministic || e.emit_deterministic_explicitly {
-        obj.insert("deterministic".into(), serde_json::Value::Bool(e.deterministic));
+        obj.insert(
+            "deterministic".into(),
+            serde_json::Value::Bool(e.deterministic),
+        );
     }
     if e.short_circuit {
         obj.insert("shortCircuit".into(), serde_json::Value::Bool(true));
@@ -110,7 +137,10 @@ fn emit_function_entry(e: &BuiltinFunctionCatalogEntry) -> serde_json::Value {
 fn emit_function_entry_catalog(e: &BuiltinFunctionCatalogEntry) -> serde_json::Value {
     let mut obj = serde_json::Map::new();
     obj.insert("name".into(), serde_json::Value::String(e.name.into()));
-    obj.insert("category".into(), serde_json::Value::String(e.category.into()));
+    obj.insert(
+        "category".into(),
+        serde_json::Value::String(e.category.into()),
+    );
     obj.insert(
         "signature".into(),
         serde_json::Value::String(synthesize_signature(e.name, e.parameters, e.returns)),
@@ -119,11 +149,20 @@ fn emit_function_entry_catalog(e: &BuiltinFunctionCatalogEntry) -> serde_json::V
         "parameters".into(),
         serde_json::Value::Array(e.parameters.iter().map(emit_parameter).collect()),
     );
-    obj.insert("returns".into(), serde_json::Value::String(e.returns.as_str().into()));
+    obj.insert(
+        "returns".into(),
+        serde_json::Value::String(e.returns.as_str().into()),
+    );
     if let Some(rd) = e.return_description {
-        obj.insert("returnDescription".into(), serde_json::Value::String(rd.into()));
+        obj.insert(
+            "returnDescription".into(),
+            serde_json::Value::String(rd.into()),
+        );
     }
-    obj.insert("description".into(), serde_json::Value::String(e.description.into()));
+    obj.insert(
+        "description".into(),
+        serde_json::Value::String(e.description.into()),
+    );
     if let Some(nh) = e.null_handling {
         obj.insert("nullHandling".into(), serde_json::Value::String(nh.into()));
     }
@@ -134,7 +173,10 @@ fn emit_function_entry_catalog(e: &BuiltinFunctionCatalogEntry) -> serde_json::V
         );
     }
     if !e.deterministic || e.emit_deterministic_explicitly {
-        obj.insert("deterministic".into(), serde_json::Value::Bool(e.deterministic));
+        obj.insert(
+            "deterministic".into(),
+            serde_json::Value::Bool(e.deterministic),
+        );
     }
     if e.short_circuit {
         obj.insert("shortCircuit".into(), serde_json::Value::Bool(true));
@@ -286,7 +328,10 @@ pub fn emit_schema_json() -> serde_json::Value {
 /// For the full normative schema document, use [`emit_schema_json`].
 pub fn builtin_function_catalog_json_value() -> serde_json::Value {
     serde_json::Value::Array(
-        BUILTIN_FUNCTIONS.iter().map(emit_function_entry_catalog).collect(),
+        BUILTIN_FUNCTIONS
+            .iter()
+            .map(emit_function_entry_catalog)
+            .collect(),
     )
 }
 /// `builtin_function_catalog_for(package)` rendered as a JSON array of function entries.

@@ -5,10 +5,8 @@
 #![cfg(feature = "proptest-strategies")]
 #![allow(clippy::missing_docs_in_private_items)]
 
-use fel_core::{
-    builtin_function_catalog, evaluate, parse, print_expr, tokenize, MapEnvironment,
-};
 use fel_core::testing::strategies::{arb_decimal, arb_expr, arb_value};
+use fel_core::{MapEnvironment, builtin_function_catalog, evaluate, parse, print_expr, tokenize};
 use proptest::prelude::*;
 
 proptest! {

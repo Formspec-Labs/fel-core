@@ -490,7 +490,9 @@ impl<'a> Lexer<'a> {
                         Some(c) => {
                             return Err(ParseError::with_span(
                                 esc_pos..self.pos,
-                                format!("unrecognized escape sequence '\\{c}' at position {esc_pos}"),
+                                format!(
+                                    "unrecognized escape sequence '\\{c}' at position {esc_pos}"
+                                ),
                             ));
                         }
                         None => {
@@ -674,21 +676,19 @@ pub fn tokenize_to_json_value_styled(
     Ok(serde_json::Value::Array(
         tokens
             .into_iter()
-            .map(|token| {
-                match style {
-                    crate::wire_style::JsonWireStyle::JsCamel => serde_json::json!({
-                        "tokenType": token.token_type,
-                        "text": token.text,
-                        "start": token.start,
-                        "end": token.end,
-                    }),
-                    crate::wire_style::JsonWireStyle::PythonSnake => serde_json::json!({
-                        "token_type": token.token_type,
-                        "text": token.text,
-                        "start": token.start,
-                        "end": token.end,
-                    }),
-                }
+            .map(|token| match style {
+                crate::wire_style::JsonWireStyle::JsCamel => serde_json::json!({
+                    "tokenType": token.token_type,
+                    "text": token.text,
+                    "start": token.start,
+                    "end": token.end,
+                }),
+                crate::wire_style::JsonWireStyle::PythonSnake => serde_json::json!({
+                    "token_type": token.token_type,
+                    "text": token.text,
+                    "start": token.start,
+                    "end": token.end,
+                }),
             })
             .collect(),
     ))
@@ -851,8 +851,7 @@ mod tests {
         use crate::wire_style::JsonWireStyle;
 
         let js = tokenize_to_json_value_styled("1", JsonWireStyle::JsCamel).expect("tokenize");
-        let py =
-            tokenize_to_json_value_styled("1", JsonWireStyle::PythonSnake).expect("tokenize");
+        let py = tokenize_to_json_value_styled("1", JsonWireStyle::PythonSnake).expect("tokenize");
 
         assert_eq!(
             js,

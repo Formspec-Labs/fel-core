@@ -3,7 +3,7 @@
 //! Complements `parser_parse_proptest.rs` (uniform random bytes) with structured chaos distributions.
 #![allow(clippy::missing_docs_in_private_items)]
 
-use fel_core::{evaluate, parse, tokenize, MapEnvironment};
+use fel_core::{MapEnvironment, evaluate, parse, tokenize};
 use proptest::prelude::*;
 
 fn tokenize_parse_eval_do_not_panic(src: &str) {

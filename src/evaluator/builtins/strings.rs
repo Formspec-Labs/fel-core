@@ -15,10 +15,10 @@ impl<'a> Evaluator<'a> {
         &mut self,
         args: &[Expr],
         fn_name: &str,
-        f: fn(&str) -> Value,
+        f: fn(&str) -> String,
     ) -> Value {
         match self.eval_arg(args, 0) {
-            Value::String(s) => f(&s),
+            Value::String(s) => self.make_string(f(&s)),
             Value::Null => Value::Null,
             other => self.reject_expected_type(fn_name, "string", &other),
         }
@@ -72,9 +72,9 @@ impl<'a> Evaluator<'a> {
                 other => return self.reject_expected_type("substring", "number", &other),
             };
             let end = (start_idx + len).min(chars.len());
-            Value::String(chars[start_idx.min(chars.len())..end].iter().collect())
+            self.make_string(chars[start_idx.min(chars.len())..end].iter().collect())
         } else {
-            Value::String(chars[start_idx.min(chars.len())..].iter().collect())
+            self.make_string(chars[start_idx.min(chars.len())..].iter().collect())
         }
     }
 
@@ -94,7 +94,7 @@ impl<'a> Evaluator<'a> {
             Value::Null => return Value::Null,
             other => return self.reject_expected_type("replace", "string", &other),
         };
-        Value::String(s.replace(&old, &new))
+        self.make_string(s.replace(&old, &new))
     }
 
     pub(in crate::evaluator) fn fn_matches(&mut self, args: &[Expr]) -> Value {
@@ -154,6 +154,6 @@ impl<'a> Evaluator<'a> {
             sequential.push_str(rest);
             result = sequential;
         }
-        Value::String(result)
+        self.make_string(result)
     }
 }

@@ -9,8 +9,7 @@ fn emitted_schema_matches_canonical() {
     let canonical: serde_json::Value = serde_json::from_str(CANONICAL).unwrap();
     let emitted = fel_core::extensions::emit_schema_json();
     assert_eq!(
-        emitted,
-        canonical,
+        emitted, canonical,
         "fel-core emission diverges from canonical schema"
     );
 }

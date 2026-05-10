@@ -26,10 +26,7 @@ use crate::parser;
 use crate::types::Value;
 
 /// Parses and evaluates FEL with a flat field map.
-pub fn eval_with_fields(
-    input: &str,
-    fields: HashMap<String, Value>,
-) -> Result<EvalResult, Error> {
+pub fn eval_with_fields(input: &str, fields: HashMap<String, Value>) -> Result<EvalResult, Error> {
     let expr = parser::parse(input)?;
     let env = MapEnvironment::with_fields(fields);
     Ok(evaluate(&expr, &env))

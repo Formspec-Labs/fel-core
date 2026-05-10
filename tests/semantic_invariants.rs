@@ -6,8 +6,9 @@
 #![allow(clippy::missing_docs_in_private_items)]
 
 use fel_core::{
+    MapEnvironment, Value,
     ast::{BinaryOp, Expr},
-    evaluate, parse, MapEnvironment, Value,
+    evaluate, parse,
 };
 use proptest::prelude::*;
 

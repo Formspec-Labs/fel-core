@@ -365,9 +365,7 @@ pub struct PrepareHostOptions {
 }
 
 /// Parses prepare-FEL options from a JSON object (WASM / Python hosts).
-pub fn host_options_from_json(
-    obj: &Map<String, Value>,
-) -> Result<PrepareHostOptions, String> {
+pub fn host_options_from_json(obj: &Map<String, Value>) -> Result<PrepareHostOptions, String> {
     let expression = obj
         .get("expression")
         .and_then(|x| x.as_str())
@@ -530,6 +528,9 @@ mod tests {
             &[("line_items", 2)],
             &[],
         );
-        assert_eq!(out, "if(qty > 0, '$line_items.qty', \"x $line_items.qty y\")");
+        assert_eq!(
+            out,
+            "if(qty > 0, '$line_items.qty', \"x $line_items.qty y\")"
+        );
     }
 }

@@ -152,7 +152,10 @@ pub fn fel_to_wire_json(val: &TypeValue) -> Value {
             if n.fract().is_zero()
                 && let Some(i) = n.to_i64()
             {
-                map.insert("value".to_string(), Value::Number(serde_json::Number::from(i)));
+                map.insert(
+                    "value".to_string(),
+                    Value::Number(serde_json::Number::from(i)),
+                );
             } else {
                 map.insert(
                     "value".to_string(),
@@ -229,7 +232,10 @@ pub fn fel_to_ui_json(val: &TypeValue) -> Value {
         }
         TypeValue::Money(m) => {
             let mut map = serde_json::Map::new();
-            map.insert("amount".to_string(), fel_to_ui_json(&TypeValue::Number(m.amount)));
+            map.insert(
+                "amount".to_string(),
+                fel_to_ui_json(&TypeValue::Number(m.amount)),
+            );
             map.insert(
                 "currency".to_string(),
                 Value::String(m.currency.to_string()),
@@ -261,7 +267,10 @@ mod tests {
 
     #[test]
     fn boolean_roundtrip() {
-        assert!(matches!(json_to_fel(&json!(true)), TypeValue::Boolean(true)));
+        assert!(matches!(
+            json_to_fel(&json!(true)),
+            TypeValue::Boolean(true)
+        ));
         assert!(matches!(
             json_to_fel(&json!(false)),
             TypeValue::Boolean(false)
@@ -333,12 +342,7 @@ mod tests {
             ("c".to_string(), TypeValue::Number(Decimal::from(3))),
         ]));
         let json = fel_to_json(&value);
-        let keys: Vec<String> = json
-            .as_object()
-            .expect("object")
-            .keys()
-            .cloned()
-            .collect();
+        let keys: Vec<String> = json.as_object().expect("object").keys().cloned().collect();
         assert_eq!(keys, vec!["b", "a", "c"]);
     }
 
@@ -451,7 +455,10 @@ mod tests {
     fn decimal_max_falls_back_to_json_string_when_f64_roundtrip_lossy() {
         let val = TypeValue::Number(Decimal::MAX);
         let json = fel_to_json(&val);
-        assert!(json.is_string(), "Decimal::MAX should produce a JSON string");
+        assert!(
+            json.is_string(),
+            "Decimal::MAX should produce a JSON string"
+        );
     }
 
     #[test]

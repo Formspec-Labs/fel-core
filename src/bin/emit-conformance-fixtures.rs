@@ -12,9 +12,12 @@
 use std::collections::BTreeMap;
 use std::io::Write;
 
-use fel_core::{builtin_function_catalog, evaluate, fel_to_json, json_object_to_field_map, MapEnvironment, parse};
 use fel_core::error::DiagnosticKind;
 use fel_core::extensions::{BuiltinFunctionCatalogEntry, Example};
+use fel_core::{
+    MapEnvironment, builtin_function_catalog, evaluate, fel_to_json, json_object_to_field_map,
+    parse,
+};
 use proptest::strategy::Strategy;
 use serde::Serialize;
 
@@ -44,8 +47,7 @@ fn eval(expression: &str) -> ConformanceFixture {
 }
 
 fn eval_with_env(expression: &str, env_json: serde_json::Value) -> ConformanceFixture {
-    let expr = parse(expression)
-        .unwrap_or_else(|e| panic!("parse failed: {expression}: {e}"));
+    let expr = parse(expression).unwrap_or_else(|e| panic!("parse failed: {expression}: {e}"));
     let fields = json_object_to_field_map(&env_json);
     let env = MapEnvironment::with_fields(fields);
     let result = evaluate(&expr, &env);
@@ -97,7 +99,10 @@ fn catalog_example_fixtures() -> Vec<ConformanceFixture> {
     out
 }
 
-fn catalog_example_to_fixture(entry: &BuiltinFunctionCatalogEntry, ex: &Example) -> Option<ConformanceFixture> {
+fn catalog_example_to_fixture(
+    entry: &BuiltinFunctionCatalogEntry,
+    ex: &Example,
+) -> Option<ConformanceFixture> {
     if ex.expression.contains('$') {
         return None;
     }
@@ -218,7 +223,9 @@ fn money_fixtures() -> Vec<ConformanceFixture> {
         eval("money(100, 'USD') / money(2, 'USD')"),
         eval("money(100, 'USD') % 3"),
         eval("moneySum([money(100, 'USD'), money(200, 'USD'), money(50, 'USD')])"),
-        eval("moneySumWhere([money(10, 'USD'), money(100, 'USD'), money(20, 'USD')], moneyAmount($) > 50)"),
+        eval(
+            "moneySumWhere([money(10, 'USD'), money(100, 'USD'), money(20, 'USD')], moneyAmount($) > 50)",
+        ),
         // currency mismatch diagnostics
         eval("money(100, 'USD') + money(100, 'EUR')"),
         eval("moneyAdd(money(100, 'USD'), money(100, 'EUR'))"),
@@ -301,10 +308,7 @@ fn membership_fixtures() -> Vec<ConformanceFixture> {
 }
 
 fn undefined_function_fixtures() -> Vec<ConformanceFixture> {
-    vec![
-        eval("nonexistent(1, 2)"),
-        eval("notARealFunc()"),
-    ]
+    vec![eval("nonexistent(1, 2)"), eval("notARealFunc()")]
 }
 
 fn field_reference_fixtures() -> Vec<ConformanceFixture> {
@@ -420,7 +424,11 @@ fn main() {
     eprintln!(
         "emitted {} semantic + {} random = {} total fixtures",
         base_len,
-        if target > base_len { target - base_len } else { 0 },
+        if target > base_len {
+            target - base_len
+        } else {
+            0
+        },
         if target > base_len { target } else { base_len }
     );
 }
