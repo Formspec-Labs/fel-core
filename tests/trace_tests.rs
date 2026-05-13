@@ -1,11 +1,11 @@
-//! Integration tests for `evaluate_with_trace`.
+//! Integration tests for [`evaluate_with`] with a trace sink configured.
 //!
 //! These tests assert on the shape of emitted [`TraceStep`]s for small FEL
 //! programs. They are the contract for the v0 trace API and the regression
 //! guard for the non-tracing hot path.
 use fel_core::{
-    Date, Environment, MapEnvironment, Trace, TraceStep, Value, evaluate, evaluate_with_trace,
-    parse,
+    Date, Environment, EvaluatorOptions, MapEnvironment, Trace, TraceStep, Value, evaluate,
+    evaluate_with, parse,
 };
 use rust_decimal::Decimal;
 use serde_json::json;
@@ -22,7 +22,15 @@ fn env_with(fields: &[(&str, Value)]) -> MapEnvironment {
 
 fn trace_for(source: &str, env: &MapEnvironment) -> Trace {
     let expr = parse(source).expect("parse should succeed");
-    let (_result, trace) = evaluate_with_trace(&expr, env);
+    let mut trace = Trace::new();
+    let _ = evaluate_with(
+        &expr,
+        env,
+        EvaluatorOptions {
+            trace: Some(&mut trace),
+            ..EvaluatorOptions::default()
+        },
+    );
     trace
 }
 
@@ -226,7 +234,15 @@ fn traced_eager_call_evaluates_each_argument_once() {
         ("y", Value::Number(Decimal::from(3))),
     ]);
     let expr = parse("sum([$x, $y])").expect("parse");
-    let (_result, _trace) = evaluate_with_trace(&expr, &env);
+    let mut trace = Trace::new();
+    let _ = evaluate_with(
+        &expr,
+        &env,
+        EvaluatorOptions {
+            trace: Some(&mut trace),
+            ..EvaluatorOptions::default()
+        },
+    );
     assert_eq!(
         env.resolve_count.get(),
         2,
@@ -331,7 +347,15 @@ fn tracing_and_non_tracing_paths_agree_on_result() {
     ] {
         let expr = parse(source).expect("parse");
         let plain = evaluate(&expr, &env);
-        let (traced, _) = evaluate_with_trace(&expr, &env);
+        let mut trace = Trace::new();
+        let traced = evaluate_with(
+            &expr,
+            &env,
+            EvaluatorOptions {
+                trace: Some(&mut trace),
+                ..EvaluatorOptions::default()
+            },
+        );
         assert_eq!(
             fel_core::fel_to_json(&plain.value),
             fel_core::fel_to_json(&traced.value),

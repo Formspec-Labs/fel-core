@@ -1,6 +1,6 @@
 //! Resource-budget enforcement for FEL evaluation.
 //!
-//! [`EvalBudget`] is threaded through `evaluate_with_budget` / `evaluate_with_budget_and_extensions`;
+//! [`EvalBudget`] is threaded through [`crate::evaluate_with`] via [`crate::EvaluatorOptions::budget`];
 //! existing `evaluate` entry points delegate with [`EvalBudget::unlimited`] — no caller migration
 //! required.
 //!

@@ -692,7 +692,14 @@ fn test_extension_registry_fallback_executes_unknown_function() {
         })
         .unwrap();
 
-    let result = evaluate_with_extensions(&expr, &env, &extensions);
+    let result = evaluate_with(
+        &expr,
+        &env,
+        EvaluatorOptions {
+            extensions: Some(&extensions),
+            ..EvaluatorOptions::default()
+        },
+    );
     assert_eq!(result.value, num(6));
     assert!(
         result.diagnostics.is_empty(),
@@ -712,7 +719,16 @@ fn test_evaluate_with_trace_and_extensions_records_extension_call() {
         })
         .unwrap();
 
-    let (result, trace) = evaluate_with_trace_and_extensions(&expr, &env, &extensions);
+    let mut trace = Trace::new();
+    let result = evaluate_with(
+        &expr,
+        &env,
+        EvaluatorOptions {
+            trace: Some(&mut trace),
+            extensions: Some(&extensions),
+            ..EvaluatorOptions::default()
+        },
+    );
     assert_eq!(result.value, num(6));
     assert!(
         trace.steps.iter().any(|s| {

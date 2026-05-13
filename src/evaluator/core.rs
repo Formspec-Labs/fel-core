@@ -191,7 +191,7 @@ pub struct Evaluator<'a> {
     pub(super) diagnostics: Vec<Diagnostic>,
     pub(super) let_scopes: Vec<HashMap<String, Value>>,
     /// Optional evaluation trace. `None` on the hot path, `Some` when the
-    /// caller entered via [`evaluate_with_trace`].
+    /// caller passed [`EvaluatorOptions::trace`] to [`evaluate_with`].
     pub(super) trace: Option<Trace>,
     /// Stack of per-call argument caches used by traceable eager functions.
     call_arg_cache_stack: Vec<CallArgCache>,
@@ -277,124 +277,6 @@ pub fn evaluate_with(
         value,
         diagnostics: evaluator.diagnostics,
     }
-}
-
-/// Evaluate an expression with per-operation resource budget enforcement.
-#[deprecated(since = "0.1.0", note = "use evaluate_with instead")]
-pub fn evaluate_with_budget(expr: &Expr, env: &dyn Environment, budget: &EvalBudget) -> EvalResult {
-    evaluate_with(
-        expr,
-        env,
-        EvaluatorOptions {
-            budget: budget.clone(),
-            ..EvaluatorOptions::default()
-        },
-    )
-}
-
-/// Evaluate an expression with optional extension registry fallback for unknown functions.
-#[deprecated(since = "0.1.0", note = "use evaluate_with instead")]
-#[allow(deprecated)]
-pub fn evaluate_with_extensions(
-    expr: &Expr,
-    env: &dyn Environment,
-    extensions: &ExtensionRegistry,
-) -> EvalResult {
-    evaluate_with_budget_and_extensions(expr, env, extensions, &EvalBudget::unlimited())
-}
-
-/// Evaluate with extensions and resource budget enforcement.
-#[deprecated(since = "0.1.0", note = "use evaluate_with instead")]
-pub fn evaluate_with_budget_and_extensions(
-    expr: &Expr,
-    env: &dyn Environment,
-    extensions: &ExtensionRegistry,
-    budget: &EvalBudget,
-) -> EvalResult {
-    evaluate_with(
-        expr,
-        env,
-        EvaluatorOptions {
-            extensions: Some(extensions),
-            budget: budget.clone(),
-            ..EvaluatorOptions::default()
-        },
-    )
-}
-
-/// Evaluate and simultaneously record a structured [`Trace`] of key steps.
-///
-/// The returned [`EvalResult`] has identical `value` and `diagnostics` to
-/// [`evaluate`] for the same input; only the side-channel trace is new.
-/// Extension fallbacks are disabled; use [`evaluate_with_trace_and_extensions`] when an
-/// [`ExtensionRegistry`] must run for unknown function names.
-/// Tracing is opt-in because it allocates per-step and projects values to
-/// JSON — negligible for interactive use, but worth avoiding on hot paths.
-#[deprecated(since = "0.1.0", note = "use evaluate_with instead")]
-#[allow(deprecated)]
-pub fn evaluate_with_trace(expr: &Expr, env: &dyn Environment) -> (EvalResult, Trace) {
-    evaluate_with_trace_and_budget(expr, env, &EvalBudget::unlimited())
-}
-
-/// Evaluate, simultaneously record a structured [`Trace`], **and** enforce a resource budget.
-///
-/// The trace is identical to [`evaluate_with_trace`] for the same input; only resource enforcement
-/// is added. When budget is exceeded, the result includes a `budget exceeded` diagnostic and
-/// returns [`Value::Null`].
-#[deprecated(since = "0.1.0", note = "use evaluate_with instead")]
-pub fn evaluate_with_trace_and_budget(
-    expr: &Expr,
-    env: &dyn Environment,
-    budget: &EvalBudget,
-) -> (EvalResult, Trace) {
-    let mut trace = Trace::new();
-    let result = evaluate_with(
-        expr,
-        env,
-        EvaluatorOptions {
-            trace: Some(&mut trace),
-            budget: budget.clone(),
-            ..EvaluatorOptions::default()
-        },
-    );
-    (result, trace)
-}
-
-/// Like [`evaluate_with_trace_and_budget`], but resolves unknown functions through `extensions`.
-#[deprecated(since = "0.1.0", note = "use evaluate_with instead")]
-#[allow(deprecated)]
-pub fn evaluate_with_trace_and_extensions(
-    expr: &Expr,
-    env: &dyn Environment,
-    extensions: &ExtensionRegistry,
-) -> (EvalResult, Trace) {
-    evaluate_with_trace_and_extensions_and_budget(expr, env, extensions, &EvalBudget::unlimited())
-}
-
-/// Like [`evaluate_with_trace_and_extensions`], but with resource budget enforcement.
-///
-/// Combines extension resolution (for unknown function names) with step/alloc/deadline
-/// tracking. When budget is exceeded, the result includes a `budget exceeded` diagnostic
-/// and returns [`Value::Null`].
-#[deprecated(since = "0.1.0", note = "use evaluate_with instead")]
-pub fn evaluate_with_trace_and_extensions_and_budget(
-    expr: &Expr,
-    env: &dyn Environment,
-    extensions: &ExtensionRegistry,
-    budget: &EvalBudget,
-) -> (EvalResult, Trace) {
-    let mut trace = Trace::new();
-    let result = evaluate_with(
-        expr,
-        env,
-        EvaluatorOptions {
-            trace: Some(&mut trace),
-            extensions: Some(extensions),
-            budget: budget.clone(),
-            ..EvaluatorOptions::default()
-        },
-    );
-    (result, trace)
 }
 
 impl<'a> Evaluator<'a> {

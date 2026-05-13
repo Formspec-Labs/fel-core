@@ -50,10 +50,7 @@ pub use error::{
 };
 pub use evaluator::{
     BudgetExceededKind, Environment, EvalBudget, EvalResult, Evaluator, EvaluatorOptions,
-    MapEnvironment, eval_with_fields, evaluate, evaluate_with, evaluate_with_budget,
-    evaluate_with_budget_and_extensions, evaluate_with_extensions, evaluate_with_trace,
-    evaluate_with_trace_and_budget, evaluate_with_trace_and_extensions,
-    evaluate_with_trace_and_extensions_and_budget,
+    MapEnvironment, eval_with_fields, evaluate, evaluate_with,
 };
 pub use extensions::{
     ExtensionError, ExtensionFn, ExtensionFunc, ExtensionRegistry, Package,

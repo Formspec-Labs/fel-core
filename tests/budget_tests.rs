@@ -1,19 +1,26 @@
 //! Resource budget enforcement tests.
 //!
-//! Verifies that step, deadline budgets terminate evaluation
-//! without panicking, and that the default evaluate entry points are unaffected.
+//! Verifies that step and deadline budgets terminate evaluation without
+//! panicking, and that the default [`evaluate`]/[`evaluate_with`] entry points
+//! are unaffected when no budget is configured.
 #![allow(clippy::missing_docs_in_private_items)]
 
 use fel_core::{
-    EvalBudget, ExtensionRegistry, MapEnvironment, Value, evaluate_with_budget,
-    evaluate_with_budget_and_extensions, parse,
+    EvalBudget, EvaluatorOptions, ExtensionRegistry, MapEnvironment, Value, evaluate_with, parse,
 };
 use std::time::Instant;
 
 fn eval_budget(src: &str, budget: &EvalBudget) -> fel_core::EvalResult {
     let expr = parse(src).unwrap();
     let env = MapEnvironment::new();
-    evaluate_with_budget(&expr, &env, budget)
+    evaluate_with(
+        &expr,
+        &env,
+        EvaluatorOptions {
+            budget: budget.clone(),
+            ..EvaluatorOptions::default()
+        },
+    )
 }
 
 #[test]
@@ -272,7 +279,15 @@ fn extension_result_respects_alloc_budget() {
     };
     let expr = parse("bigResult()").unwrap();
     let env = MapEnvironment::new();
-    let result = evaluate_with_budget_and_extensions(&expr, &env, &registry, &budget);
+    let result = evaluate_with(
+        &expr,
+        &env,
+        EvaluatorOptions {
+            extensions: Some(&registry),
+            budget: budget.clone(),
+            ..EvaluatorOptions::default()
+        },
+    );
     let has_budget_diag = result
         .diagnostics
         .iter()
@@ -296,7 +311,15 @@ fn extension_small_result_within_alloc_budget() {
     };
     let expr = parse("smallResult()").unwrap();
     let env = MapEnvironment::new();
-    let result = evaluate_with_budget_and_extensions(&expr, &env, &registry, &budget);
+    let result = evaluate_with(
+        &expr,
+        &env,
+        EvaluatorOptions {
+            extensions: Some(&registry),
+            budget: budget.clone(),
+            ..EvaluatorOptions::default()
+        },
+    );
     assert!(result.diagnostics.is_empty());
     assert_eq!(result.value, Value::String("ok".to_string()));
 }
