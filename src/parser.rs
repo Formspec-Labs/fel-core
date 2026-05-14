@@ -108,6 +108,14 @@ impl Parser {
         }
     }
 
+    fn parse_expression_with_in_allowed(&mut self) -> Result<Expr, Error> {
+        let saved_no_in = self.no_in_depth;
+        self.no_in_depth = 0;
+        let result = self.parse_expression();
+        self.no_in_depth = saved_no_in;
+        result
+    }
+
     // ── Expression (entry point) ────────────────────────────────
 
     fn parse_expression(&mut self) -> Result<Expr, Error> {
@@ -134,7 +142,7 @@ impl Parser {
             self.advance(); // let
             let name = self.eat_identifier()?;
             self.expect(&Token::Eq)?;
-            // Suppress `in` as membership in let-value
+            // Suppress top-level `in` as membership in let-value.
             self.no_in_depth += 1;
             let value = self.parse_ternary()?;
             self.no_in_depth -= 1;
@@ -172,33 +180,32 @@ impl Parser {
     /// Look ahead to determine if this is `if ... then ... else` (keyword form)
     /// vs `if(...)` (function call form).
     fn is_if_then_else(&self) -> bool {
-        // If next token after `if` is `(`, it's the function form
-        // Actually, both forms can start with various expressions.
-        // The key difference: keyword form expects `then` keyword.
-        // We check: if the token after `if` is NOT `(` immediately,
-        // or if it IS `(` but there are tokens between `)` and `then`.
-        // Simplification: if we see `then` anywhere in lookahead before
-        // seeing a comma (function args), it's keyword form.
-        //
-        // Even simpler: `if` followed by `(` where the very next token after
-        // the matching `)` is NOT `then` → it's a function call.
-        // Otherwise → keyword form.
+        let starts_with_paren = matches!(
+            self.tokens.get(self.pos + 1).map(|token| &token.token),
+            Some(Token::LParen)
+        );
 
-        let next_pos = self.pos + 1;
-        if next_pos >= self.tokens.len() {
+        if self.pos + 1 >= self.tokens.len() {
             return false;
         }
 
-        // Scan forward to find `then` at the right nesting level
+        // Scan only this expression. A nested `if(...)` function in an array,
+        // object, or argument list must not see the outer keyword form's `then`.
         let mut depth = 0;
         let mut i = self.pos + 1;
         while i < self.tokens.len() {
             match &self.tokens[i].token {
                 Token::Then if depth == 0 => return true,
+                Token::Comma if starts_with_paren && depth == 1 => return false,
+                Token::Comma | Token::RParen | Token::RBracket | Token::RBrace if depth == 0 => {
+                    return false;
+                }
                 Token::LParen | Token::LBracket | Token::LBrace => depth += 1,
                 Token::RParen | Token::RBracket | Token::RBrace => {
                     if depth > 0 {
                         depth -= 1;
+                    } else {
+                        return false;
                     }
                 }
                 Token::Eof => return false,
@@ -523,11 +530,8 @@ impl Parser {
             }
             Token::LParen => {
                 self.advance();
-                let saved_no_in = self.no_in_depth;
-                self.no_in_depth = 0;
-                let expr = self.parse_expression()?;
+                let expr = self.parse_expression_with_in_allowed()?;
                 self.expect(&Token::RParen)?;
-                self.no_in_depth = saved_no_in;
                 Ok(expr)
             }
             Token::LBracket => self.parse_array_literal(),
@@ -626,10 +630,10 @@ impl Parser {
         self.expect(&Token::LParen)?;
         let mut args = Vec::new();
         if !matches!(self.peek(), Token::RParen) {
-            args.push(self.parse_expression()?);
+            args.push(self.parse_expression_with_in_allowed()?);
             while matches!(self.peek(), Token::Comma) {
                 self.advance();
-                args.push(self.parse_expression()?);
+                args.push(self.parse_expression_with_in_allowed()?);
             }
         }
         self.expect(&Token::RParen)?;
@@ -640,10 +644,10 @@ impl Parser {
         self.expect(&Token::LBracket)?;
         let mut elements = Vec::new();
         if !matches!(self.peek(), Token::RBracket) {
-            elements.push(self.parse_expression()?);
+            elements.push(self.parse_expression_with_in_allowed()?);
             while matches!(self.peek(), Token::Comma) {
                 self.advance();
-                elements.push(self.parse_expression()?);
+                elements.push(self.parse_expression_with_in_allowed()?);
             }
         }
         self.expect(&Token::RBracket)?;
@@ -695,7 +699,7 @@ impl Parser {
             }
         };
         self.expect(&Token::Colon)?;
-        let value = self.parse_expression()?;
+        let value = self.parse_expression_with_in_allowed()?;
         Ok((key, value))
     }
 }
@@ -865,6 +869,88 @@ mod tests {
                 assert_eq!(args[2], Expr::String("no".into()));
             }
             other => panic!("expected FunctionCall, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_if_function_inside_keyword_condition() {
+        let expr = parse("if if(null, null, null) then 1 else 2").unwrap();
+        match expr {
+            Expr::IfThenElse { condition, .. } => match *condition {
+                Expr::FunctionCall { name, args } => {
+                    assert_eq!(name, "if");
+                    assert_eq!(args.as_slice(), &[Expr::Null, Expr::Null, Expr::Null]);
+                }
+                other => panic!("expected if() FunctionCall condition, got {other:?}"),
+            },
+            other => panic!("expected IfThenElse, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_nested_if_function_does_not_see_outer_then() {
+        let expr = parse("if [if(null, null, null)] then typeOf(1) else floor(2)[2]").unwrap();
+        match expr {
+            Expr::IfThenElse { condition, .. } => match *condition {
+                Expr::Array(elements) => match elements.as_slice() {
+                    [Expr::FunctionCall { name, args }] => {
+                        assert_eq!(name, "if");
+                        assert_eq!(args.as_slice(), &[Expr::Null, Expr::Null, Expr::Null]);
+                    }
+                    other => panic!("expected array containing if() call, got {other:?}"),
+                },
+                other => panic!("expected array condition, got {other:?}"),
+            },
+            other => panic!("expected IfThenElse, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_parenthesized_keyword_if_condition() {
+        let expr = parse("if ($x > 0) and true then 'yes' else 'no'").unwrap();
+        match expr {
+            Expr::IfThenElse { condition, .. } => match *condition {
+                Expr::BinaryOp {
+                    op: BinaryOp::And, ..
+                } => {}
+                other => panic!("expected And condition, got {other:?}"),
+            },
+            other => panic!("expected IfThenElse, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_membership_inside_let_value_containers() {
+        let expr = parse(
+            "let aa = {'object': null in [], 'array': [null in []], 'call': startsWith(null in [], true)} in aa",
+        )
+        .unwrap();
+        match expr {
+            Expr::LetBinding { value, .. } => match *value {
+                Expr::Object(entries) => {
+                    let [object_entry, array_entry, call_entry] = entries.as_slice() else {
+                        panic!("expected three object entries, got {entries:?}");
+                    };
+                    assert!(matches!(object_entry.1, Expr::Membership { .. }));
+                    match &array_entry.1 {
+                        Expr::Array(elements) => {
+                            assert!(matches!(elements.as_slice(), [Expr::Membership { .. }]));
+                        }
+                        other => panic!("expected array entry, got {other:?}"),
+                    }
+                    match &call_entry.1 {
+                        Expr::FunctionCall { args, .. } => {
+                            assert!(matches!(
+                                args.as_slice(),
+                                [Expr::Membership { .. }, Expr::Boolean(true)]
+                            ));
+                        }
+                        other => panic!("expected function call entry, got {other:?}"),
+                    }
+                }
+                other => panic!("expected object let value, got {other:?}"),
+            },
+            other => panic!("expected LetBinding, got {other:?}"),
         }
     }
 

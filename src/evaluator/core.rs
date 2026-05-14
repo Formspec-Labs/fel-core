@@ -576,6 +576,17 @@ impl<'a> Evaluator<'a> {
                 result
             }
             Expr::PostfixAccess { expr, path } => {
+                if let Expr::PostfixAccess {
+                    expr: inner,
+                    path: inner_path,
+                } = expr.as_ref()
+                {
+                    let mut combined = Vec::with_capacity(inner_path.len() + path.len());
+                    combined.extend(inner_path.iter().cloned());
+                    combined.extend(path.iter().cloned());
+                    let base = self.eval(inner);
+                    return self.access_path(base, &combined);
+                }
                 if let Expr::FieldRef {
                     name: Some(name),
                     path: base_path,

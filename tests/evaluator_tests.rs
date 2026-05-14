@@ -254,6 +254,20 @@ fn test_wildcard_projection() {
 }
 
 #[test]
+fn test_wildcard_projection_through_let_bound_variable() {
+    let items = arr(vec![
+        obj(vec![("qty".to_string(), num(2))]),
+        obj(vec![("qty".to_string(), num(5))]),
+        obj(vec![("qty".to_string(), num(3))]),
+    ]);
+    let result = eval_fields(
+        "let rows = $items in sum(rows[*].qty)",
+        vec![("items", items)],
+    );
+    assert_eq!(result, num(10));
+}
+
+#[test]
 fn test_indexed_access() {
     let items = arr(vec![num(10), num(20), num(30)]);
     // 1-based indexing
