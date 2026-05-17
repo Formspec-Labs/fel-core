@@ -61,9 +61,10 @@ fn emit_parameter(p: &Parameter) -> serde_json::Value {
 }
 
 /// Emit a single `Example` as its schema JSON object.
-fn emit_example(ex: &Example) -> serde_json::Value {
-    let result: serde_json::Value = serde_json::from_str(ex.result_json)
-        .unwrap_or_else(|e| panic!("invalid result_json for example '{}': {e}", ex.expression));
+///
+/// Returns `None` when `result_json` is not valid JSON (omitted from emitted catalogs).
+fn emit_example(ex: &Example) -> Option<serde_json::Value> {
+    let result: serde_json::Value = serde_json::from_str(ex.result_json).ok()?;
     let mut obj = serde_json::Map::new();
     obj.insert(
         "expression".into(),
@@ -73,7 +74,7 @@ fn emit_example(ex: &Example) -> serde_json::Value {
     if let Some(note) = ex.note {
         obj.insert("note".into(), serde_json::Value::String(note.into()));
     }
-    serde_json::Value::Object(obj)
+    Some(serde_json::Value::Object(obj))
 }
 
 /// Emit a single `BuiltinFunctionCatalogEntry` as its `FunctionEntry` JSON object.
@@ -122,11 +123,9 @@ fn emit_function_entry(e: &BuiltinFunctionCatalogEntry) -> serde_json::Value {
     if e.short_circuit {
         obj.insert("shortCircuit".into(), serde_json::Value::Bool(true));
     }
-    if !e.examples.is_empty() {
-        obj.insert(
-            "examples".into(),
-            serde_json::Value::Array(e.examples.iter().map(emit_example).collect()),
-        );
+    let examples: Vec<_> = e.examples.iter().filter_map(emit_example).collect();
+    if !examples.is_empty() {
+        obj.insert("examples".into(), serde_json::Value::Array(examples));
     }
     serde_json::Value::Object(obj)
 }
@@ -181,11 +180,9 @@ fn emit_function_entry_catalog(e: &BuiltinFunctionCatalogEntry) -> serde_json::V
     if e.short_circuit {
         obj.insert("shortCircuit".into(), serde_json::Value::Bool(true));
     }
-    if !e.examples.is_empty() {
-        obj.insert(
-            "examples".into(),
-            serde_json::Value::Array(e.examples.iter().map(emit_example).collect()),
-        );
+    let examples: Vec<_> = e.examples.iter().filter_map(emit_example).collect();
+    if !examples.is_empty() {
+        obj.insert("examples".into(), serde_json::Value::Array(examples));
     }
     serde_json::Value::Object(obj)
 }
@@ -342,4 +339,33 @@ pub fn builtin_function_catalog_json_value_for(package: Package) -> serde_json::
             .map(emit_function_entry_catalog)
             .collect(),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::extensions::types::Example;
+
+    #[test]
+    fn emit_example_omits_invalid_result_json_without_panicking() {
+        let bad = Example {
+            expression: "broken()",
+            result_json: "not json",
+            note: None,
+        };
+        assert!(emit_example(&bad).is_none());
+    }
+
+    #[test]
+    fn emit_example_includes_valid_result_json() {
+        let good = Example {
+            expression: "true",
+            result_json: "true",
+            note: Some("always true"),
+        };
+        let v = emit_example(&good).expect("valid example");
+        assert_eq!(v["expression"], "true");
+        assert_eq!(v["result"], true);
+        assert_eq!(v["note"], "always true");
+    }
 }
