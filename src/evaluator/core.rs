@@ -1414,6 +1414,8 @@ impl<'a> Evaluator<'a> {
 
             // Locale
             "locale" => self.fn_locale(),
+            "formatNumber" => self.fn_format_number(args),
+            "formatDate" => self.fn_format_date(args),
             "runtimeMeta" => self.fn_runtime_meta(args),
             "pluralCategory" => self.fn_plural_category(args),
 

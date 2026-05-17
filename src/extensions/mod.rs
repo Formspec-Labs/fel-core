@@ -164,13 +164,13 @@ mod tests {
     }
 
     #[test]
-    fn emit_schema_has_72_functions() {
+    fn emit_schema_has_74_functions() {
         let v = emit_schema_json();
         let funcs = v["functions"].as_array().expect("functions array");
         assert_eq!(
             funcs.len(),
-            72,
-            "expected 72 functions, got {}",
+            74,
+            "expected 74 functions, got {}",
             funcs.len()
         );
     }

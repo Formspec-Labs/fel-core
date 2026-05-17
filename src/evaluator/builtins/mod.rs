@@ -3,6 +3,7 @@
 mod aggregates;
 mod dates;
 mod helpers;
+mod locale;
 mod logic_types;
 mod money;
 mod numeric;

@@ -78,6 +78,8 @@
 {"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"runtimeMeta('tenantId')"}
 {"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"pluralCategory(1)"}
 {"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"other","expression":"pluralCategory(2, 'en')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"1,234.5","expression":"formatNumber(1234.5, 'en')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"May 17, 2026","expression":"formatDate('2026-05-17', 'medium', 'en')"}
 {"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"prev('runningTotal')"}
 {"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"next('amount')"}
 {"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"parent('projectName')"}

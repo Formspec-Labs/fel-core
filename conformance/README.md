@@ -8,6 +8,9 @@ This corpus is part of the FEL 1.0 internal-ratification specification set.
 The manifest in [`manifest.json`](manifest.json) records the expected line count
 and SHA-256 digest for the public corpus.
 
+Implementation evidence is tracked in
+[`IMPLEMENTATION-REPORT.md`](IMPLEMENTATION-REPORT.md).
+
 ## Format
 
 JSONL — one test case per line. Each line is a JSON object:

@@ -131,7 +131,7 @@ unsafe integers.
 | `lexer.rs` | `Token`, `Lexer`, spans. |
 | `parser.rs` | `parse()`, precedence per module doc comment. |
 | `ast.rs` | `Expr`, `PathSegment`, operators. |
-| `evaluator/` | `evaluator/core.rs` — `Environment`, `MapEnvironment`, `Evaluator`, `evaluate()`, `eval_function` dispatch, broadcasting, null propagation. `evaluator/util.rs` — free helpers (decimal, plural rules, locale). `evaluator/builtins/{aggregates,strings,numeric,dates,money,logic_types}.rs` — per-domain builtin impls on `Evaluator`. |
+| `evaluator/` | `evaluator/core.rs` — `Environment`, `MapEnvironment`, `Evaluator`, `evaluate()`, `eval_function` dispatch, broadcasting, null propagation. `evaluator/util.rs` — free helpers (decimal, plural rules, locale). `evaluator/builtins/{aggregates,strings,numeric,dates,locale,money,logic_types}.rs` — per-domain builtin impls on `Evaluator`. |
 | `types.rs` | `Value`, `Date`, `Money`, literals, Hinnant `days_from_civil` / `civil_from_days` (epoch 1970-01-01). |
 | `error.rs` | `Error`, `ParseError`, `Diagnostic`, `Severity`, JSON diagnostic helpers. |
 | `dependencies.rs` | `Dependencies`, `extract_dependencies`, JSON wire helpers. |

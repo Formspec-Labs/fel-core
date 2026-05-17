@@ -1,7 +1,7 @@
-/// FEL locale-aware function tests: locale(), runtimeMeta(), pluralCategory().
+/// FEL locale-aware function tests.
 ///
-/// Covers the three new FEL built-in functions for locale-aware expressions,
-/// including CLDR cardinal plural rules for Arabic, Polish, French, and English.
+/// Covers the five FEL built-in functions for locale-aware expressions,
+/// including cardinal plural rules for Arabic, Polish, French, and English.
 ///
 /// These functions read from the FormspecEnvironment's locale and meta fields.
 use fel_core::*;
@@ -248,6 +248,140 @@ fn plural_category_no_locale_returns_null() {
     // No locale set and no explicit locale param — return null
     let env = FormspecEnvironment::new();
     assert_eq!(eval_value("pluralCategory(1)", &env), Value::Null);
+}
+
+// ── formatNumber() ────────────────────────────────────────────────
+
+#[test]
+fn format_number_en_grouping() {
+    let mut env = FormspecEnvironment::new();
+    env.set_locale("en");
+    assert_eq!(eval_value("formatNumber(1234.5)", &env), s("1,234.5"));
+    assert_eq!(eval_value("formatNumber(1234.5, 'en')", &env), s("1,234.5"));
+}
+
+#[test]
+fn format_number_fr_differs_from_en() {
+    let env = FormspecEnvironment::new();
+    let en = eval_value("formatNumber(1234.5, 'en')", &env);
+    let fr = eval_value("formatNumber(1234.5, 'fr')", &env);
+    assert_eq!(en, s("1,234.5"));
+    assert_eq!(fr, s("1 234,5"));
+    assert_ne!(en, fr);
+}
+
+#[test]
+fn format_number_null_propagation() {
+    let env = FormspecEnvironment::new();
+    assert_eq!(eval_value("formatNumber(null)", &env), Value::Null);
+}
+
+// ── formatDate() ──────────────────────────────────────────────────
+
+#[test]
+fn format_date_medium_en() {
+    let env = FormspecEnvironment::new();
+    assert_eq!(
+        eval_value("formatDate('2026-05-17', 'medium', 'en')", &env),
+        s("May 17, 2026")
+    );
+}
+
+#[test]
+fn format_date_short_fr_differs_from_en() {
+    let env = FormspecEnvironment::new();
+    let en = eval_value("formatDate('2026-05-17', 'short', 'en')", &env);
+    let fr = eval_value("formatDate('2026-05-17', 'short', 'fr')", &env);
+    assert_eq!(en, s("5/17/26"));
+    assert_eq!(fr, s("17/05/26"));
+    assert_ne!(en, fr);
+}
+
+#[test]
+fn format_date_accepts_fel_date_literal() {
+    let env = FormspecEnvironment::new();
+    assert_eq!(
+        eval_value("formatDate(@2026-05-17, 'medium', 'en')", &env),
+        s("May 17, 2026")
+    );
+}
+
+#[test]
+fn format_date_null_propagation() {
+    let env = FormspecEnvironment::new();
+    assert_eq!(eval_value("formatDate(null)", &env), Value::Null);
+}
+
+#[test]
+fn format_date_medium_fr_differs_from_en() {
+    let env = FormspecEnvironment::new();
+    let en = eval_value("formatDate('@2026-05-17', 'medium', 'en')", &env);
+    let fr = eval_value("formatDate('@2026-05-17', 'medium', 'fr')", &env);
+    assert_eq!(en, s("May 17, 2026"));
+    assert_eq!(fr, s("mai 17, 2026"));
+    assert_ne!(en, fr);
+}
+
+#[test]
+fn format_number_rejects_non_number() {
+    let env = FormspecEnvironment::new();
+    let result = eval_with_env("formatNumber('x')", &env);
+    assert_eq!(result.value, Value::Null);
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("number"))
+    );
+}
+
+#[test]
+fn format_number_negative_en() {
+    let env = FormspecEnvironment::new();
+    assert_eq!(
+        eval_value("formatNumber(-1234.5, 'en')", &env),
+        s("-1,234.5")
+    );
+}
+
+#[test]
+fn format_date_rejects_invalid_string() {
+    let env = FormspecEnvironment::new();
+    let result = eval_with_env("formatDate('not-a-date')", &env);
+    assert_eq!(result.value, Value::Null);
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("invalid"))
+    );
+}
+
+#[test]
+fn format_date_two_arg_locale_only() {
+    let env = FormspecEnvironment::new();
+    assert_eq!(
+        eval_value("formatDate('@2026-05-17', 'fr')", &env),
+        s("mai 17, 2026")
+    );
+}
+
+#[test]
+fn builtin_catalog_includes_format_number() {
+    let catalog = builtin_function_catalog();
+    assert!(
+        catalog.iter().any(|e| e.name == "formatNumber"),
+        "builtin catalog should include formatNumber()"
+    );
+}
+
+#[test]
+fn builtin_catalog_includes_format_date() {
+    let catalog = builtin_function_catalog();
+    assert!(
+        catalog.iter().any(|e| e.name == "formatDate"),
+        "builtin catalog should include formatDate()"
+    );
 }
 
 // ── context_json: locale and meta from JSON ───────────────────────

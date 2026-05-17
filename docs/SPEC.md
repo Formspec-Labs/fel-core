@@ -258,7 +258,7 @@ Function categories:
 | `money` | 6 | `money`, `moneyAmount`, `moneyCurrency`, `moneyAdd`, `moneySum`, `moneySumWhere` |
 | `mip` | 4 | `valid`, `relevant`, `readonly`, `required` |
 | `repeat` | 3 | `prev`, `next`, `parent` (+ `instance` for multi-instance forms) |
-| `locale` | 3 | `locale`, `runtimeMeta`, `pluralCategory` |
+| `locale` | 5 | `locale`, `runtimeMeta`, `pluralCategory`, `formatNumber`, `formatDate` |
 
 Each catalog entry defines: name, category, parameter list (name, FEL type, required/optional/variadic, description, allowed enum values), return type, description, null handling semantics, determinism flag, short-circuit flag, usage examples, since-version, and package (Universal vs Formspec — controls availability in non-formspec hosts).
 
@@ -381,7 +381,19 @@ apply the same privacy controls used for form data.
 ## Internationalization Considerations
 
 FEL string values are Unicode strings. Identifiers are ASCII-only in v1.0.
-Locale-sensitive behavior is limited to explicit host-provided locale functions
-such as `locale()` and `pluralCategory()`. Date/time values do not carry a
-timezone; host environments that need timezone semantics MUST supply them
-outside FEL or through explicit extension functions.
+Locale-sensitive behavior is limited to explicit locale functions:
+`locale()`, `pluralCategory()`, `formatNumber()`, and `formatDate()`.
+`pluralCategory()` uses CLDR-style cardinal categories through the reference
+plural-rules implementation. `formatNumber()` and `formatDate()` define a
+small, deterministic cross-runtime formatting subset for conformance fixtures;
+they are not a full CLDR/ICU replacement.
+
+For `formatNumber()`, `en` and all unsupported/unknown tags use comma grouping
+and dot decimals; `fr`, `de`, `es`, and `it` use space grouping and comma
+decimals. For `formatDate()`, `short` uses `M/D/YY` for `en`/fallback and
+`DD/MM/YY` for `fr`; `medium`, `long`, and `full` use English month names for
+`en`/fallback and French month names for `fr`. This intentionally small subset
+is the portable FEL 1.0 behavior captured by the public conformance corpus.
+Hosts that need broader locale, calendar, numbering-system, or timezone
+semantics MUST supply them outside FEL or through explicit extension functions.
+Date/time values do not carry a timezone.

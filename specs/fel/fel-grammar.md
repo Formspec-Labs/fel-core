@@ -370,6 +370,11 @@ ContextRef     ← '@' Identifier ('(' _ StringLiteral _ ')')? ('.' Identifier)*
 
 ## 7. Conformance
 
+Locale formatting builtins (`formatNumber`, `formatDate`) and other cataloged
+functions are not part of this grammar; their syntax is `Identifier '(' … ')'`
+as in §4. Semantics and conformance fixtures are defined in
+[`docs/SPEC.md`](../../docs/SPEC.md) and `conformance/fel-conformance.jsonl`.
+
 A conformant FEL parser:
 
 1. **MUST** accept all input strings that match the `Expression` production of

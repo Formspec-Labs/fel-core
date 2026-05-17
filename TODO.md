@@ -1,8 +1,26 @@
 # fel-core — backlog status
 
-All backlog rows from the 2026-05-06 audit, 2026-05-07 chaos initiative (C1–C10), and 2026-05-08 multi-lens review (R21–R41) are **closed**. See [`COMPLETED.md`](COMPLETED.md) for full narratives.
+All backlog rows from the 2026-05-06 audit, 2026-05-07 chaos initiative (C1-C10), and 2026-05-08 multi-lens review (R21-R41) are **closed**. See [`COMPLETED.md`](COMPLETED.md) for full narratives.
 
-No open ratification blockers remain.
+No open ratification blockers remain. Last ratified baseline includes
+`formatNumber` / `formatDate` (2026-05-17).
+`formatNumber` and `formatDate` are documented in `docs/SPEC.md`, covered by
+`tests/locale_fel_functions.rs`, and included in `conformance/fel-conformance.jsonl`
+via catalog examples. Run `make check-ratification` after changing the corpus.
+
+The 2026-05-17 W3C-style audit follow-ups are tracked below. See
+[`thoughts/2026-05-17-open-source-w3c-architecture-audit.md`](thoughts/2026-05-17-open-source-w3c-architecture-audit.md).
+
+## Open audit findings
+
+- **FEL-OSS-AUDIT-001** - **Closed** (2026-05-17). Locale formatting builtins
+  ratified in spec, catalog, tests, and conformance corpus.
+- **FEL-OSS-AUDIT-002** - **Closed** (2026-05-17). Conformance classes and
+  implementation evidence are summarized in
+  [`conformance/IMPLEMENTATION-REPORT.md`](conformance/IMPLEMENTATION-REPORT.md).
+- **FEL-OSS-AUDIT-003** - **Closed** (2026-05-17). Locale-formatting i18n scope,
+  fallback behavior, supported subset, timezone boundary, and fixture posture
+  are documented in [`docs/SPEC.md`](docs/SPEC.md).
 
 The 2026-05-17 internal-ratification pass retired the stale monorepo-audit
 markers:
