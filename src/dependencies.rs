@@ -7,7 +7,7 @@
 #![allow(clippy::missing_docs_in_private_items)]
 use std::collections::HashSet;
 
-use crate::ast::*;
+use crate::ast::{Expr, PathDotJoin, PathSegment};
 
 /// Dependencies extracted from a FEL expression.
 #[derive(Debug, Clone, Default)]
@@ -52,19 +52,10 @@ fn walk(expr: &Expr, deps: &mut Dependencies, let_vars: &mut Vec<String>) {
                     if !let_vars.contains(n) {
                         let mut full_path = n.clone();
                         for seg in path {
-                            match seg {
-                                PathSegment::Dot(name) => {
-                                    full_path.push('.');
-                                    full_path.push_str(name);
-                                }
-                                PathSegment::Index(i) => {
-                                    full_path.push_str(&format!("[{i}]"));
-                                }
-                                PathSegment::Wildcard => {
-                                    deps.has_wildcard = true;
-                                    full_path.push_str("[*]");
-                                }
+                            if matches!(seg, PathSegment::Wildcard) {
+                                deps.has_wildcard = true;
                             }
+                            seg.append_to_path(&mut full_path, PathDotJoin::AlwaysPrefix);
                         }
                         deps.fields.insert(full_path);
                     }
@@ -82,19 +73,10 @@ fn walk(expr: &Expr, deps: &mut Dependencies, let_vars: &mut Vec<String>) {
             if !let_vars.contains(name) {
                 let mut full_path = name.clone();
                 for seg in path {
-                    match seg {
-                        PathSegment::Dot(seg_name) => {
-                            full_path.push('.');
-                            full_path.push_str(seg_name);
-                        }
-                        PathSegment::Index(i) => {
-                            full_path.push_str(&format!("[{i}]"));
-                        }
-                        PathSegment::Wildcard => {
-                            deps.has_wildcard = true;
-                            full_path.push_str("[*]");
-                        }
+                    if matches!(seg, PathSegment::Wildcard) {
+                        deps.has_wildcard = true;
                     }
+                    seg.append_to_path(&mut full_path, PathDotJoin::AlwaysPrefix);
                 }
                 deps.fields.insert(full_path);
             }
@@ -256,32 +238,14 @@ fn extract_field_path_str(expr: &Expr) -> String {
         Expr::FieldRef { name, path } => {
             let mut result = name.as_deref().unwrap_or("").to_string();
             for seg in path {
-                match seg {
-                    PathSegment::Dot(name) => {
-                        if !result.is_empty() {
-                            result.push('.');
-                        }
-                        result.push_str(name);
-                    }
-                    PathSegment::Index(i) => result.push_str(&format!("[{i}]")),
-                    PathSegment::Wildcard => result.push_str("[*]"),
-                }
+                seg.append_to_path(&mut result, PathDotJoin::PrefixWhenNonempty);
             }
             result
         }
         Expr::VarRef { name, path } => {
             let mut result = name.clone();
             for seg in path {
-                match seg {
-                    PathSegment::Dot(seg_name) => {
-                        if !result.is_empty() {
-                            result.push('.');
-                        }
-                        result.push_str(seg_name);
-                    }
-                    PathSegment::Index(i) => result.push_str(&format!("[{i}]")),
-                    PathSegment::Wildcard => result.push_str("[*]"),
-                }
+                seg.append_to_path(&mut result, PathDotJoin::PrefixWhenNonempty);
             }
             result
         }
@@ -294,16 +258,7 @@ fn extend_field_path(expr: &Expr, extra_path: &[PathSegment]) -> Option<String> 
         Expr::FieldRef { .. } | Expr::VarRef { .. } => {
             let mut path = extract_field_path_str(expr);
             for seg in extra_path {
-                match seg {
-                    PathSegment::Dot(name) => {
-                        if !path.is_empty() {
-                            path.push('.');
-                        }
-                        path.push_str(name);
-                    }
-                    PathSegment::Index(i) => path.push_str(&format!("[{i}]")),
-                    PathSegment::Wildcard => path.push_str("[*]"),
-                }
+                seg.append_to_path(&mut path, PathDotJoin::PrefixWhenNonempty);
             }
             if path.is_empty() { None } else { Some(path) }
         }
@@ -513,5 +468,52 @@ mod tests {
         assert!(d.fields.contains("items"));
         assert!(d.fields.contains("threshold"));
         assert_eq!(d.fields.len(), 4);
+    }
+
+    mod path_segment_append {
+        use super::deps;
+        use crate::ast::{PathDotJoin, PathSegment};
+
+        #[test]
+        fn walk_style_always_prefixes_dot_segments() {
+            let mut path = "items".to_string();
+            PathSegment::Dot("qty".into()).append_to_path(&mut path, PathDotJoin::AlwaysPrefix);
+            assert_eq!(path, "items.qty");
+        }
+
+        #[test]
+        fn extract_style_skips_dot_on_empty_base() {
+            let mut path = String::new();
+            PathSegment::Dot("a".into()).append_to_path(&mut path, PathDotJoin::PrefixWhenNonempty);
+            assert_eq!(path, "a");
+        }
+
+        #[test]
+        fn extract_style_prefixes_dot_when_base_nonempty() {
+            let mut path = "items".to_string();
+            PathSegment::Dot("qty".into()).append_to_path(&mut path, PathDotJoin::PrefixWhenNonempty);
+            assert_eq!(path, "items.qty");
+        }
+
+        #[test]
+        fn index_and_wildcard_rendering() {
+            let mut path = "items".to_string();
+            PathSegment::Index(2).append_to_path(&mut path, PathDotJoin::AlwaysPrefix);
+            PathSegment::Wildcard.append_to_path(&mut path, PathDotJoin::AlwaysPrefix);
+            PathSegment::Dot("qty".into()).append_to_path(&mut path, PathDotJoin::AlwaysPrefix);
+            assert_eq!(path, "items[2][*].qty");
+        }
+
+        #[test]
+        fn mip_empty_base_wildcard_path() {
+            let d = deps("valid($[*])");
+            assert!(d.mip_deps.contains("[*]"));
+        }
+
+        #[test]
+        fn indexed_field_path_round_trip() {
+            let d = deps("$rows[2].id");
+            assert!(d.fields.contains("rows[2].id"));
+        }
     }
 }

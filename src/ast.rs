@@ -12,6 +12,36 @@ pub enum PathSegment {
     Wildcard,
 }
 
+/// How [`PathSegment::Dot`] joins onto an accumulated path string.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PathDotJoin {
+    /// Insert `.` before every dot segment (dependency `walk` over `$` field refs).
+    AlwaysPrefix,
+    /// Insert `.` only when the accumulated path is non-empty (`extract_field_path_str`).
+    PrefixWhenNonempty,
+}
+
+impl PathSegment {
+    /// Appends this segment to `path` using the given dot-join rule.
+    pub(crate) fn append_to_path(&self, path: &mut String, dot_join: PathDotJoin) {
+        match self {
+            PathSegment::Dot(name) => {
+                match dot_join {
+                    PathDotJoin::AlwaysPrefix => path.push('.'),
+                    PathDotJoin::PrefixWhenNonempty if !path.is_empty() => path.push('.'),
+                    PathDotJoin::PrefixWhenNonempty => {}
+                }
+                path.push_str(name);
+            }
+            PathSegment::Index(i) => {
+                use std::fmt::Write;
+                let _ = write!(path, "[{i}]");
+            }
+            PathSegment::Wildcard => path.push_str("[*]"),
+        }
+    }
+}
+
 /// Expression AST for Formspec Expression Language (FEL).
 ///
 /// Covers literals, operators, `let`/`if`, function calls, `$` field refs, and `@` context refs.
