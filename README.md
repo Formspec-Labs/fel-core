@@ -23,6 +23,14 @@ TypeScript and Python implementations conform to that schema; a round-trip test
 (`tests/schema_round_trip.rs`) keeps emission and the canonical schema in
 lock-step.
 
+## Project Status
+
+- [`CHANGELOG.md`](CHANGELOG.md) is the public release history.
+- [`TODO.md`](TODO.md) is the current backlog and ratification status.
+- [`COMPLETED.md`](COMPLETED.md) is maintainer audit history for resolved
+  findings. It preserves detailed evidence that is too verbose for the
+  changelog; it is not an active planning surface.
+
 ## Architecture
 
 **Authoritative API detail** is `cargo doc --no-deps`. A **single-file
