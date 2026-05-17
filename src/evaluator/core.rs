@@ -1418,6 +1418,8 @@ impl<'a> Evaluator<'a> {
             "formatDate" => self.fn_format_date(args),
             "runtimeMeta" => self.fn_runtime_meta(args),
             "pluralCategory" => self.fn_plural_category(args),
+            "formatNumber" => self.fn_format_number(args),
+            "formatDate" => self.fn_format_date(args),
 
             _ => {
                 let evaluated_args: Vec<Value> = args.iter().map(|arg| self.eval(arg)).collect();
