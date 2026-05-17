@@ -756,11 +756,12 @@ impl<'a> Evaluator<'a> {
                 },
                 PathSegment::Index(idx) => match &current {
                     Value::Array(arr) => {
+                        // FEL indices are 1-based; guard above rejects 0 and OOB before subtracting.
                         if *idx == 0 || *idx > arr.len() {
                             self.diag(format!("index {idx} out of bounds (len {})", arr.len()));
                             return Value::Null;
                         }
-                        current = arr[*idx - 1].clone();
+                        current = arr.get(*idx - 1).cloned().unwrap_or(Value::Null);
                     }
                     Value::Null => return Value::Null,
                     _ => {

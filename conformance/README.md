@@ -48,6 +48,16 @@ Key semantics encoded in the corpus:
 - **Money operations** — `moneyAdd`, currency matching, money × scalar.
 - **Type coercion** — explicit casts; implicit coercion where the spec requires it.
 
+## Cross-runtime differential (WASM)
+
+The Rust↔WASM oracle uses `scripts/fel-wasm-eval.mjs`. Point it at a built
+`formspec-engine` dist tree when not using the default monorepo sibling layout:
+
+```sh
+export FORMSPEC_ENGINE_PATH=/path/to/formspec
+make test-differential-wasm
+```
+
 ## Regeneration
 
 ```sh

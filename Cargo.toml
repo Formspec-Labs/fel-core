@@ -19,7 +19,7 @@ categories = ["parser-implementations"]
 
 [dependencies]
 indexmap = "2"
-intl_pluralrules = "7.0.2"
+intl_pluralrules = "7"
 proptest = { version = "1", optional = true }
 regex = "1"
 rust_decimal = "1"

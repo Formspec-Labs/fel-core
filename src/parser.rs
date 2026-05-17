@@ -4,6 +4,9 @@
 //! explicit conjunction (e.g. `0 <= $x and $x <= 10`).
 //!
 //! Private `parse_*` / `current` / `advance` implement the precedence ladder listed below.
+//!
+//! `peek().clone()` clones token payloads when inspecting or taking ownership; unavoidable
+//! for heap-backed tokens until the lexer borrows source text directly.
 #![allow(clippy::missing_docs_in_private_items)]
 
 /// Operator precedence (lowest → highest):
@@ -60,12 +63,15 @@ pub fn parse(input: &str) -> Result<Expr, Error> {
 }
 
 impl Parser {
-    fn parse_err_current(&self, message: impl Into<String>) -> Error {
-        let tok = self.current();
+    fn parse_err_token(&self, tok: &SpannedToken, message: impl Into<String>) -> Error {
         Error::Parse(ParseError::with_span(
             tok.span.start..tok.span.end,
             message.into(),
         ))
+    }
+
+    fn parse_err_current(&self, message: impl Into<String>) -> Error {
+        self.parse_err_token(self.current(), message)
     }
 
     fn current(&self) -> &SpannedToken {
@@ -100,11 +106,10 @@ impl Parser {
     fn eat_identifier(&mut self) -> Result<String, Error> {
         match self.peek().clone() {
             Token::Identifier(name) => {
-                let name = name.clone();
                 self.advance();
                 Ok(name)
             }
-            _ => Err(self.parse_err_current(format!("expected identifier, got {:?}", self.peek()))),
+            other => Err(self.parse_err_current(format!("expected identifier, got {other:?}"))),
         }
     }
 
@@ -479,22 +484,23 @@ impl Parser {
             self.advance();
             PathSegment::Wildcard
         } else if let Token::Number(n) = self.peek().clone() {
-            self.advance();
+            let token = self.current().clone();
             if !n.fract().is_zero() || n.is_sign_negative() {
-                return Err(self.parse_err_current(format!(
+                return Err(self.parse_err_token(&token, format!(
                     "expected non-negative integer index in {bracket_context}brackets, got {n}"
                 )));
             }
             let Some(idx_u64) = n.to_u64() else {
-                return Err(self.parse_err_current(format!(
+                return Err(self.parse_err_token(&token, format!(
                     "index out of range in {bracket_context}brackets, got {n}"
                 )));
             };
             let Ok(idx) = usize::try_from(idx_u64) else {
-                return Err(self.parse_err_current(format!(
+                return Err(self.parse_err_token(&token, format!(
                     "index out of range in {bracket_context}brackets, got {n}"
                 )));
             };
+            self.advance();
             PathSegment::Index(idx)
         } else {
             return Err(self.parse_err_current(format!(

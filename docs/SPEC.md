@@ -65,7 +65,7 @@ The grammar is defined normatively in
 [`../specs/fel/fel-grammar.md`](../specs/fel/fel-grammar.md). The Rust lexer,
 parser, and AST are the reference implementation of that grammar:
 
-- **Lexer** — [`src/lexer.rs`](../src/lexer.rs): hand-rolled character scanner producing `SpannedToken`s. Token types defined in the `Token` enum (line 11). Entry point: `Lexer::tokenize()`.
+- **Lexer** — [`src/lexer.rs`](../src/lexer.rs): hand-rolled character scanner producing `SpannedToken`s. Token types are defined in the `Token` enum. Entry point: `Lexer::tokenize()`.
 - **Parser** — [`src/parser.rs`](../src/parser.rs): hand-rolled recursive-descent parser over the token stream. Entry point: `parse(input: &str) -> Result<Expr, Error>`.
 - **AST** — [`src/ast.rs`](../src/ast.rs): the `Expr` enum (line 20) defines all expression nodes, `UnaryOp` and `BinaryOp` enums define operator discriminants, `PathSegment` (line 5) defines field-path segments.
 
@@ -135,7 +135,7 @@ Null propagates through most operations. When an operand is null, the operation 
 |-------------|----------|
 | `not`, `!` | Null operand → null. |
 | `-` (negation) | Null operand → null. |
-| `+`, `-`, `*`, `/`, `%` | Either operand null → null (checked in `apply_binary`, `src/evaluator/core.rs:1080`). |
+| `+`, `-`, `*`, `/`, `%` | Either operand null → null (checked in `apply_binary`, `src/evaluator/core.rs`). |
 | `<`, `<=`, `>`, `>=` | Either operand null → null (same `apply_binary` gate). |
 | `&` (concat) | Either operand null → null. |
 | `and`, `or` | Left operand null → null. Additionally, if right operand evaluates to null, result is null. |
@@ -146,7 +146,7 @@ Null propagates through most operations. When an operand is null, the operation 
 
 | Operator(s) | Behavior |
 |-------------|----------|
-| `==` (equality) | `null == null` → `true`. `null == x` (x ≠ null) → `false`. Implemented in `eval_equality` (`core.rs:1292`). |
+| `==` (equality) | `null == null` → `true`. `null == x` (x ≠ null) → `false`. Implemented in `eval_equality` (`src/evaluator/core.rs`). |
 | `!=` (inequality) | Negates `==` result. `null != null` → `false`. `null != x` → `true`. |
 | `??` (null coalesce) | Left operand null → evaluate and return right. Left non-null → return left. This operator exists specifically to STOP propagation. |
 | `if()` / keyword `if` | `null` condition → diagnostic (`"if: condition evaluated to null"`), result is null. But the null doesn't propagate through to branches — the condition null is an error, not a passthrough. |
@@ -233,10 +233,12 @@ Notes:
 
 ## 6. Builtin Function Catalog
 
-The definitive function catalog is the static `BUILTIN_FUNCTIONS` slice in
-[`src/extensions/catalog.rs`](../src/extensions/catalog.rs). A machine-readable
-catalog schema is emitted via `cargo run -p fel-core --bin emit-fel-schema`
-(see [`src/extensions/schema.rs`](../src/extensions/schema.rs)).
+The definitive function catalog is `BUILTIN_FUNCTIONS`, assembled in
+[`src/extensions/catalog.rs`](../src/extensions/catalog.rs) from the category
+modules under `src/extensions/catalog/` and exposed as a slice through
+`builtin_function_catalog()`. A machine-readable catalog schema is emitted via
+`cargo run -p fel-core --bin emit-fel-schema` (see
+[`src/extensions/schema.rs`](../src/extensions/schema.rs)).
 
 The emitted catalog is normative builtin metadata. Implementations MUST use the
 same function names, arity rules, parameter types, return types, determinism

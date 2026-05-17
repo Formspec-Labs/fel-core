@@ -9,7 +9,7 @@ use insta::assert_snapshot;
 fn diag_first(src: &str) -> String {
     let expr = match parse(src) {
         Ok(e) => e,
-        Err(e) => return format!("parse error: {e}"),
+        Err(e) => return e.to_string(),
     };
     let env = MapEnvironment::new();
     let result = evaluate(&expr, &env);
@@ -22,10 +22,10 @@ fn diag_first(src: &str) -> String {
 
 #[test]
 fn snapshot_parse_errors() {
-    assert_snapshot!(diag_first(""), @"parse error: parse error: unexpected token Eof");
-    assert_snapshot!(diag_first("$a +"), @"parse error: parse error: unexpected token Eof");
-    assert_snapshot!(diag_first("("), @"parse error: parse error: unexpected token Eof");
-    assert_snapshot!(diag_first("$a + + $b"), @"parse error: parse error: unexpected token Plus");
+    assert_snapshot!(diag_first(""), @"parse error: unexpected token Eof");
+    assert_snapshot!(diag_first("$a +"), @"parse error: unexpected token Eof");
+    assert_snapshot!(diag_first("("), @"parse error: unexpected token Eof");
+    assert_snapshot!(diag_first("$a + + $b"), @"parse error: unexpected token Plus");
 }
 
 #[test]

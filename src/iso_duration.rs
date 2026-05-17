@@ -182,10 +182,6 @@ pub fn parse_iso8601_duration(input: &str) -> IsoDurationParse {
         }
     }
 
-    if total == 0 && date_str.is_empty() && time_str.is_none() {
-        return IsoDurationParse::Invalid;
-    }
-
     let out = if neg { -total } else { total };
     match i64::try_from(out) {
         Ok(ms) => IsoDurationParse::Milliseconds(ms),

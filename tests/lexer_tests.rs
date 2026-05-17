@@ -503,6 +503,11 @@ fn public_tokenize_exposes_chevrotain_compatible_names_and_spans() {
     assert_eq!(non_eof[9].token_type, "NumberLiteral");
     assert_eq!(non_eof[9].text, "0");
     assert_eq!(non_eof[10].token_type, "RRound");
-    assert_eq!(non_eof[3].start, 4);
-    assert_eq!(non_eof[3].end, 8);
+    let name = non_eof
+        .iter()
+        .find(|t| t.token_type == "Identifier")
+        .expect("name identifier");
+    assert_eq!(name.text, "name");
+    assert_eq!(name.start, 4);
+    assert_eq!(name.end, 8);
 }

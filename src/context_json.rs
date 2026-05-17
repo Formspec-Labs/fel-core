@@ -9,6 +9,10 @@ use crate::convert::json_to_fel;
 use crate::types::Value as CoreValue;
 use crate::{FormspecEnvironment, MipState};
 
+fn pick_key<'a>(map: &'a Map<String, Value>, keys: &[&str]) -> Option<&'a Value> {
+    keys.iter().find_map(|key| map.get(*key))
+}
+
 fn push_repeat_context(env: &mut FormspecEnvironment, repeat: &Value, depth: u8) {
     if depth > 32 {
         return;
@@ -42,10 +46,7 @@ fn push_repeat_context(env: &mut FormspecEnvironment, repeat: &Value, depth: u8)
 pub fn formspec_environment_from_json_map(ctx: &Map<String, Value>) -> FormspecEnvironment {
     let mut env = FormspecEnvironment::new();
 
-    if let Some(now_iso) = ctx
-        .get("nowIso")
-        .or_else(|| ctx.get("now_iso"))
-        .and_then(|v| v.as_str())
+    if let Some(now_iso) = pick_key(ctx, &["nowIso", "now_iso"]).and_then(|v| v.as_str())
     {
         env.set_now_from_iso(now_iso);
     }
@@ -62,10 +63,7 @@ pub fn formspec_environment_from_json_map(ctx: &Map<String, Value>) -> FormspecE
         }
     }
 
-    if let Some(mips) = ctx
-        .get("mipStates")
-        .or_else(|| ctx.get("mip_states"))
-        .and_then(|v| v.as_object())
+    if let Some(mips) = pick_key(ctx, &["mipStates", "mip_states"]).and_then(|v| v.as_object())
     {
         for (k, v) in mips {
             if let Some(mip_obj) = v.as_object() {
@@ -94,10 +92,7 @@ pub fn formspec_environment_from_json_map(ctx: &Map<String, Value>) -> FormspecE
         }
     }
 
-    if let Some(repeat) = ctx
-        .get("repeatContext")
-        .or_else(|| ctx.get("repeat_context"))
-    {
+    if let Some(repeat) = pick_key(ctx, &["repeatContext", "repeat_context"]) {
         push_repeat_context(&mut env, repeat, 0);
     }
 

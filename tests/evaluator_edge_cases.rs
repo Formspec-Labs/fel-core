@@ -621,6 +621,15 @@ fn format_multiple_placeholders() {
     );
 }
 
+/// Correctness: format applies `{n}` placeholders before sequential `%s` substitution.
+#[test]
+fn format_percent_s_after_brace_placeholder() {
+    assert_eq!(
+        eval("format('%s then {1}', 'first', 'second')"),
+        s("first then second")
+    );
+}
+
 /// Correctness: format with missing placeholder args
 #[test]
 fn format_missing_args() {

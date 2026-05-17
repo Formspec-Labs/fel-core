@@ -11,11 +11,28 @@
  *
  * Usage:
  *   echo '{"expr":"$a + $b","fields":{"a":3,"b":4}}' | node scripts/fel-wasm-eval.mjs
+ *
+ * Set `FORMSPEC_ENGINE_PATH` to the formspec repo root when the stack layout
+ * differs (see `conformance/README.md`).
  */
 
-import { initFormspecEngine } from '../../formspec/packages/formspec-engine/dist/index.js';
-import { getWasmModule } from '../../formspec/packages/formspec-engine/dist/wasm-bridge-runtime.js';
+import { createRequire } from 'node:module';
 import { createInterface } from 'node:readline';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+
+const require = createRequire(import.meta.url);
+const defaultEngineRoot = path.resolve(
+    fileURLToPath(new URL('.', import.meta.url)),
+    '../../formspec',
+);
+const engineRoot = path.resolve(
+    process.env.FORMSPEC_ENGINE_PATH ?? defaultEngineRoot,
+);
+const engineDist = path.join(engineRoot, 'packages/formspec-engine/dist');
+
+const { initFormspecEngine } = require(path.join(engineDist, 'index.js'));
+const { getWasmModule } = require(path.join(engineDist, 'wasm-bridge-runtime.js'));
 
 await initFormspecEngine();
 

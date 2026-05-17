@@ -46,7 +46,26 @@ const MONTHS_FR_FULL: [&str; 12] = [
     "décembre",
 ];
 
-const DATE_PATTERNS: [&str; 4] = ["short", "medium", "long", "full"];
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DateFormatPattern {
+    Short,
+    Medium,
+    Long,
+    Full,
+}
+
+impl DateFormatPattern {
+    fn parse(s: &str) -> Option<Self> {
+        match s {
+            "short" => Some(Self::Short),
+            "medium" => Some(Self::Medium),
+            "long" => Some(Self::Long),
+            "full" => Some(Self::Full),
+            _ => None,
+        }
+    }
+
+}
 
 impl<'a> Evaluator<'a> {
     /// `formatNumber(value, locale?)` - locale-aware decimal formatting; null in means null out.
@@ -88,22 +107,25 @@ impl<'a> Evaluator<'a> {
         };
 
         let (pattern, locale) = self.parse_format_date_pattern_locale(args);
-        self.make_string(format_date_locale(&date, &pattern, locale.as_deref()))
+        self.make_string(format_date_locale(&date, pattern, locale.as_deref()))
     }
 
-    fn parse_format_date_pattern_locale(&mut self, args: &[Expr]) -> (String, Option<String>) {
-        let mut pattern = "medium".to_string();
+    fn parse_format_date_pattern_locale(&mut self, args: &[Expr]) -> (DateFormatPattern, Option<String>) {
+        let mut pattern = DateFormatPattern::Medium;
         let mut locale = self.env.locale().map(|s| s.to_string());
 
         if args.len() >= 2 {
             match self.eval_arg(args, 1) {
-                Value::String(s) if DATE_PATTERNS.contains(&s.as_str()) => {
-                    pattern = s;
-                    if args.len() >= 3 {
-                        locale = self.resolve_optional_locale(args, 2);
+                Value::String(s) => {
+                    if let Some(p) = DateFormatPattern::parse(&s) {
+                        pattern = p;
+                        if args.len() >= 3 {
+                            locale = self.resolve_optional_locale(args, 2);
+                        }
+                    } else {
+                        locale = Some(s);
                     }
                 }
-                Value::String(s) => locale = Some(s),
                 Value::Null => {
                     if args.len() >= 3 {
                         locale = self.resolve_optional_locale(args, 2);
@@ -206,21 +228,21 @@ fn month_name_full(lang: &str, month: u32) -> &'static str {
     }
 }
 
-fn format_date_locale(date: &Date, pattern: &str, locale: Option<&str>) -> String {
+fn format_date_locale(date: &Date, pattern: DateFormatPattern, locale: Option<&str>) -> String {
     let lang = language_tag(locale);
     let (year, month, day) = date.to_naive_date();
     let yy = year.rem_euclid(100);
 
     match pattern {
-        "short" => match lang {
+        DateFormatPattern::Short => match lang {
             "fr" => format!("{day:02}/{month:02}/{yy:02}"),
             _ => format!("{month}/{day}/{yy:02}"),
         },
-        "long" | "full" => {
+        DateFormatPattern::Long | DateFormatPattern::Full => {
             let month_name = month_name_full(lang, month);
             format!("{month_name} {day}, {year}")
         }
-        _ => {
+        DateFormatPattern::Medium => {
             let month_name = month_name_abbrev(lang, month);
             format!("{month_name} {day}, {year}")
         }

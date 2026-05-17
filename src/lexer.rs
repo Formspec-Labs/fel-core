@@ -340,20 +340,17 @@ impl<'a> Lexer<'a> {
     }
 
     fn is_date_literal_ahead(&self) -> bool {
-        // Check for @YYYY-MM-DD pattern
+        // Fixed-width probe for `@YYYY-MM-DD` without heap allocation.
         if self.pos + 11 > self.chars.len() {
             return false;
         }
-        let slice: String = self.chars[self.pos..self.pos + 11].iter().collect();
-        if slice.len() < 11 {
-            return false;
-        }
-        slice.as_bytes()[0] == b'@'
-            && slice.as_bytes()[1..5].iter().all(|b| b.is_ascii_digit())
-            && slice.as_bytes()[5] == b'-'
-            && slice.as_bytes()[6..8].iter().all(|b| b.is_ascii_digit())
-            && slice.as_bytes()[8] == b'-'
-            && slice.as_bytes()[9..11].iter().all(|b| b.is_ascii_digit())
+        let s = &self.chars[self.pos..self.pos + 11];
+        s[0] == '@'
+            && s[1..5].iter().all(|c| c.is_ascii_digit())
+            && s[5] == '-'
+            && s[6..8].iter().all(|c| c.is_ascii_digit())
+            && s[8] == '-'
+            && s[9..11].iter().all(|c| c.is_ascii_digit())
     }
 
     fn read_date_literal(&mut self) -> Result<Token, ParseError> {

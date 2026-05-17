@@ -9,7 +9,8 @@ CARGO_FUZZ = $(CARGO) +nightly fuzz
 CARGO_FLAGS_ALL_FEATURES = --all-features
 CARGO_FLAGS_PROPTEST_FEATURES = --features proptest-strategies
 RUST_TRIPLE = $(shell rustc -Vv | sed -n 's/^host: //p')
-NIGHTLY_LLVM_PROFDATA = $(HOME)/.rustup/toolchains/nightly-$(RUST_TRIPLE)/lib/rustlib/$(RUST_TRIPLE)/bin/llvm-profdata
+RUSTUP_HOME ?= $(HOME)/.rustup
+NIGHTLY_LLVM_PROFDATA = $(RUSTUP_HOME)/toolchains/nightly-$(RUST_TRIPLE)/lib/rustlib/$(RUST_TRIPLE)/bin/llvm-profdata
 
 .PHONY: all help build test test-full test-differential test-differential-python test-differential-wasm test-all check-ratification ratify ratify-external conformance lint deny docs package ci fuzz-extract fuzz-regression-refresh fuzz-setup fuzz-coverage fuzz-all seed-fuzz clean
 

@@ -22,7 +22,16 @@ pub fn expr_is_interpolation_static_literal(expr: &Expr) -> bool {
             operand,
             ..
         } => expr_is_interpolation_static_literal(operand),
-        Expr::VarRef { .. } => false,
-        _ => false,
+        Expr::VarRef { .. }
+        | Expr::ContextRef { .. }
+        | Expr::FunctionCall { .. }
+        | Expr::PostfixAccess { .. }
+        | Expr::BinaryOp { .. }
+        | Expr::Ternary { .. }
+        | Expr::IfThenElse { .. }
+        | Expr::Membership { .. }
+        | Expr::NullCoalesce { .. }
+        | Expr::LetBinding { .. }
+        | Expr::FieldRef { .. } => false,
     }
 }

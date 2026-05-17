@@ -17,6 +17,10 @@ const JSON_SAFE_INTEGER_MAX: i64 = 9_007_199_254_740_991;
 /// Smallest integer that JavaScript can represent exactly in a `number`.
 const JSON_SAFE_INTEGER_MIN: i64 = -9_007_199_254_740_991;
 
+fn is_json_safe_integer(i: i64) -> bool {
+    (JSON_SAFE_INTEGER_MIN..=JSON_SAFE_INTEGER_MAX).contains(&i)
+}
+
 /// JSON object → flat field map for FEL `MapEnvironment` (`{}` / empty → empty map).
 pub fn json_object_to_field_map(val: &Value) -> HashMap<String, TypeValue> {
     let mut map = HashMap::new();
@@ -234,7 +238,7 @@ pub fn fel_to_ui_json(val: &TypeValue) -> Value {
 fn decimal_to_lossless_ui_number(n: &Decimal) -> Option<serde_json::Number> {
     if n.fract().is_zero()
         && let Some(i) = n.to_i64()
-        && (JSON_SAFE_INTEGER_MIN..=JSON_SAFE_INTEGER_MAX).contains(&i)
+        && is_json_safe_integer(i)
     {
         return Some(serde_json::Number::from(i));
     }
@@ -255,7 +259,7 @@ fn decimal_to_lossless_ui_number(n: &Decimal) -> Option<serde_json::Number> {
 fn decimal_to_wire_number_value(n: &Decimal) -> Value {
     if n.fract().is_zero()
         && let Some(i) = n.to_i64()
-        && (JSON_SAFE_INTEGER_MIN..=JSON_SAFE_INTEGER_MAX).contains(&i)
+        && is_json_safe_integer(i)
     {
         return Value::Number(serde_json::Number::from(i));
     }

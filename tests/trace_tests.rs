@@ -20,6 +20,11 @@ fn env_with(fields: &[(&str, Value)]) -> MapEnvironment {
     MapEnvironment::with_fields(map)
 }
 
+fn trace_with_fields(source: &str, fields: &[(&str, Value)]) -> Trace {
+    let env = env_with(fields);
+    trace_for(source, &env)
+}
+
 fn trace_for(source: &str, env: &MapEnvironment) -> Trace {
     let expr = parse(source).expect("parse should succeed");
     let mut trace = Trace::new();
@@ -72,8 +77,7 @@ impl Environment for CountingEnv {
 
 #[test]
 fn field_ref_emits_single_field_resolved_step() {
-    let env = env_with(&[("foo", Value::Number(Decimal::from(42)))]);
-    let trace = trace_for("$foo", &env);
+    let trace = trace_with_fields("$foo", &[("foo", Value::Number(Decimal::from(42)))]);
 
     assert_eq!(trace.steps.len(), 1);
     match &trace.steps[0] {
@@ -304,6 +308,42 @@ fn short_circuit_or_skips_right_operand() {
     assert!(short, "expected an 'or' ShortCircuit step");
 }
 
+/// Regression: traced eager builtins must not share CallArgCache with nested
+/// non-traced builtins that happen to have the same arity (fs-991y review).
+#[test]
+fn traced_contains_does_not_poison_call_arg_cache_from_nested_format_number() {
+    let env = env_with(&[("a", Value::Number(Decimal::from(42)))]);
+    let expr = parse("contains(formatNumber($a, 'en'), '2')").unwrap();
+    let mut trace = Trace::new();
+    let traced = evaluate_with(
+        &expr,
+        &env,
+        EvaluatorOptions {
+            trace: Some(&mut trace),
+            ..EvaluatorOptions::default()
+        },
+    );
+    // formatNumber(42, 'en') -> "42"; "42" contains "2" is true. A poisoned arg1
+    // would substitute cached locale "en" and yield false.
+    assert_eq!(traced.value, Value::Boolean(true));
+    assert!(traced.diagnostics.is_empty());
+
+    let call = trace
+        .steps
+        .iter()
+        .find_map(|s| match s {
+            TraceStep::FunctionCalled { name, args, result } => {
+                Some((name.clone(), args.clone(), result.clone()))
+            }
+            _ => None,
+        })
+        .expect("contains FunctionCalled step");
+    assert_eq!(call.0, "contains");
+    assert_eq!(call.2, json!(true));
+    assert_eq!(call.1.len(), 2);
+    assert_eq!(call.1[1], json!("2"));
+}
+
 #[test]
 fn tracing_and_non_tracing_paths_agree_on_result() {
     let env = env_with(&[
@@ -344,6 +384,7 @@ fn tracing_and_non_tracing_paths_agree_on_result() {
         "$a in [1, 7, 42]",             // Membership
         "{ key: $a, doubled: $a * 2 }", // Object literal
         "[$a, $b, $n]",                 // Array literal
+        "contains(formatNumber($a, 'en'), '2')",
     ] {
         let expr = parse(source).expect("parse");
         let plain = evaluate(&expr, &env);

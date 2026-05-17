@@ -82,9 +82,15 @@ fn walk(expr: &Expr, deps: &mut Dependencies, let_vars: &mut Vec<String>) {
             {
                 deps.instance_refs.insert(instance_name.clone());
             }
-            let mut ref_str = format!("@{name}");
+            let mut ref_str = String::with_capacity(
+                1 + name.len() + arg.as_ref().map(|a| 4 + a.len()).unwrap_or(0) + tail.len() * 2,
+            );
+            ref_str.push('@');
+            ref_str.push_str(name);
             if let Some(a) = arg {
-                ref_str.push_str(&format!("('{a}')"));
+                ref_str.push_str("('");
+                ref_str.push_str(a);
+                ref_str.push_str("')");
             }
             for t in tail {
                 ref_str.push('.');

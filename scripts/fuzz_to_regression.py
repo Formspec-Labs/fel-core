@@ -7,6 +7,10 @@ Usage:
 Reads minimized crash inputs from cargo-fuzz corpus, deduplicates by SHA-256,
 appends JSONL rows to `tests/corpus/fuzz_regression.jsonl`, and enriches each
 new row with `mustParse` / `displayOracle` via `emit-fuzz-regression-corpus`.
+
+Contract (keep in sync with `tests/evaluator_edge_cases.rs::FuzzRegressionCase` and
+`src/bin/emit-fuzz-regression-corpus.rs`): each row has `id`, `expression`,
+`mustParse` (bool), and optional `displayOracle` (string) for parseable inputs.
 """
 
 from __future__ import annotations

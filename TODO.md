@@ -37,6 +37,10 @@ markers:
   The ratification posture is explicit: `make ratify` is the hermetic local
   gate, and `make ratify-external` is the implementation-report gate.
 
+## Code smell audit (2026-05-17)
+
+Epic **`fs-aui0`** — validated findings in [`code-smell-audit.md`](code-smell-audit.md). Priority 4 chores (DOC-001, H-006, L-001–L-025 except blocked L-017/L-024, M-013, M-014) are **closed** on `main`. High/medium refactors (H-001–H-005, etc.) remain open on the epic.
+
 Internal-ratification artifacts:
 
 - [`docs/SPEC.md`](docs/SPEC.md)

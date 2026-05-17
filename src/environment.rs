@@ -246,6 +246,10 @@ fn project_repeat_field(
     None
 }
 
+fn mip_path(path: &[String]) -> String {
+    path.join(".")
+}
+
 #[allow(missing_docs)]
 impl Environment for FormspecEnvironment {
     fn resolve_field(&self, segments: &[String]) -> TypeValue {
@@ -337,22 +341,22 @@ impl Environment for FormspecEnvironment {
     }
 
     fn mip_valid(&self, path: &[String]) -> TypeValue {
-        let key = path.join(".");
+        let key = mip_path(path);
         TypeValue::Boolean(self.mip_states.get(&key).is_none_or(|s| s.valid))
     }
 
     fn mip_relevant(&self, path: &[String]) -> TypeValue {
-        let key = path.join(".");
+        let key = mip_path(path);
         TypeValue::Boolean(self.mip_states.get(&key).is_none_or(|s| s.relevant))
     }
 
     fn mip_readonly(&self, path: &[String]) -> TypeValue {
-        let key = path.join(".");
+        let key = mip_path(path);
         TypeValue::Boolean(self.mip_states.get(&key).is_some_and(|s| s.readonly))
     }
 
     fn mip_required(&self, path: &[String]) -> TypeValue {
-        let key = path.join(".");
+        let key = mip_path(path);
         TypeValue::Boolean(self.mip_states.get(&key).is_some_and(|s| s.required))
     }
 

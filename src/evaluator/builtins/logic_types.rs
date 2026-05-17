@@ -67,11 +67,8 @@ impl<'a> Evaluator<'a> {
 
     /// Total boolean: `present(x)` ≡ `!empty(x)` with explicit handling so the result is never null.
     pub(in crate::evaluator) fn fn_present(&mut self, args: &[Expr]) -> Value {
-        match self.fn_empty(args) {
-            Value::Boolean(b) => Value::Boolean(!b),
-            // `fn_empty` only returns Boolean; keep defensive path for API stability.
-            other => other,
-        }
+        let is_empty = matches!(self.fn_empty(args), Value::Boolean(true));
+        Value::Boolean(!is_empty)
     }
 
     pub(in crate::evaluator) fn fn_selected(&mut self, args: &[Expr]) -> Value {

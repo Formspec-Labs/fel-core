@@ -293,6 +293,24 @@ fn parse_error_span_points_at_trailing_token() {
 }
 
 #[test]
+fn parse_error_span_points_at_bad_postfix_identifier() {
+    let src = "$foo.123.bar";
+    let err = parse(src).expect_err("numeric postfix member");
+    let Error::Parse(pe) = err;
+    let sp = pe.span.expect("parser should attach span");
+    assert_eq!(&src[sp.start..sp.end], "123");
+}
+
+#[test]
+fn parse_error_span_points_at_bad_bracket_index() {
+    let src = "$foo[1.5]";
+    let err = parse(src).expect_err("fractional bracket index");
+    let Error::Parse(pe) = err;
+    let sp = pe.span.expect("parser should attach span");
+    assert_eq!(&src[sp.start..sp.end], "1.5");
+}
+
+#[test]
 fn lexer_error_includes_span_on_unterminated_string() {
     let src = "\"hello";
     let err = parse(src).expect_err("unterminated string");

@@ -1,32 +1,54 @@
 #!/usr/bin/env python3
-"""Seed fuzz corpus from FEL conformance expressions."""
+"""Seed the libFuzzer corpus from conformance expressions.
+
+Usage:
+  python3 scripts/seed_fuzz_corpus.py
+
+Set `FORMSPEC_ROOT` when the formspec sibling is not at `../formspec` relative
+to this crate (stack layout only).
+"""
 
 from __future__ import annotations
 
-import hashlib
 import json
+import os
+import shutil
 from pathlib import Path
 
 
 def main() -> None:
-    root = Path(__file__).resolve().parent.parent
-    conformance_path = root.parent / "formspec" / "tests" / "conformance" / "fel-function-semantics.json"
-    corpus_dir = root / "fuzz" / "corpus" / "fel_structured"
+    repo_root = Path(__file__).resolve().parents[1]
+    formspec_root = Path(
+        os.environ.get("FORMSPEC_ROOT", repo_root.parent / "formspec"),
+    ).resolve()
+    corpus_dir = repo_root / "fuzz" / "corpus" / "fel_pipeline"
     corpus_dir.mkdir(parents=True, exist_ok=True)
 
-    cases = json.loads(conformance_path.read_text(encoding="utf-8"))
-    seeded = 0
+    jsonl = repo_root / "conformance" / "fel-conformance.jsonl"
+    if not jsonl.is_file():
+        print(f"missing conformance corpus: {jsonl}", flush=True)
+        return
 
-    for case in cases:
-        source_bytes = case["expr"].encode()
-        file_name = hashlib.sha256(source_bytes).hexdigest()[:16]
-        output_path = corpus_dir / file_name
+    count = 0
+    with jsonl.open(encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            row = json.loads(line)
+            expr = row.get("expression")
+            if not isinstance(expr, str) or not expr:
+                continue
+            dest = corpus_dir / f"conf_{count:05d}.fel"
+            dest.write_text(expr, encoding="utf-8")
+            count += 1
 
-        if not output_path.exists():
-            output_path.write_bytes(source_bytes)
-            seeded += 1
-
-    print(f"seeded {seeded} new files ({len(cases)} total cases)")
+    print(f"seeded {count} expressions into {corpus_dir}")
+    if not formspec_root.is_dir():
+        print(
+            f"note: FORMSPEC_ROOT {formspec_root} is not a directory (seed used fel-core conformance only)",
+            flush=True,
+        )
 
 
 if __name__ == "__main__":

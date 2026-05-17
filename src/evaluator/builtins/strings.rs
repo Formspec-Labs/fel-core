@@ -9,6 +9,23 @@ use super::super::core::Evaluator;
 use super::super::util::dec;
 
 impl<'a> Evaluator<'a> {
+    fn push_format_tail(out: &mut String, mut rest: &str, values: &[String], percent_index: &mut usize) {
+        while !rest.is_empty() {
+            let Some(pos) = rest.find("%s") else {
+                out.push_str(rest);
+                return;
+            };
+            out.push_str(&rest[..pos]);
+            if let Some(value) = values.get(*percent_index) {
+                out.push_str(value);
+                *percent_index += 1;
+            } else {
+                out.push_str("%s");
+            }
+            rest = &rest[pos + 2..];
+        }
+    }
+
     // ── String helpers ──────────────────────────────────────────
 
     pub(in crate::evaluator) fn fn_str1(
@@ -63,18 +80,31 @@ impl<'a> Evaluator<'a> {
             Value::Null => return Value::Null,
             other => return self.reject_expected_type("substring", "number", &other),
         };
-        let chars: Vec<char> = s.chars().collect();
         let start_idx = start.saturating_sub(1);
+        let char_len = s.chars().count();
+        if start_idx >= char_len {
+            return self.make_string(String::new());
+        }
+        let byte_start = s
+            .char_indices()
+            .nth(start_idx)
+            .map(|(i, _)| i)
+            .unwrap_or(s.len());
         if args.len() > 2 {
             let len = match self.eval_arg(args, 2) {
                 Value::Number(n) => n.to_i64().unwrap_or(0).max(0) as usize,
                 Value::Null => return Value::Null,
                 other => return self.reject_expected_type("substring", "number", &other),
             };
-            let end = (start_idx + len).min(chars.len());
-            self.make_string(chars[start_idx.min(chars.len())..end].iter().collect())
+            let end_idx = (start_idx + len).min(char_len);
+            let byte_end = s
+                .char_indices()
+                .nth(end_idx)
+                .map(|(i, _)| i)
+                .unwrap_or(s.len());
+            self.make_string(s[byte_start..byte_end].to_string())
         } else {
-            self.make_string(chars[start_idx.min(chars.len())..].iter().collect())
+            self.make_string(s[byte_start..].to_string())
         }
     }
 
@@ -141,17 +171,7 @@ impl<'a> Evaluator<'a> {
             let mut sequential = String::with_capacity(result.len());
             let mut rest = result.as_str();
             let mut value_index = 0usize;
-            while let Some(pos) = rest.find("%s") {
-                sequential.push_str(&rest[..pos]);
-                if let Some(value) = values.get(value_index) {
-                    sequential.push_str(value);
-                    value_index += 1;
-                } else {
-                    sequential.push_str("%s");
-                }
-                rest = &rest[pos + 2..];
-            }
-            sequential.push_str(rest);
+            Self::push_format_tail(&mut sequential, rest, &values, &mut value_index);
             result = sequential;
         }
         self.make_string(result)
