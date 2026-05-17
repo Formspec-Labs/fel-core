@@ -28,7 +28,7 @@ mod schema;
 mod types;
 
 pub use catalog::{builtin_function_catalog, builtin_function_catalog_for};
-pub use registry::{ExtensionError, ExtensionRegistry};
+pub use registry::{ExtensionCallOutcome, ExtensionError, ExtensionRegistry};
 pub use schema::{
     builtin_function_catalog_json_value, builtin_function_catalog_json_value_for, emit_schema_json,
 };
@@ -63,7 +63,10 @@ mod tests {
             .unwrap();
 
         assert!(registry.contains("double"));
-        assert_eq!(registry.call("double", &[num(5)]), Some(num(10)));
+        assert_eq!(
+            registry.call("double", &[num(5)]),
+            ExtensionCallOutcome::Ok(num(10))
+        );
     }
 
     #[test]
@@ -75,9 +78,12 @@ mod tests {
 
         assert_eq!(
             registry.call("identity", &[TypeValue::Null]),
-            Some(TypeValue::Null)
+            ExtensionCallOutcome::Ok(TypeValue::Null)
         );
-        assert_eq!(registry.call("identity", &[num(42)]), Some(num(42)));
+        assert_eq!(
+            registry.call("identity", &[num(42)]),
+            ExtensionCallOutcome::Ok(num(42))
+        );
     }
 
     #[test]
@@ -123,7 +129,10 @@ mod tests {
     #[test]
     fn test_unknown_extension_returns_none() {
         let registry = ExtensionRegistry::new();
-        assert_eq!(registry.call("unknownExt", &[num(1)]), None);
+        assert_eq!(
+            registry.call("unknownExt", &[num(1)]),
+            ExtensionCallOutcome::NotFound
+        );
     }
 
     #[test]
@@ -138,7 +147,61 @@ mod tests {
 
         assert_eq!(
             registry.call("concat3", &[s("a"), s("b"), s("c")]),
-            Some(s("a-b-c"))
+            ExtensionCallOutcome::Ok(s("a-b-c"))
+        );
+    }
+
+    #[test]
+    fn test_call_rejects_too_few_args() {
+        let mut registry = ExtensionRegistry::new();
+        registry
+            .register("needsTwo", 2, Some(2), |args| match (&args[0], &args[1]) {
+                (TypeValue::Number(a), TypeValue::Number(b)) => TypeValue::Number(*a + *b),
+                _ => TypeValue::Null,
+            })
+            .unwrap();
+
+        match registry.call("needsTwo", &[num(1)]) {
+            ExtensionCallOutcome::ArityMismatch { message } => {
+                assert_eq!(message, "needsTwo: requires exactly 2 arguments");
+            }
+            other => panic!("expected arity mismatch, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_call_rejects_too_many_args() {
+        let mut registry = ExtensionRegistry::new();
+        registry
+            .register("atMostOne", 0, Some(1), |args| {
+                args.first().cloned().unwrap_or(TypeValue::Null)
+            })
+            .unwrap();
+
+        match registry.call("atMostOne", &[num(1), num(2)]) {
+            ExtensionCallOutcome::ArityMismatch { message } => {
+                assert_eq!(message, "atMostOne: requires at most 1 arguments");
+            }
+            other => panic!("expected arity mismatch, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_call_allows_unbounded_max_args() {
+        let mut registry = ExtensionRegistry::new();
+        registry
+            .register("sumMany", 1, None, |args| {
+                let total = args.iter().fold(Decimal::ZERO, |acc, v| match v {
+                    TypeValue::Number(n) => acc + n,
+                    _ => acc,
+                });
+                TypeValue::Number(total)
+            })
+            .unwrap();
+
+        assert_eq!(
+            registry.call("sumMany", &[num(1), num(2), num(3)]),
+            ExtensionCallOutcome::Ok(num(6))
         );
     }
 

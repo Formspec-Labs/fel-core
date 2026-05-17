@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use crate::ast::*;
 use crate::convert::fel_to_json;
 use crate::error::Diagnostic;
-use crate::extensions::ExtensionRegistry;
+use crate::extensions::{ExtensionCallOutcome, ExtensionRegistry};
 use crate::trace::{Trace, TraceStep};
 use crate::types::*;
 
@@ -1422,27 +1422,34 @@ impl<'a> Evaluator<'a> {
             _ => {
                 let evaluated_args: Vec<Value> = args.iter().map(|arg| self.eval(arg)).collect();
                 if let Some(registry) = self.extensions {
-                    if let Some(result) = registry.call(name, &evaluated_args) {
-                        let result = match result {
-                            Value::String(s) => self.make_string(s),
-                            Value::Array(arr) => self.make_array(arr),
-                            Value::Object(obj) => self.make_object(obj),
-                            other => {
-                                self.track_alloc(value_size_estimate(&other));
-                                if self.alloc_limit_breached() {
-                                    return Value::Null;
+                    match registry.call(name, &evaluated_args) {
+                        ExtensionCallOutcome::Ok(result) => {
+                            let result = match result {
+                                Value::String(s) => self.make_string(s),
+                                Value::Array(arr) => self.make_array(arr),
+                                Value::Object(obj) => self.make_object(obj),
+                                other => {
+                                    self.track_alloc(value_size_estimate(&other));
+                                    if self.alloc_limit_breached() {
+                                        return Value::Null;
+                                    }
+                                    other
                                 }
-                                other
+                            };
+                            if self.tracing() {
+                                self.trace_step(TraceStep::FunctionCalled {
+                                    name: name.to_string(),
+                                    args: evaluated_args.iter().map(fel_to_json).collect(),
+                                    result: fel_to_json(&result),
+                                });
                             }
-                        };
-                        if self.tracing() {
-                            self.trace_step(TraceStep::FunctionCalled {
-                                name: name.to_string(),
-                                args: evaluated_args.iter().map(fel_to_json).collect(),
-                                result: fel_to_json(&result),
-                            });
+                            return result;
                         }
-                        return result;
+                        ExtensionCallOutcome::ArityMismatch { message } => {
+                            self.diagnostics.push(Diagnostic::error(message));
+                            return Value::Null;
+                        }
+                        ExtensionCallOutcome::NotFound => {}
                     }
                 }
                 self.diagnostics.push(Diagnostic::undefined_function(name));

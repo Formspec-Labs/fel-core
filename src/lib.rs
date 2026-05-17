@@ -53,7 +53,7 @@ pub use evaluator::{
     MapEnvironment, eval_with_fields, evaluate, evaluate_with,
 };
 pub use extensions::{
-    ExtensionError, ExtensionFn, ExtensionFunc, ExtensionRegistry, Package,
+    ExtensionCallOutcome, ExtensionError, ExtensionFn, ExtensionFunc, ExtensionRegistry, Package,
     builtin_function_catalog, builtin_function_catalog_for, builtin_function_catalog_json_value,
     builtin_function_catalog_json_value_for,
 };

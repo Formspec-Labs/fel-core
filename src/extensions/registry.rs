@@ -12,11 +12,26 @@ use super::types::ExtensionFunc;
 pub struct ExtensionRegistry {
     extensions: HashMap<String, ExtensionFunc>,
 }
+
 /// Error type for extension registration failures.
 #[derive(Debug, Clone)]
 pub enum ExtensionError {
     /// Registration rejected: name matches a reserved word or built-in function.
     NameConflict(String),
+}
+
+/// Result of [`ExtensionRegistry::call`].
+#[derive(Debug, Clone, PartialEq)]
+pub enum ExtensionCallOutcome {
+    /// No extension registered under this name.
+    NotFound,
+    /// Extension invoked (or null-propagated without invoking).
+    Ok(TypeValue),
+    /// Argument count outside registered bounds; host should record `message` and yield null.
+    ArityMismatch {
+        /// Human-readable message aligned with builtin arity diagnostics.
+        message: String,
+    },
 }
 
 impl std::fmt::Display for ExtensionError {
@@ -33,6 +48,28 @@ impl std::fmt::Display for ExtensionError {
 }
 
 impl std::error::Error for ExtensionError {}
+
+fn arity_mismatch_message(
+    name: &str,
+    min_args: usize,
+    max_args: Option<usize>,
+    got: usize,
+) -> String {
+    if let Some(max) = max_args {
+        if min_args == max && got != min_args {
+            return format!("{name}: requires exactly {min_args} arguments");
+        }
+        if got < min_args {
+            return format!("{name}: requires at least {min_args} arguments");
+        }
+        if got > max {
+            return format!("{name}: requires at most {max} arguments");
+        }
+    } else if got < min_args {
+        return format!("{name}: requires at least {min_args} arguments");
+    }
+    unreachable!("arity_mismatch_message called with valid arity")
+}
 
 impl ExtensionRegistry {
     /// Empty registry (no custom extensions).
@@ -75,12 +112,10 @@ impl ExtensionRegistry {
     }
 
     /// Look up an extension function by name.
-    /// Lookup registered extension by name.
     pub fn get(&self, name: &str) -> Option<&ExtensionFunc> {
         self.extensions.get(name)
     }
 
-    /// Check if a name is registered.
     /// True if `name` is registered.
     pub fn contains(&self, name: &str) -> bool {
         self.extensions.contains_key(name)
@@ -88,18 +123,26 @@ impl ExtensionRegistry {
 
     /// Call an extension function with null propagation.
     ///
-    /// If any argument is null, returns null without calling the function.
-    /// Returns None if the extension is not found.
-    /// Invoke extension if present; returns `None` if unknown (caller may treat as undefined function).
-    pub fn call(&self, name: &str, args: &[TypeValue]) -> Option<TypeValue> {
-        let ext = self.extensions.get(name)?;
+    /// Returns [`ExtensionCallOutcome::NotFound`] if the extension is not registered.
+    /// Returns [`ExtensionCallOutcome::ArityMismatch`] when `args.len()` is outside
+    /// the bounds recorded at registration (caller should emit the message and yield null).
+    pub fn call(&self, name: &str, args: &[TypeValue]) -> ExtensionCallOutcome {
+        let Some(ext) = self.extensions.get(name) else {
+            return ExtensionCallOutcome::NotFound;
+        };
 
-        // Null propagation: any null arg → null result
-        if args.iter().any(|a| a.is_null()) {
-            return Some(TypeValue::Null);
+        let len = args.len();
+        if len < ext.min_args || ext.max_args.is_some_and(|max| len > max) {
+            return ExtensionCallOutcome::ArityMismatch {
+                message: arity_mismatch_message(name, ext.min_args, ext.max_args, len),
+            };
         }
 
-        Some((ext.func)(args))
+        if args.iter().any(|a| a.is_null()) {
+            return ExtensionCallOutcome::Ok(TypeValue::Null);
+        }
+
+        ExtensionCallOutcome::Ok((ext.func)(args))
     }
 }
 
