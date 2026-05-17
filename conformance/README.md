@@ -58,6 +58,9 @@ export FORMSPEC_ENGINE_PATH=/path/to/formspec
 make test-differential-wasm
 ```
 
+`make seed-fuzz` uses `scripts/seed_fuzz_corpus.py`, which honors **`FORMSPEC_ROOT`**
+when the default sibling `../formspec` layout is not present.
+
 ## Regeneration
 
 ```sh

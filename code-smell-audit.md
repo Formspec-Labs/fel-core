@@ -17,13 +17,19 @@ Six **code-scout** passes over `fel-core/` on HEAD. Findings are ticketed under 
 |-----|---------|
 | DOC-001 | This audit file + `TODO.md` smell section |
 | H-006 | `arr.get(idx - 1)` + 1-based index comment |
-| L-001 … L-025 | Low chores (lexer, strings, deps, catalog, locale, snapshots, tests, docs, deny, gitignore, parser, cache, helpers) |
+| L-001 … L-016, L-018 … L-025 | Low chores (lexer, strings, deps, catalog, locale, snapshots, tests, docs, deny, gitignore, parser, cache, helpers, fuzz seed) |
 | M-013 | `Makefile` respects `RUSTUP_HOME` |
 | M-014 | `FORMSPEC_ENGINE_PATH` for `fel-wasm-eval.mjs` |
 
+**Post-review (formspec-scout):** `CallArgCache` keeps `args_ptr` identity (not arity-only); `fn_format` stays two-phase (`{n}` then `%s`) for correct semantics; trace tests cover `contains` + nested `formatNumber`. `pick_key` snake_case aliases are covered in `context_json` unit tests (`builds_env_from_snake_case_context_keys`). H-006 index guards have `test_index_zero_*` / `test_index_out_of_bounds_*` in `evaluator_tests.rs`.
+
 ## Still open (not in Priority 4 batch)
 
-High/medium refactors (H-001–H-005, H-009, H-012, M-001–M-011, L-017 blocked on H-005, L-024) remain on the epic until picked up.
+| Ref | Ticket | Blocker |
+|-----|--------|---------|
+| L-017 | `fs-hd03` | `fs-w2ao` (split `apply_binary`) |
+
+High/medium refactors (H-001–H-005, H-009, H-012, M-001–M-011, …) remain on epic `fs-aui0`.
 
 ## Cross-cutting
 
