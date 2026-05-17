@@ -40,9 +40,9 @@ fn deep_parentheses_still_parse_below_limit() {
     // Parser max nesting frame limit is 32; stay clearly under.
     const DEPTH: usize = 28;
     let mut src = String::with_capacity(DEPTH * 2 + 2);
-    src.extend(std::iter::repeat('(').take(DEPTH));
+    src.extend(std::iter::repeat_n('(', DEPTH));
     src.push_str("42");
-    src.extend(std::iter::repeat(')').take(DEPTH));
+    src.extend(std::iter::repeat_n(')', DEPTH));
     let expr = parse(&src).expect("parse deeply parenthesized literal");
     let env = MapEnvironment::new();
     let out = evaluate(&expr, &env).value;
@@ -54,7 +54,7 @@ fn long_flat_addition_chain() {
     // Left-associative `+` builds a deep BinaryOp chain; keep TERMs modest to avoid eval stack overflow.
     const TERMS: usize = 48;
     let mut src = String::with_capacity(TERMS * 4);
-    src.push_str("0");
+    src.push('0');
     for _ in 0..TERMS {
         src.push_str(" + 1");
     }
@@ -73,7 +73,7 @@ fn variadic_min_large_arg_count() {
     for i in 0..TERMS - 2 {
         src.push_str(&format!("{}, ", 50 - i));
     }
-    src.push_str("0");
+    src.push('0');
     src.push(')');
     let expr = parse(&src).expect("parse variadic min");
     let env = MapEnvironment::new();
@@ -119,7 +119,7 @@ fn tokenize_long_expression_parse_eval_agrees_with_flat_add_chain() {
     // Same term count as `long_flat_addition_chain` — deeper left-deep AST risks eval stack overflow.
     const TERMS: usize = 48;
     let mut src = String::with_capacity(TERMS * 4);
-    src.push_str("0");
+    src.push('0');
     for _ in 0..TERMS {
         src.push_str(" + 1");
     }

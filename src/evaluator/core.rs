@@ -1025,7 +1025,7 @@ impl<'a> Evaluator<'a> {
                         match m.amount.checked_div(*n) {
                             Some(amount) => Value::Money(Money {
                                 amount,
-                                currency: m.currency.clone(),
+                                currency: m.currency,
                             }),
                             None => {
                                 self.diag("division overflow");
@@ -1083,7 +1083,7 @@ impl<'a> Evaluator<'a> {
                         match m.amount.checked_rem(*n) {
                             Some(amount) => Value::Money(Money {
                                 amount,
-                                currency: m.currency.clone(),
+                                currency: m.currency,
                             }),
                             None => {
                                 self.diag("modulo overflow");
@@ -1151,7 +1151,7 @@ impl<'a> Evaluator<'a> {
                     match combine(a.amount, b.amount) {
                         Some(amount) => Value::Money(Money {
                             amount,
-                            currency: a.currency.clone(),
+                            currency: a.currency,
                         }),
                         None => {
                             self.diag(format!("arithmetic overflow ({sym})"));
@@ -1164,7 +1164,7 @@ impl<'a> Evaluator<'a> {
                 match combine(m.amount, *n) {
                     Some(amount) => Value::Money(Money {
                         amount,
-                        currency: m.currency.clone(),
+                        currency: m.currency,
                     }),
                     None => {
                         self.diag(format!("arithmetic overflow ({sym})"));
@@ -1175,7 +1175,7 @@ impl<'a> Evaluator<'a> {
             (Value::Money(m), Value::Number(n)) if sym == "*" => match m.amount.checked_mul(*n) {
                 Some(amount) => Value::Money(Money {
                     amount,
-                    currency: m.currency.clone(),
+                    currency: m.currency,
                 }),
                 None => {
                     self.diag("arithmetic overflow (*)");
@@ -1185,7 +1185,7 @@ impl<'a> Evaluator<'a> {
             (Value::Number(n), Value::Money(m)) if sym == "*" => match n.checked_mul(m.amount) {
                 Some(amount) => Value::Money(Money {
                     amount,
-                    currency: m.currency.clone(),
+                    currency: m.currency,
                 }),
                 None => {
                     self.diag("arithmetic overflow (*)");

@@ -8,12 +8,9 @@ use proptest::prelude::*;
 
 fn tokenize_parse_eval_do_not_panic(src: &str) {
     let _ = tokenize(src);
-    match parse(src) {
-        Ok(expr) => {
-            let env = MapEnvironment::new();
-            let _ = evaluate(&expr, &env);
-        }
-        Err(_) => {}
+    if let Ok(expr) = parse(src) {
+        let env = MapEnvironment::new();
+        let _ = evaluate(&expr, &env);
     }
 }
 
@@ -24,9 +21,9 @@ fn arb_parenthesis_depth() -> impl Strategy<Value = usize> {
 
 fn nested_literal(depth: usize) -> String {
     let mut s = String::with_capacity(depth.saturating_mul(2).saturating_add(4));
-    s.extend(std::iter::repeat('(').take(depth));
+    s.extend(std::iter::repeat_n('(', depth));
     s.push_str("42");
-    s.extend(std::iter::repeat(')').take(depth));
+    s.extend(std::iter::repeat_n(')', depth));
     s
 }
 
@@ -72,7 +69,7 @@ proptest! {
     #[test]
     fn long_flat_add_chain_never_panic(terms in 8usize..50usize) {
         let mut src = String::with_capacity(terms.saturating_mul(4));
-        src.push_str("0");
+        src.push('0');
         for _ in 0..terms {
             src.push_str(" + 1");
         }

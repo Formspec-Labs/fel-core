@@ -6,6 +6,11 @@ rust-version = "1.85"
 license = "Apache-2.0"
 description = "Formspec Expression Language — parser, evaluator, and dependency analysis"
 repository = "https://github.com/Formspec-org/fel-core"
+homepage = "https://github.com/Formspec-org/fel-core"
+documentation = "https://docs.rs/fel-core"
+readme = "README.md"
+keywords = ["formspec", "expression-language", "parser", "evaluator"]
+categories = ["parser-implementations"]
 
 # fel-core extracted from formspec/crates/fel-core/ to its own top-level repo
 # on 2026-05-04. Foundational substrate consumed cross-repo by formspec,

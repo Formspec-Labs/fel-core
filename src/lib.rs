@@ -5,7 +5,7 @@
 //! ## Docs
 //!
 //! - Human overview: crate `README.md` (architecture, pipeline, module map).
-//! - API reference: `cargo doc -p fel-core --no-deps --open`.
+//! - API reference: `cargo doc --no-deps --open`.
 //! - Markdown API export: `docs/rustdoc-md/API.md` (see crate README).
 #![deny(missing_docs)]
 #![warn(clippy::missing_docs_in_private_items)]

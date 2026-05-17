@@ -1,0 +1,25 @@
+# cargo-deny policy for fel-core.
+# Install: cargo install cargo-deny
+# Run: cargo deny check
+
+[advisories]
+yanked = "deny"
+ignore = []
+
+[licenses]
+confidence-threshold = 0.8
+allow = [
+    "Apache-2.0",
+    "MIT",
+    "Unicode-3.0",
+    "Unlicense",
+]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "warn"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

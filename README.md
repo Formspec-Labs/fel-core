@@ -25,7 +25,11 @@ lock-step.
 
 ## Architecture
 
-**Authoritative API detail** is `cargo doc -p fel-core --no-deps`. A **single-file Markdown mirror** of the same rustdoc (for editors and LLM context) is [`docs/rustdoc-md/API.md`](docs/rustdoc-md/API.md), produced by [cargo-doc-md](https://github.com/Crazytieguy/cargo-doc-md) plus `scripts/bundle-rustdoc-md.mjs`.
+**Authoritative API detail** is `cargo doc --no-deps`. A **single-file
+Markdown mirror** of the same rustdoc (for editors and LLM context) is
+[`docs/rustdoc-md/API.md`](docs/rustdoc-md/API.md), produced by
+[cargo-doc-md](https://github.com/Crazytieguy/cargo-doc-md) plus
+[`scripts/bundle-rustdoc-md.mjs`](scripts/bundle-rustdoc-md.mjs).
 
 ### Pipeline
 
@@ -79,7 +83,7 @@ conformance expectations should change only through a spec+fixture update.
 
 ### Ratification gates
 
-```bash
+```sh
 make ratify
 ```
 
@@ -87,12 +91,22 @@ Runs the local internal-ratification gate: static spec/conformance checks,
 byte-for-byte public conformance regeneration, full all-features tests, and
 rustdoc broken-link denial.
 
-```bash
+```sh
 make ratify-external
 ```
 
 Runs the optional cross-runtime implementation gate against sibling Python and
-WASM runtimes when those runtimes are present.
+WASM runtimes when those runtimes are present. The GitHub Actions workflow also
+offers a scheduled/dispatch-only external conformance job for maintainers who
+configure access to the sibling Formspec runtime repository.
+
+```sh
+make ci
+```
+
+Runs the local OSS-readiness gate: rustfmt, clippy with `-D warnings`,
+`cargo-deny`, ratification checks, full all-features tests, rustdoc broken-link
+denial, and `cargo package`.
 
 ### JSON conversion, numbers, and dates
 
@@ -168,30 +182,33 @@ assert_eq!(out.value, Value::Number(Decimal::from(3)));
 From the repo root:
 
 ```bash
-cargo doc -p fel-core --no-deps --open
+cargo doc --no-deps --open
 ```
 
-Public-doc enforcement is on by default (`#![deny(missing_docs)]` at the crate root). The `.github/workflows/doc.yml` CI gate additionally runs:
+Public-doc enforcement is on by default (`#![deny(missing_docs)]` at the crate
+root). The `.github/workflows/doc.yml` CI gate additionally runs:
 
 ```bash
-RUSTDOCFLAGS='-D rustdoc::broken-intra-doc-links' cargo doc -p fel-core --no-deps
+RUSTDOCFLAGS='-D rustdoc::broken-intra-doc-links' cargo doc --no-deps
 ```
 
 ### Markdown export (from doc comments)
 
 One-time install:
 
-```bash
+```sh
 cargo install cargo-doc-md
 ```
 
 Regenerate HTML + bundled Markdown:
 
-```bash
+```sh
 npm run docs:fel-core
 ```
 
-This runs `cargo doc-md` into `target/doc-md-fel-core`, `scripts/bundle-rustdoc-md.mjs` → `docs/rustdoc-md/API.md`, then `cargo doc -p fel-core --no-deps`.
+This runs `cargo doc-md` into `target/doc-md-fel-core`,
+`scripts/bundle-rustdoc-md.mjs` -> `docs/rustdoc-md/API.md`, then
+`cargo doc --no-deps`.
 
 ## Internal (private) documentation
 
@@ -202,14 +219,14 @@ Public docs are denied (`#![deny(missing_docs)]`); private items are warned but 
 
 Strict check (lint only this crate):
 
-```bash
-cargo clippy -p fel-core --no-deps -- -D clippy::missing_docs_in_private_items
+```sh
+cargo clippy --all-targets --all-features -- -D warnings
 ```
 
 ## Tests
 
-```bash
-cargo nextest run -p fel-core
+```sh
+cargo nextest run --all-features
 ```
 
 Integration-style suites live under `tests/`. Notable:
@@ -223,12 +240,19 @@ Integration-style suites live under `tests/`. Notable:
 
 `formspec/schemas/fel-functions.schema.json` is auto-generated from the Rust catalog:
 
-```bash
-cargo run -p fel-core --bin emit-fel-schema > ../formspec/schemas/fel-functions.schema.json
+```sh
+cargo run --bin emit-fel-schema > ../formspec/schemas/fel-functions.schema.json
 ```
 
 The round-trip test catches any drift; if it fails, edit `BUILTIN_FUNCTIONS` in `src/extensions/catalog.rs` (the source of truth), not the JSON.
 
 ## License
 
-Apache-2.0 — see [LICENSE](../../LICENSE) and [LICENSING.md](../../LICENSING.md).
+Apache-2.0 — see [LICENSE](LICENSE) and [LICENSING.md](LICENSING.md).
+
+## Project Governance
+
+- Security reports: [SECURITY.md](SECURITY.md)
+- Contributions: [CONTRIBUTING.md](CONTRIBUTING.md)
+- Conduct: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+- Dependency policy: [deny.toml](deny.toml)

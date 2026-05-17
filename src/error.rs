@@ -227,6 +227,7 @@ pub fn fel_diagnostics_to_json_value(diagnostics: &[Diagnostic]) -> serde_json::
     fel_diagnostics_to_json_value_styled(diagnostics, crate::wire_style::JsonWireStyle::JsCamel)
 }
 
+/// Serializes the structured diagnostic kind with the selected key style.
 fn diagnostic_kind_to_json(
     kind: &DiagnosticKind,
     style: crate::wire_style::JsonWireStyle,
@@ -265,6 +266,7 @@ fn diagnostic_kind_to_json(
     }
 }
 
+/// Serializes one diagnostic into its public JSON object shape.
 fn diagnostic_to_json_object(
     d: &Diagnostic,
     style: crate::wire_style::JsonWireStyle,

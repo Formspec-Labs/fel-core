@@ -106,7 +106,7 @@ fn catalog_example_to_fixture(
     if ex.expression.contains('$') {
         return None;
     }
-    let expr = parse(&ex.expression).ok()?;
+    let expr = parse(ex.expression).ok()?;
     let env = MapEnvironment::new();
     let result = evaluate(&expr, &env);
     let kinds: Vec<String> = result
@@ -424,11 +424,7 @@ fn main() {
     eprintln!(
         "emitted {} semantic + {} random = {} total fixtures",
         base_len,
-        if target > base_len {
-            target - base_len
-        } else {
-            0
-        },
+        target.saturating_sub(base_len),
         if target > base_len { target } else { base_len }
     );
 }

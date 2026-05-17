@@ -35,7 +35,7 @@ pub(in crate::evaluator::builtins) fn fold_min_max_choice(
     debug_assert!(!elems.is_empty());
     let mut best = elems[0].clone();
     for elem in &elems[1..] {
-        let ord = cmp_ordered_min_max(eval, fn_label, &best, *elem)?;
+        let ord = cmp_ordered_min_max(eval, fn_label, &best, elem)?;
         let replace = if pick_smaller {
             ord.is_gt()
         } else {
@@ -72,7 +72,7 @@ where
                     }
                     total = Some(Money {
                         amount: t.amount + m.amount,
-                        currency: t.currency.clone(),
+                        currency: t.currency,
                     });
                 }
             },

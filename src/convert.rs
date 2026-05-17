@@ -228,6 +228,7 @@ pub fn fel_to_ui_json(val: &TypeValue) -> Value {
     }
 }
 
+/// Converts a decimal to a JSON number only when the text round-trips exactly.
 fn decimal_to_lossless_ui_number(n: &Decimal) -> Option<serde_json::Number> {
     if n.fract().is_zero()
         && let Some(i) = n.to_i64()
@@ -248,6 +249,7 @@ fn decimal_to_lossless_ui_number(n: &Decimal) -> Option<serde_json::Number> {
     (reparsed == *n).then_some(num)
 }
 
+/// Encodes a decimal for typed wire JSON.
 fn decimal_to_wire_number_value(n: &Decimal) -> Value {
     if n.fract().is_zero()
         && let Some(i) = n.to_i64()

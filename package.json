@@ -1,0 +1,9 @@
+{
+  "name": "fel-core-docs",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "docs:fel-core": "cargo doc-md -p fel-core --no-deps -o target/doc-md-fel-core && node scripts/bundle-rustdoc-md.mjs fel-core doc-md-fel-core fel_core docs/rustdoc-md/API.md && cargo doc -p fel-core --no-deps"
+  },
+  "devDependencies": {}
+}

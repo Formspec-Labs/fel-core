@@ -31,6 +31,7 @@ fn arb_identifier_nonempty() -> impl Strategy<Value = String> {
     "[a-zA-Z][a-zA-Z0-9_]{1,8}"
         .prop_filter("identifier must be valid", |s| is_valid_fel_identifier(s))
 }
+/// Generates arbitrary FEL values with recursive containers.
 ///
 /// `depth` defaults to [`MAX_STRATEGY_DEPTH`] when `None`.
 pub fn arb_value(depth: impl Into<Option<u32>>) -> BoxedStrategy<Value> {
@@ -51,6 +52,7 @@ pub fn arb_value(depth: impl Into<Option<u32>>) -> BoxedStrategy<Value> {
     prop_oneof![leaf, array, object].boxed()
 }
 
+/// Generates non-container FEL values.
 fn arb_leaf_value() -> impl Strategy<Value = Value> {
     prop_oneof![
         Just(Value::Null),
@@ -62,6 +64,7 @@ fn arb_leaf_value() -> impl Strategy<Value = Value> {
     ]
 }
 
+/// Generates dates in the supported calendar range.
 fn arb_date() -> impl Strategy<Value = Date> {
     (arb_year(), 1u32..=12, 1u32..=28).prop_map(|(y, m, d)| Date::Date {
         year: y,
@@ -70,11 +73,13 @@ fn arb_date() -> impl Strategy<Value = Date> {
     })
 }
 
+/// Generates non-negative money values with common currencies.
 fn arb_money() -> impl Strategy<Value = Money> {
     (arb_decimal().prop_map(|d| d.abs()), arb_currency_code())
         .prop_map(|(amount, currency)| Money { amount, currency })
 }
 
+/// Selects a small set of common ISO currency codes.
 fn arb_currency_code() -> impl Strategy<Value = CurrencyCode> {
     prop::sample::select(vec![
         CurrencyCode::parse("USD").unwrap(),
@@ -84,6 +89,7 @@ fn arb_currency_code() -> impl Strategy<Value = CurrencyCode> {
     ])
 }
 
+/// Generates years used by date strategies.
 fn arb_year() -> impl Strategy<Value = i32> {
     1900i32..2100
 }
@@ -131,6 +137,7 @@ pub fn arb_expr(
     .boxed()
 }
 
+/// Generates expression leaves without recursive operands.
 fn arb_leaf_expr() -> BoxedStrategy<Expr> {
     prop_oneof![
         Just(Expr::Null),
@@ -147,6 +154,7 @@ fn arb_leaf_expr() -> BoxedStrategy<Expr> {
     .boxed()
 }
 
+/// Generates field references with optional simple paths.
 fn arb_field_ref() -> BoxedStrategy<Expr> {
     prop_oneof![
         Just(Expr::FieldRef {
@@ -169,12 +177,14 @@ fn arb_field_ref() -> BoxedStrategy<Expr> {
     .boxed()
 }
 
+/// Generates variable references without paths.
 fn arb_var_ref() -> BoxedStrategy<Expr> {
     arb_identifier()
         .prop_map(|name| Expr::VarRef { name, path: vec![] })
         .boxed()
 }
 
+/// Generates unary expressions over a child strategy.
 fn arb_unary(sub: BoxedStrategy<Expr>) -> BoxedStrategy<Expr> {
     prop_oneof![
         (Just(UnaryOp::Not), sub.clone(), any::<bool>()).prop_map(|(op, operand, bang)| {
@@ -193,6 +203,7 @@ fn arb_unary(sub: BoxedStrategy<Expr>) -> BoxedStrategy<Expr> {
     .boxed()
 }
 
+/// Generates binary expressions across all binary operators.
 fn arb_binary(sub: BoxedStrategy<Expr>) -> BoxedStrategy<Expr> {
     let ops: Vec<BinaryOp> = vec![
         BinaryOp::Add,
@@ -219,6 +230,7 @@ fn arb_binary(sub: BoxedStrategy<Expr>) -> BoxedStrategy<Expr> {
         .boxed()
 }
 
+/// Generates JavaScript-style conditional expressions.
 fn arb_ternary(sub: BoxedStrategy<Expr>) -> BoxedStrategy<Expr> {
     (sub.clone(), sub.clone(), sub)
         .prop_map(|(condition, then_branch, else_branch)| Expr::Ternary {
@@ -229,6 +241,7 @@ fn arb_ternary(sub: BoxedStrategy<Expr>) -> BoxedStrategy<Expr> {
         .boxed()
 }
 
+/// Generates keyword if-then-else expressions.
 fn arb_if_then_else(sub: BoxedStrategy<Expr>) -> BoxedStrategy<Expr> {
     (sub.clone(), sub.clone(), sub)
         .prop_map(|(condition, then_branch, else_branch)| Expr::IfThenElse {
@@ -239,6 +252,7 @@ fn arb_if_then_else(sub: BoxedStrategy<Expr>) -> BoxedStrategy<Expr> {
         .boxed()
 }
 
+/// Generates function calls from catalog arity metadata.
 fn arb_function_call(
     sub: BoxedStrategy<Expr>,
     catalog: &[BuiltinFunctionCatalogEntry],
@@ -279,6 +293,7 @@ fn arb_function_call(
         .boxed()
 }
 
+/// Computes the generated argument count bounds for a catalog entry.
 fn min_max_arity(entry: &BuiltinFunctionCatalogEntry) -> Option<(usize, usize)> {
     if entry.parameters.is_empty() {
         return Some((0, 0));
@@ -290,18 +305,21 @@ fn min_max_arity(entry: &BuiltinFunctionCatalogEntry) -> Option<(usize, usize)> 
     Some((required, max))
 }
 
+/// Generates array literals from a child strategy.
 fn arb_array_expr(sub: BoxedStrategy<Expr>) -> BoxedStrategy<Expr> {
     prop::collection::vec(sub, 0..4)
         .prop_map(Expr::Array)
         .boxed()
 }
 
+/// Generates object literals with identifier keys.
 fn arb_object_expr(sub: BoxedStrategy<Expr>) -> BoxedStrategy<Expr> {
     prop::collection::vec((arb_identifier_nonempty(), sub), 0..3)
         .prop_map(Expr::Object)
         .boxed()
 }
 
+/// Generates `in` and `not in` membership expressions.
 fn arb_membership(sub: BoxedStrategy<Expr>) -> BoxedStrategy<Expr> {
     (
         sub.clone(),
@@ -316,6 +334,7 @@ fn arb_membership(sub: BoxedStrategy<Expr>) -> BoxedStrategy<Expr> {
         .boxed()
 }
 
+/// Generates null-coalescing expressions.
 fn arb_null_coalesce(sub: BoxedStrategy<Expr>) -> BoxedStrategy<Expr> {
     (sub.clone(), sub)
         .prop_map(|(left, right)| Expr::NullCoalesce {
@@ -325,6 +344,7 @@ fn arb_null_coalesce(sub: BoxedStrategy<Expr>) -> BoxedStrategy<Expr> {
         .boxed()
 }
 
+/// Generates let-binding expressions.
 fn arb_let_binding(sub: BoxedStrategy<Expr>) -> BoxedStrategy<Expr> {
     (arb_identifier_nonempty(), sub.clone(), sub)
         .prop_map(|(name, value, body)| Expr::LetBinding {
@@ -335,6 +355,7 @@ fn arb_let_binding(sub: BoxedStrategy<Expr>) -> BoxedStrategy<Expr> {
         .boxed()
 }
 
+/// Generates postfix property and index access expressions.
 fn arb_postfix_access(sub: BoxedStrategy<Expr>) -> BoxedStrategy<Expr> {
     (
         sub,
@@ -363,7 +384,7 @@ pub fn arb_decimal() -> impl Strategy<Value = Decimal> {
         Just(Decimal::new(1, 28)),
         (0i64..1000).prop_map(|n| Decimal::new(n, 4)),
         (0i64..1000).prop_map(|n| Decimal::new(n, 10)),
-        (u64::MAX - 100..u64::MAX).prop_map(|n| Decimal::from(n)),
+        (u64::MAX - 100..u64::MAX).prop_map(Decimal::from),
     ]
 }
 
