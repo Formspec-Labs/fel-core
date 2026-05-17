@@ -457,19 +457,7 @@ impl Parser {
                 }
                 Token::LBracket => {
                     self.advance();
-                    let seg = if matches!(self.peek(), Token::Star) {
-                        self.advance();
-                        PathSegment::Wildcard
-                    } else if let Token::Number(n) = self.peek().clone() {
-                        self.advance();
-                        PathSegment::Index(n.to_u64().unwrap_or(0) as usize)
-                    } else {
-                        return Err(self.parse_err_current(format!(
-                            "expected number or * in brackets, got {:?}",
-                            self.peek()
-                        )));
-                    };
-                    self.expect(&Token::RBracket)?;
+                    let seg = self.parse_bracket_segment("")?;
                     expr = self.attach_postfix_segment(expr, seg);
                 }
                 _ => break,
@@ -483,6 +471,24 @@ impl Parser {
             expr: Box::new(expr),
             path: vec![seg],
         }
+    }
+
+    /// Parse `[*]` or `[N]` after the opening `[` has been consumed; consumes `]`.
+    fn parse_bracket_segment(&mut self, bracket_context: &str) -> Result<PathSegment, Error> {
+        let seg = if matches!(self.peek(), Token::Star) {
+            self.advance();
+            PathSegment::Wildcard
+        } else if let Token::Number(n) = self.peek().clone() {
+            self.advance();
+            PathSegment::Index(n.to_u64().unwrap_or(0) as usize)
+        } else {
+            return Err(self.parse_err_current(format!(
+                "expected number or * in {bracket_context}brackets, got {:?}",
+                self.peek()
+            )));
+        };
+        self.expect(&Token::RBracket)?;
+        Ok(seg)
     }
 
     // ── Atoms ───────────────────────────────────────────────────
@@ -580,20 +586,7 @@ impl Parser {
                 }
                 Token::LBracket => {
                     self.advance();
-                    let seg = if matches!(self.peek(), Token::Star) {
-                        self.advance();
-                        PathSegment::Wildcard
-                    } else if let Token::Number(n) = self.peek().clone() {
-                        self.advance();
-                        PathSegment::Index(n.to_u64().unwrap_or(0) as usize)
-                    } else {
-                        return Err(self.parse_err_current(format!(
-                            "expected number or * in field ref brackets, got {:?}",
-                            self.peek()
-                        )));
-                    };
-                    self.expect(&Token::RBracket)?;
-                    path.push(seg);
+                    path.push(self.parse_bracket_segment("field ref ")?);
                 }
                 _ => break,
             }
@@ -1152,6 +1145,31 @@ mod tests {
                 path: vec![PathSegment::Wildcard, PathSegment::Dot("name".into())]
             }
         );
+    }
+
+    #[test]
+    fn test_parse_bracket_index_field_ref_and_postfix() {
+        assert_eq!(
+            parse("$rows[2].id").unwrap(),
+            Expr::FieldRef {
+                name: Some("rows".into()),
+                path: vec![PathSegment::Index(2), PathSegment::Dot("id".into())]
+            }
+        );
+        let expr = parse("items[1]").unwrap();
+        match expr {
+            Expr::PostfixAccess { expr, path } => {
+                assert_eq!(
+                    *expr,
+                    Expr::VarRef {
+                        name: "items".into(),
+                        path: vec![]
+                    }
+                );
+                assert_eq!(path, vec![PathSegment::Index(1)]);
+            }
+            other => panic!("expected PostfixAccess, got {other:?}"),
+        }
     }
 
     #[test]
