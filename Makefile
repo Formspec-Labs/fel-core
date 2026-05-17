@@ -11,7 +11,7 @@ CARGO_FLAGS_PROPTEST_FEATURES = --features proptest-strategies
 RUST_TRIPLE = $(shell rustc -Vv | sed -n 's/^host: //p')
 NIGHTLY_LLVM_PROFDATA = $(HOME)/.rustup/toolchains/nightly-$(RUST_TRIPLE)/lib/rustlib/$(RUST_TRIPLE)/bin/llvm-profdata
 
-.PHONY: all help build test test-full test-differential test-differential-python test-differential-wasm test-all check-ratification ratify ratify-external conformance lint deny docs package ci fuzz-extract fuzz-setup fuzz-coverage fuzz-all seed-fuzz clean
+.PHONY: all help build test test-full test-differential test-differential-python test-differential-wasm test-all check-ratification ratify ratify-external conformance lint deny docs package ci fuzz-extract fuzz-regression-refresh fuzz-setup fuzz-coverage fuzz-all seed-fuzz clean
 
 all: build
 
@@ -35,7 +35,8 @@ help:
 	@echo "  make test-differential-python    — Rust↔Python oracle only"
 	@echo "  make test-differential-wasm      — Rust↔WASM oracle only"
 	@echo "  make conformance                 — generate conformance/fel-conformance.jsonl"
-	@echo "  make fuzz-extract                — convert fuzz corpus to regression tests"
+	@echo "  make fuzz-extract                — append libFuzzer artifacts to fuzz_regression.jsonl"
+	@echo "  make fuzz-regression-refresh    — re-emit mustParse/displayOracle for entire JSONL corpus"
 	@echo "  make fuzz-setup                  — install nightly + llvm-tools + cargo-fuzz"
 	@echo "  make fuzz-coverage               — generate HTML coverage from fuzz corpus"
 	@echo "  make fuzz-all                    — run all fuzz maintenance targets"
@@ -91,6 +92,11 @@ conformance:
 
 fuzz-extract:
 	$(PYTHON) scripts/fuzz_to_regression.py
+
+fuzz-regression-refresh:
+	@tmp=$$(mktemp) && \
+	$(CARGO) run --bin emit-fuzz-regression-corpus < tests/corpus/fuzz_regression.jsonl > "$$tmp" && \
+	mv "$$tmp" tests/corpus/fuzz_regression.jsonl
 
 fuzz-setup:
 	@command -v $(RUSTUP) >/dev/null 2>&1 || (echo "rustup is required for fuzz tooling setup." && exit 1)

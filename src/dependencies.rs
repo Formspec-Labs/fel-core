@@ -61,12 +61,6 @@ fn walk(expr: &Expr, deps: &mut Dependencies, let_vars: &mut Vec<String>) {
                     }
                 }
             }
-            // Check for wildcards in path
-            for seg in path {
-                if matches!(seg, PathSegment::Wildcard) {
-                    deps.has_wildcard = true;
-                }
-            }
         }
 
         Expr::VarRef { name, path } => {
@@ -79,11 +73,6 @@ fn walk(expr: &Expr, deps: &mut Dependencies, let_vars: &mut Vec<String>) {
                     seg.append_to_path(&mut full_path, PathDotJoin::AlwaysPrefix);
                 }
                 deps.fields.insert(full_path);
-            }
-            for seg in path {
-                if matches!(seg, PathSegment::Wildcard) {
-                    deps.has_wildcard = true;
-                }
             }
         }
 

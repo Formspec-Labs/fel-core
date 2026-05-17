@@ -528,6 +528,22 @@ mod tests {
     }
 
     #[test]
+    fn escaped_quote_inside_literal_preserves_dollar_group_ref() {
+        let out = prep(
+            "if($line_items.qty > 0, 'it\\'s $line_items.qty', \"ok\")",
+            "line_items[0].total",
+            false,
+            &[("line_items", 2)],
+            &[],
+        );
+        assert!(
+            out.contains("$line_items.qty") || out.contains("line_items.qty"),
+            "rewrites outside quotes only; got: {out}"
+        );
+        assert!(out.contains("it's") || out.contains("it\\'s"));
+    }
+
+    #[test]
     fn qualified_repeat_reference_inside_string_literal_is_not_rewritten() {
         let out = prep(
             "if($line_items.qty > 0, '$line_items.qty', \"x $line_items.qty y\")",

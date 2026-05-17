@@ -63,6 +63,9 @@ fn emit_parameter(p: &Parameter) -> serde_json::Value {
 /// Emit a single `Example` as its schema JSON object.
 ///
 /// Returns `None` when `result_json` is not valid JSON (omitted from emitted catalogs).
+///
+/// Invalid static examples are dropped silently; [`super::tests::result_json_parses_for_all_examples`]
+/// guards the committed catalog source.
 fn emit_example(ex: &Example) -> Option<serde_json::Value> {
     let result: serde_json::Value = serde_json::from_str(ex.result_json).ok()?;
     let mut obj = serde_json::Map::new();

@@ -99,6 +99,73 @@ pub enum DiagnosticKind {
         /// Observed type name from [`crate::types::Value::type_name`].
         got: String,
     },
+    /// Extension or builtin invoked with the wrong number of arguments.
+    ArityMismatch {
+        /// Function or extension name.
+        name: String,
+        /// Minimum arguments (inclusive).
+        min_args: usize,
+        /// Maximum arguments (inclusive), if bounded.
+        max_args: Option<usize>,
+        /// Actual argument count supplied.
+        got: usize,
+    },
+}
+
+/// Pluralizes the word `argument` for arity diagnostics.
+pub(crate) fn arity_argument_word(count: usize) -> &'static str {
+    if count == 1 {
+        "argument"
+    } else {
+        "arguments"
+    }
+}
+
+/// `{name}: requires exactly {n} argument(s)`.
+pub(crate) fn arity_requires_exactly_message(name: &str, n: usize) -> String {
+    format!(
+        "{name}: requires exactly {n} {}",
+        arity_argument_word(n)
+    )
+}
+
+/// `{name}: requires at least {min} argument(s)`.
+pub(crate) fn arity_requires_at_least_message(name: &str, min: usize) -> String {
+    format!(
+        "{name}: requires at least {min} {}",
+        arity_argument_word(min)
+    )
+}
+
+/// `{name}: requires at most {max} argument(s)`.
+pub(crate) fn arity_requires_at_most_message(name: &str, max: usize) -> String {
+    format!(
+        "{name}: requires at most {max} {}",
+        arity_argument_word(max)
+    )
+}
+
+/// Human-readable arity mismatch for extensions and builtins.
+pub(crate) fn extension_arity_mismatch_message(
+    name: &str,
+    min_args: usize,
+    max_args: Option<usize>,
+    got: usize,
+) -> String {
+    if let Some(max) = max_args {
+        if min_args == max && got != min_args {
+            return arity_requires_exactly_message(name, min_args);
+        }
+        if got < min_args {
+            return arity_requires_at_least_message(name, min_args);
+        }
+        if got > max {
+            return arity_requires_at_most_message(name, max);
+        }
+    } else if got < min_args {
+        return arity_requires_at_least_message(name, min_args);
+    }
+    unreachable!("extension_arity_mismatch_message called with valid arity")
 }
 
 impl Severity {
@@ -154,6 +221,29 @@ impl Diagnostic {
             message: format!("undefined function: {name}"),
             code: None,
             kind: Some(DiagnosticKind::UndefinedFunction { name }),
+            span: None,
+        }
+    }
+
+    /// Build a structured arity-mismatch diagnostic (builtin or extension).
+    pub fn arity_mismatch(
+        name: impl Into<String>,
+        min_args: usize,
+        max_args: Option<usize>,
+        got: usize,
+    ) -> Self {
+        let name = name.into();
+        let message = extension_arity_mismatch_message(&name, min_args, max_args, got);
+        Diagnostic {
+            severity: Severity::Error,
+            message,
+            code: None,
+            kind: Some(DiagnosticKind::ArityMismatch {
+                name,
+                min_args,
+                max_args,
+                got,
+            }),
             span: None,
         }
     }
@@ -259,6 +349,29 @@ fn diagnostic_kind_to_json(
                 "type_mismatch": {
                     "fn_name": fn_name,
                     "expected": expected,
+                    "got": got,
+                }
+            }),
+        },
+        DiagnosticKind::ArityMismatch {
+            name,
+            min_args,
+            max_args,
+            got,
+        } => match style {
+            JsonWireStyle::JsCamel => serde_json::json!({
+                "arityMismatch": {
+                    "name": name,
+                    "minArgs": min_args,
+                    "maxArgs": max_args,
+                    "got": got,
+                }
+            }),
+            JsonWireStyle::PythonSnake => serde_json::json!({
+                "arity_mismatch": {
+                    "name": name,
+                    "min_args": min_args,
+                    "max_args": max_args,
                     "got": got,
                 }
             }),
@@ -381,6 +494,28 @@ mod tests {
                 "message": "bad",
                 "severity": "error",
                 "span": { "start": 3, "end": 9 }
+            }])
+        );
+    }
+
+    #[test]
+    fn diagnostic_json_includes_kind_arity_mismatch() {
+        use serde_json::json;
+
+        let d = Diagnostic::arity_mismatch("needsTwo", 2, Some(2), 1);
+        assert_eq!(
+            fel_diagnostics_to_json_value(&[d]),
+            json!([{
+                "message": "needsTwo: requires exactly 2 arguments",
+                "severity": "error",
+                "kind": {
+                    "arityMismatch": {
+                        "name": "needsTwo",
+                        "minArgs": 2,
+                        "maxArgs": 2,
+                        "got": 1
+                    }
+                }
             }])
         );
     }

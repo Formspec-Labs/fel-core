@@ -656,6 +656,10 @@ struct FuzzRegressionCase {
 }
 
 /// Fuzz-discovered inputs: must not panic; rows with `mustParse` fail on parse regression.
+///
+/// `mustParse: false` rows guard against accidental grammar loosening on junk inputs.
+/// `displayOracle` locks [`Value::Display`] for parseable rows; after intentional display
+/// changes, run `make fuzz-regression-refresh` (see `tests/corpus/README.md`).
 #[test]
 fn fuzz_regression_corpus() {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/corpus/fuzz_regression.jsonl");

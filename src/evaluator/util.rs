@@ -74,6 +74,8 @@ pub(super) fn binary_op_symbol(op: BinaryOp) -> &'static str {
 }
 
 /// Render a `$foo.bar[2].baz` style path (sans leading `$`) for trace output.
+///
+/// Static dependency paths use [`crate::ast::PathSegment::append_to_path`] instead; keep rules aligned.
 pub(super) fn render_field_path(name: &Option<String>, path: &[PathSegment]) -> String {
     let mut out = String::new();
     if let Some(n) = name {

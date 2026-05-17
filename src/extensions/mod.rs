@@ -162,8 +162,18 @@ mod tests {
             .unwrap();
 
         match registry.call("needsTwo", &[num(1)]) {
-            ExtensionCallOutcome::ArityMismatch { message } => {
-                assert_eq!(message, "needsTwo: requires exactly 2 arguments");
+            ExtensionCallOutcome::ArityMismatch {
+                name,
+                min_args,
+                max_args,
+                got,
+            } => {
+                assert_eq!(name, "needsTwo");
+                assert_eq!((min_args, max_args, got), (2, Some(2), 1));
+                assert_eq!(
+                    crate::error::extension_arity_mismatch_message(&name, min_args, max_args, got),
+                    "needsTwo: requires exactly 2 arguments"
+                );
             }
             other => panic!("expected arity mismatch, got {other:?}"),
         }
@@ -179,8 +189,18 @@ mod tests {
             .unwrap();
 
         match registry.call("atMostOne", &[num(1), num(2)]) {
-            ExtensionCallOutcome::ArityMismatch { message } => {
-                assert_eq!(message, "atMostOne: requires at most 1 arguments");
+            ExtensionCallOutcome::ArityMismatch {
+                name,
+                min_args,
+                max_args,
+                got,
+            } => {
+                assert_eq!(name, "atMostOne");
+                assert_eq!((min_args, max_args, got), (0, Some(1), 2));
+                assert_eq!(
+                    crate::error::extension_arity_mismatch_message(&name, min_args, max_args, got),
+                    "atMostOne: requires at most 1 argument"
+                );
             }
             other => panic!("expected arity mismatch, got {other:?}"),
         }

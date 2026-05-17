@@ -20,7 +20,7 @@ JSONL — one test case per line. Each line is a JSON object:
 | `expression` | string | FEL source to evaluate |
 | `environment` | object | Flat field bindings (`{"field": <JSON value>}`); empty object when no bindings needed |
 | `expectedValue` | JSON value | Canonical runtime result after `fel_to_json` |
-| `expectedDiagnosticKinds` | string[] | Diagnostic variant names produced during evaluation (`"UndefinedFunction"`, `"TypeMismatch"`) |
+| `expectedDiagnosticKinds` | string[] | Diagnostic variant names produced during evaluation (`"UndefinedFunction"`, `"TypeMismatch"`, `"ArityMismatch"`) |
 
 Every fixture uses this public schema. Stale development-only fixture shapes such
 as `{ "source": ..., "value": ... }` are not ratification artifacts.

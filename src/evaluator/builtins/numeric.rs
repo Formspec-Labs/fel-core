@@ -92,9 +92,15 @@ impl<'a> Evaluator<'a> {
                 }
             };
         }
-        // Negative or fractional exponent: fall back to f64 and convert back
-        let base_f = base.to_f64().unwrap_or(0.0);
-        let exp_f = exp.to_f64().unwrap_or(0.0);
+        // Negative or fractional exponent: fall back to f64 and convert back (FEL-SMELL-C-003).
+        let Some(base_f) = base.to_f64() else {
+            self.diag("power: base is not representable as f64");
+            return Value::Null;
+        };
+        let Some(exp_f) = exp.to_f64() else {
+            self.diag("power: exponent is not representable as f64");
+            return Value::Null;
+        };
         let result = base_f.powf(exp_f);
         if result.is_finite() {
             match Decimal::from_f64(result) {

@@ -181,7 +181,7 @@
 {"id":"41e6682a235a","expression":"77077777777*777777777777777/7777577777777777577777777*77777777777/77577777777775551557777","mustParse":true,"displayOracle":"0.00000000000772784759081049"}
 {"id":"c9ec016ca81b","expression":"822.68777/7777568777/777757777777777088868888845%61%41+266*26/7777568777/777757777777777088868888844%61%41+266*266*7.66*7.666*66112*266*7.66*7.666*66112686881%6626.666*6611268888722.217777568777/777757777777777088868888844%61%41+266*266*7.66*7.666*66112*266*7.66*7.666*66112686881%6626.666*6611268888722.2177777777770888688888446*66112688866%1626.666*6617777776*7.66*7.666*66112*266*7.66*7.666*66111%6626.666*6611268888722.21777777+2667","mustParse":true,"displayOracle":"19275617233894503.486332878939"}
 {"id":"c5a9b6764f56","expression":"$ii??-$ii??-$ii??-i??i??$i??i??i??$i??$ii??-i??-i??-$ii??-i??i??$i??i??i??i??$i??i","mustParse":true,"displayOracle":"null"}
-{"id":"48a09d6090e8","expression":"MMMMMMMMMMMMM[66][611.6][2][66][2][6]","mustParse":true,"displayOracle":"null"}
+{"id":"48a09d6090e8","expression":"MMMMMMMMMMMMM[66][611.6][2][66][2][6]","mustParse":false}
 {"id":"b4e289da8f5e","expression":"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!--42+3%!30","mustParse":true,"displayOracle":"null"}
 {"id":"5ba286d9fd2d","expression":"1*46-6%6/264-46-6%6-6-6%6/263-6*63-6*63-6-6%6/2","mustParse":true,"displayOracle":"-768"}
 {"id":"6f383fd09645","expression":"1+2*266327320","mustParse":true,"displayOracle":"532654641"}
@@ -1368,7 +1368,7 @@
 {"id":"17c5e63200ca","expression":"16%2e-41-2%3e-92","mustParse":true,"displayOracle":"null"}
 {"id":"b3555f45cca9","expression":"!!0-!!!0-!true% -!!!!0-!true%!!0-!true% -!!!!0-!true% !00","mustParse":true,"displayOracle":"null"}
 {"id":"626a6a387d76","expression":"i1.Z1.Z1w=Z11.Zi1.Z11.ZZ1.ZZ[66][6].Z1.ZZi1.Z11.ZZ1.Z11.Z11.Z11.Zi1.Z11.Z1.Zyq.ZZ","mustParse":true,"displayOracle":"true"}
-{"id":"44be11c44930","expression":"[66][6][666][66][612][66][61.6][2][6]","mustParse":true,"displayOracle":"null"}
+{"id":"44be11c44930","expression":"[66][6][666][66][612][66][61.6][2][6]","mustParse":false}
 {"id":"bac3097c2955","expression":"616/6600/6-60>66?66:--3666>6/06?62/---3-3--3--3--3-3--3*3/23000061-1-6266-600/6-60>66?66:--3666>6/06?6630000666-600/6-60>66?66:----3-3--3--616/6612/666-6160*3/230000666-600/6-60>66?32:----3-3--3--3--3-3--3*3:63316>666:63316>66?66:----300*0*01-023-6-633262","mustParse":true,"displayOracle":"66"}
 {"id":"7645f8f72c97","expression":"$ii??-$ii??-i??-$ii?$i??i??i??$i??$ii??-$<[)<=<=)<=<=<[)<=<=)<=<=s??i??$i??i??i??-i??i??$i?ii??-i89-$*<<[\t<=<=)<=<=<[)<=<=)<=<=s??i??$i??i??i??-i??i??$i??$ii??-$ii?","mustParse":false}
 {"id":"386decb559fa","expression":" ++++++++++++++++++   ","mustParse":false}
@@ -1649,7 +1649,7 @@
 {"id":"08ff8a8a8722","expression":"]]]]](]]]]","mustParse":false}
 {"id":"29557b340400","expression":"i1.Z0.Z]]]","mustParse":false}
 {"id":"556425a7dad7","expression":"$xE.L+ xExE.L*@S*@SS*@SS*@SSSSSS()6S\t","mustParse":false}
-{"id":"141723d97efd","expression":"z6[661.6][2][66][61.6][2][1.6][2661.6][2][66][61.6][2][1.6][2][66][61.6][2][6][66][61.6][2][6]","mustParse":true,"displayOracle":"null"}
+{"id":"141723d97efd","expression":"z6[661.6][2][66][61.6][2][1.6][2661.6][2][66][61.6][2][1.6][2][66][61.6][2][6][66][61.6][2][6]","mustParse":false}
 {"id":"464a1ecbb02e","expression":"(fy(fyx(42))---yyyyf--ff((42))=--yyyff((42)))\n","mustParse":true,"displayOracle":"true"}
 {"id":"137f6205c68b","expression":"-65/666*2/666666/66693-663*66-65/666666666666666666665/-32*266*7.6662-3-36-60/06/266666666666666666665/-32*266*7.6662-3-36666666665/666*266*7.6662","mustParse":true,"displayOracle":"-112268818569.6716486486530388"}
 {"id":"75aae1fdb324","expression":"i(if) ))<","mustParse":false}
@@ -1887,7 +1887,7 @@
 {"id":"228f2144a22b","expression":"0800000000026867358-67/2210306*6806*68-70026867358-67/7/226*mmm1136067113686113658-67/11091or-0or-0011or-0or-8882862*6688878882or-0or-0011or-0or-8882*668882868286286828682or-0or-0011or-0or-8882862*6688.2or-0or-0011or-0or-8882862*60306*68-67/221136863111.2","mustParse":true,"displayOracle":"null"}
 {"id":"88f2e7b5781e","expression":"14/66116661661166613416-3--3-3---166633/6","mustParse":true,"displayOracle":"-27775.16666666666666666645492"}
 {"id":"5232e1f55411","expression":"6666-65/233--61+2*666-0","mustParse":true,"displayOracle":"8058.721030042918454935622318"}
-{"id":"5c14e13f274c","expression":"MMMMMMMMMMMMM[66][611.6][2][66][61.6][2][6]","mustParse":true,"displayOracle":"null"}
+{"id":"5c14e13f274c","expression":"MMMMMMMMMMMMM[66][611.6][2][66][61.6][2][6]","mustParse":false}
 {"id":"01cbd63ac0f0","expression":"2*6--62/660388122%061%622.6886888%888%67+1+18868888888%888%672%687%622.688688888868888888%888%67+8%672%061%622.688688688888884e-3-f88%888%67+1+180","mustParse":true,"displayOracle":"null"}
 {"id":"e4e542e624aa","expression":"6?7:6?6:6","mustParse":true,"displayOracle":"null"}
 {"id":"9ff9208e3274","expression":"1126888288822.2618228221.","mustParse":false}
@@ -2189,7 +2189,7 @@
 {"id":"0818b274ea69","expression":"$?\r?","mustParse":false}
 {"id":"131048c3b948","expression":"i1.Z/ZZ1.Z11.Z1.Z.Z11Zi1.ZZ1.Z11.Z1.ZZi1.Z11.ZZ1.Z11.Zi1.Z11.ZZ11.Zq.Z1.Z1.Z.Z11xi1.ZZ1.Z11.Z1.ZZi1.Z11.ZZ1.Z11.Zi1.Z11.ZZ1.Z11.ZqZ","mustParse":true,"displayOracle":"null"}
 {"id":"4e23540da257","expression":"!!1+2*p3[6]*2-6666/61+2*p3[6]*2-6666/6661*66-67661*66-677-36*[][6]*7-36*[][6]*21+2*p3-6*p3-6-36*[][*]*2-6666-6-36*[][0]*166-6664*3330//053/30//106/6666","mustParse":true,"displayOracle":"[]"}
-{"id":"1e8b7c8fa957","expression":"MMMMMMMMMMMMM[66][6][66][666][611611.6][2][66][61.6][2]","mustParse":true,"displayOracle":"null"}
+{"id":"1e8b7c8fa957","expression":"MMMMMMMMMMMMM[66][6][66][666][611611.6][2][66][61.6][2]","mustParse":false}
 {"id":"628265755dc0","expression":"-3-33---3--3-3----3--3-4---3-3-3-3-3--[q,0,1,3]\n-4-3311*61*01+0+00666693-66-65/666+0+00+3+0+00+3+0+01+0+0+0+1+0+00+0+01+0+00+0+0066666693-66-60+1+--[q,0,1,3]\n-4-3311*61*6*66-65/6665/6666666.66666660+1+0+00+0+01+0+00+0+00+3+00+00+3+0+01+0+00666693-66-65/666+0+00+3+0+00+3+0+01+0+0+0+1+0+00+0+01+0+00+0+0066666693-66-60+1+0+5/6666666.6666666666600+66666666630+01+0+00+5/6666666.6666666+0+06","mustParse":true,"displayOracle":"[null, 66721150506.804806303341939088, 66721150508.804806303341939088, 66721150512.804806303341939088]"}
 {"id":"829dde88d195","expression":"---1","mustParse":true,"displayOracle":"-1"}
 {"id":"b9f8ab7eca26","expression":"0+0+0+0+0000+0+0+0+0+0-0+0000+0+00+0-0+0000+0+0+0+0-0+0000+0+0+0+0+0+0-0+0000+0+0+0+0+0+3\n","mustParse":true,"displayOracle":"3"}
@@ -2202,7 +2202,7 @@
 {"id":"fa1d8b11d945","expression":"6-6*[[6],tr]/6%636170/06*62*[[8],tr]/-670/06*62*[[6],tr]/10//6262�ru","mustParse":true,"displayOracle":"[null, null]"}
 {"id":"c8843b4350d8","expression":"66-66/163-666-3","mustParse":true,"displayOracle":"-603.40490797546012269938650307"}
 {"id":"d857f316cf93","expression":"0+3++66//\n66z4/3\n/217//\n66//\n/4\n%2//\n66//\n66\n\nz//\n66//\n66/3\n\n\nz//\n66//3\n/217//\n66//\n/4\n%2//\n66//\n//\n66//\n66//\n/4\n%2\n","mustParse":false}
-{"id":"71d8f276258a","expression":"z6[661][2661.6][\n2][66][61.6][2][1.6][2][66][61.6][2][6][6666][2][666][61.6][2][1.6][2611.6][2][66][61.6][2][1.6][2][66][61.6][2][6][666][61.6][2][1.6][2661.6][2][66][61.6][2][1][6]","mustParse":true,"displayOracle":"null"}
+{"id":"71d8f276258a","expression":"z6[661][2661.6][\n2][66][61.6][2][1.6][2][66][61.6][2][6][6666][2][666][61.6][2][1.6][2611.6][2][66][61.6][2][1.6][2][66][61.6][2][6][666][61.6][2][1.6][2661.6][2][66][61.6][2][1][6]","mustParse":false}
 {"id":"8fb57f4997d5","expression":"@_.t\to","mustParse":false}
 {"id":"c6f8e740f391","expression":"!!!!!!!!","mustParse":false}
 {"id":"68bb43870d44","expression":"let\rZ=i","mustParse":false}
@@ -2533,7 +2533,7 @@
 {"id":"50e39c29d942","expression":"if]]]]]][]]]]]]]]]]","mustParse":false}
 {"id":"0cc015301fe5","expression":"6-6666*-66/266-6665/63","mustParse":true,"displayOracle":"1554.176274018379281537176274"}
 {"id":"c6bca4a42424","expression":"-65/666*2/666666666666666666693-663*66-66626666666666936666666666665/666*266*7.661*6693*66-65/6666666666693-662","mustParse":true,"displayOracle":"null"}
-{"id":"b867dcddc447","expression":"[2][1.6]","mustParse":true,"displayOracle":"2"}
+{"id":"b867dcddc447","expression":"[2][1.6]","mustParse":false}
 {"id":"fbf89a489783","expression":"08013/32/0*22/627362*48-$[66][6][66][666][61166][2.L]3+ xE.[.L+,L0\n6]","mustParse":false}
 {"id":"913505434683","expression":"'�'000000000000000000/1/000000000000000000","mustParse":false}
 {"id":"f047bfe3863d","expression":"1-[61/6-6[6]=-\r1-6--[66[6]=-\r1-6--3]&--3--3]=-\r1-6--32--[6]---3--3","mustParse":true,"displayOracle":"false"}
@@ -2844,7 +2844,7 @@
 {"id":"7437ca432075","expression":"16/33/6066300006063000000003/\"��6/3������\"","mustParse":true,"displayOracle":"null"}
 {"id":"59333d4ba466","expression":"1-3&36=6>33338&463","mustParse":true,"displayOracle":"true"}
 {"id":"ad6cd3fa6932","expression":"mmmmmmmmmmmmmif(tr,et,!tr2)\n","mustParse":true,"displayOracle":"null"}
-{"id":"42e3b6809799","expression":"[66][6][1.6][2][66][611.6][2][66][61.6][2][6]","mustParse":true,"displayOracle":"null"}
+{"id":"42e3b6809799","expression":"[66][6][1.6][2][66][611.6][2][66][61.6][2][6]","mustParse":false}
 {"id":"a97ef699900a","expression":" + 1","mustParse":false}
 {"id":"8785d5371172","expression":"iu&r+ti_&rui1u&ru-iti&rui+ti","mustParse":true,"displayOracle":"null"}
 {"id":"2a222d9e933f","expression":"@133@1333�3z��","mustParse":false}
@@ -2946,7 +2946,7 @@
 {"id":"55e529be339a","expression":"-3-3-3-22.66--3--31-3/1--3-33","mustParse":true,"displayOracle":"-30.66"}
 {"id":"c20d30fcb905","expression":"'!�\n(��\n�(��\n�'","mustParse":true,"displayOracle":"!�\n(��\n�(��\n�"}
 {"id":"33e1bb3b90bc","expression":"6*-16-33-331+2*p3-36*-[2[6]]*2-6-3-----3-331+2*p3-36*-[6[6]]*2-6---3--3-333/36*-[6[6]]*2--3--3-3332*p3-36*-[6[6]]*2-3/3---7--33--3---3--3","mustParse":true,"displayOracle":"[null]"}
-{"id":"591a44c6f0ae","expression":"MMMMMMMMMMMMM[66][6][66][66][66][611.6][2][66][61.6][2][6]","mustParse":true,"displayOracle":"null"}
+{"id":"591a44c6f0ae","expression":"MMMMMMMMMMMMM[66][6][66][66][66][611.6][2][66][61.6][2][6]","mustParse":false}
 {"id":"0afb6d9ab154","expression":"-0806008001126888288822.06*0263","mustParse":true,"displayOracle":"-211980104296371619960201.78"}
 {"id":"7046624a985d","expression":"1+6327.660*663273.60","mustParse":true,"displayOracle":"4196969828.776"}
 {"id":"bce80e4527da","expression":"822.688868886888888468888844%6126888822.478888844%612688844%6126888822.68868888887%64%6144%6126886688888844%6126822.68868888887%6444%612688844%6126888822.68868888887%64%6144%6126886888884888822.68868888887%64%6144%61268868888887%64%888822.468888844%612688844%6126888822.68868888887%64%6144%6126886888884888822.68868888887%64%6144%61268868888868868888887%64%6144%61266144%6126822.68868888888%64%61+1%60","mustParse":true,"displayOracle":"55.688868886888888468888844"}
@@ -3191,7 +3191,7 @@
 {"id":"4c327b5dacc2","expression":"14/6611661661166613/3222/6666663222/66616616/66616611666","mustParse":true,"displayOracle":"0"}
 {"id":"fb4874b7de84","expression":"-3--3--4---3---3--3--4---3--3-333","mustParse":true,"displayOracle":"-328"}
 {"id":"2304c4a92d67","expression":"2%052%04","mustParse":true,"displayOracle":"2"}
-{"id":"84a6e4be13b9","expression":"MMMMMMMMMMM[66][611.6][2][66][2][6]","mustParse":true,"displayOracle":"null"}
+{"id":"84a6e4be13b9","expression":"MMMMMMMMMMM[66][611.6][2][66][2][6]","mustParse":false}
 {"id":"ea1f976f0db5","expression":"082111288628898812882.83","mustParse":true,"displayOracle":"82111288628898812882.83"}
 {"id":"55216b0c893b","expression":"1*6-6%20333e-41*6*033%20664e-41*6*033$e-41*20333e-41*6*033%2041-6%3e-46=6%3e-41*6-633e-41*20333e-41*6*033%20332e-46%2","mustParse":false}
 {"id":"c3c46b0f2685","expression":"!!--[BBBB,B]-1","mustParse":true,"displayOracle":"null"}
@@ -3274,7 +3274,7 @@
 {"id":"a2f5708ea0d7","expression":"(fffff=--yyyyy(f42A))---yyyy4--(fff((42)))\n","mustParse":true,"displayOracle":"null"}
 {"id":"e45a44905f04","expression":"1e-41*6*033%20664e-41*6*036%3e-46-6%3e-41*6-6*0333e-431*6*033%2033e-41*6*0333e-41*6-6%3e-46-6%3332e-41*6*00333e-41*6-6%3e-46-6%3e-41*6-6*0333e-41*20333e-41*6*033%20332e-46%2","mustParse":true,"displayOracle":"null"}
 {"id":"6777629d9968","expression":"822.1+266*266*7.666*66112*266*7.66*7.666*661126888661%626.666*66112688887221+266+2667","mustParse":true,"displayOracle":"3445396668672390.294"}
-{"id":"be953b1db4d7","expression":"[66][11][66][66][61.6][2]","mustParse":true,"displayOracle":"null"}
+{"id":"be953b1db4d7","expression":"[66][11][66][66][61.6][2]","mustParse":false}
 {"id":"72b01a25e6ea","expression":"[=","mustParse":false}
 {"id":"adfced75a05b","expression":"8%2.688868886%0.6E8","mustParse":true,"displayOracle":"2.622262228"}
 {"id":"3ffcc7c5756e","expression":"2106843367*66-66/2038-07/26","mustParse":true,"displayOracle":"139051662221.69838453989582547"}
@@ -3487,7 +3487,7 @@
 {"id":"1981c7354fd4","expression":"==01e23g93.3.0e230\n$","mustParse":false}
 {"id":"99f7712f0666","expression":"@113������!","mustParse":false}
 {"id":"e57c81452420","expression":"6666266/233-1-3--6--4822.00000800000000000000000---37822.000000800000000000000000-33---37----33-1-3-3","mustParse":true,"displayOracle":"-4431.416301812875536480686695"}
-{"id":"28614f97159a","expression":"z6[661.6][2][66][61.6][2][1.6][26661.6][1][66][61.2][3][1.6][2][66][61.6][61.6][2][1.6][26661.6][1][66][61.2][3][1.6][2][66][2][6][66][66][61.6][2][6]","mustParse":true,"displayOracle":"null"}
+{"id":"28614f97159a","expression":"z6[661.6][2][66][61.6][2][1.6][26661.6][1][66][61.2][3][1.6][2][66][61.6][61.6][2][1.6][26661.6][1][66][61.2][3][1.6][2][66][2][6][66][66][61.6][2][6]","mustParse":false}
 {"id":"e2896ace0f7f","expression":"2*63066481*63066681*630664816306%664062*63066481*630664816306%6640663481*630664816306%664066327320","mustParse":true,"displayOracle":"531553499248"}
 {"id":"01a90fe2163a","expression":"6*[[]]-6/2*[661/2*[[]]*4-2*[[]]","mustParse":false}
 {"id":"0d4fc0b704ae","expression":"6/666666666-26382486848688888888468888844%824.686888888466126868860088844%824.686216/66-266666-26382486848688888888468888844%824.6868888884661268688600605","mustParse":true,"displayOracle":"-267359.45928482211646557292207"}
@@ -3590,7 +3590,7 @@
 {"id":"c517be75c554","expression":"6[6][6]","mustParse":true,"displayOracle":"null"}
 {"id":"881052eed2ed","expression":"1+36[3.60","mustParse":false}
 {"id":"ef12efbd765f","expression":"|0","mustParse":false}
-{"id":"82c93b4e998a","expression":"[2][1.6][2][6]","mustParse":true,"displayOracle":"null"}
+{"id":"82c93b4e998a","expression":"[2][1.6][2][6]","mustParse":false}
 {"id":"ecd25592ac41","expression":"!!0-!!!true% ! !t0-true% !!true%0-!!!!!true% !!!true% !!true0rue% !!true%0-!!!!!true% !!!true% !!true00","mustParse":true,"displayOracle":"null"}
 {"id":"56b5dd3c6abc","expression":">>=","mustParse":false}
 {"id":"ca1fd797d189","expression":"-65/666*2/6666666666666693-663*66-65/666666666666666666665/666*266*7.6666*2661166266*726626.666667666666266666-65/666666666666666666665/666*266*7.6666*266*726626.6666666693-663*6693-662","mustParse":true,"displayOracle":"-4481879.0005772955684455002401"}
@@ -4006,7 +4006,7 @@
 {"id":"6693735c0b0b","expression":"8248886888886888888468887688%268024.6888688886888860000088","mustParse":true,"displayOracle":"227167.5208988026473815937792"}
 {"id":"ca690d15e9bc","expression":"if/]]](","mustParse":false}
 {"id":"06efb61228d6","expression":"'\\\\\\u","mustParse":false}
-{"id":"1bbf511f06cc","expression":"I[66][66][611.6][2][66][61.62][66][61.6][2][6]","mustParse":true,"displayOracle":"null"}
+{"id":"1bbf511f06cc","expression":"I[66][66][611.6][2][66][61.62][66][61.6][2][6]","mustParse":false}
 {"id":"f09ed99ac2cc","expression":"1/[[2+[1]]","mustParse":false}
 {"id":"a46cf7752795","expression":"6/2*3-56/263-23-{sssssssss:sssss-53-{sssssssss:ss3sss}ssss-s--)*W++67/2sss63-56/2{3","mustParse":false}
 {"id":"6242b193419d","expression":"if(+(((((((","mustParse":false}
@@ -4427,7 +4427,7 @@
 {"id":"937b6f98becf","expression":"1-3-32.66--38&36=6>3333-3338&46--3--3-3--3-33","mustParse":true,"displayOracle":"true"}
 {"id":"3f4d59d9cf12","expression":"(t[[[[_[_,_),_\n","mustParse":false}
 {"id":"1cf01f25c3f5","expression":"*((07�������1#","mustParse":false}
-{"id":"14384288b4d7","expression":"MMMMMMMM[66][611.6][2][66][2][6]","mustParse":true,"displayOracle":"null"}
+{"id":"14384288b4d7","expression":"MMMMMMMM[66][611.6][2][66][2][6]","mustParse":false}
 {"id":"c1a920192ad7","expression":"\"�$$$'�$6'��=���\\'�\"","mustParse":true,"displayOracle":"�$$$'�$6'��=���'�"}
 {"id":"a55b76c2d4cd","expression":"-65/6666666666666*6.62","mustParse":true,"displayOracle":"-0.0000000000645450000000064545"}
 {"id":"da776c61428c","expression":"-3-3----3--4--3-3---1--3-3---3--3--3-3--3--3-3---3--3-3---3--3-3----3-3--4--3-3---1--3-3---3--3--3-3--3--3-3---3--3-3---3--3-3----3--3--3-3---3--3-3---3--3--3-3--3--3-3---3--3-3-3--3-3----3--3-3--3--3-3---3--3-3-3--3-3--3--3--3-3--3-333","mustParse":true,"displayOracle":"-327"}
@@ -4596,7 +4596,7 @@
 {"id":"5db926a59e2e","expression":"6>66?-66:666>32?66:6666","mustParse":true,"displayOracle":"66"}
 {"id":"af03d07c2d75","expression":"1126888822.268888221","mustParse":true,"displayOracle":"1126888822.268888221"}
 {"id":"001d37a69424","expression":"i(tq,ruq, 0, 2)\n","mustParse":true,"displayOracle":"null"}
-{"id":"74850adf76b9","expression":"z6[661.6][2][66][60.6][2][1.6][26.616][2][66][61.6][2][1.6][2][66][61.6][2][6][6666][61.6][2][6]","mustParse":true,"displayOracle":"null"}
+{"id":"74850adf76b9","expression":"z6[661.6][2][66][60.6][2][1.6][26.616][2][66][61.6][2][1.6][2][66][61.6][2][6][6666][61.6][2][6]","mustParse":false}
 {"id":"3e8d4a1e28a8","expression":">(>>>>>>>>>>>>>>>-","mustParse":false}
 {"id":"c72dc483269b","expression":"(fffffffffffffyyf((42))---yyyyf--ff((42))=--yyyyyf((42))-yyyy4--fff((42)))\n","mustParse":true,"displayOracle":"true"}
 {"id":"8a0ad2dd5ad6","expression":"if(pe,0,2)\n","mustParse":true,"displayOracle":"null"}
@@ -4661,9 +4661,9 @@
 {"id":"cd4336f23271","expression":"'��\\u00644","mustParse":false}
 {"id":"f24f80571959","expression":"6660 /8000000000-233","mustParse":true,"displayOracle":"-232.9999991675"}
 {"id":"c9c1a3a7ec2f","expression":"6?6:6?26?$:6?77:6?66:","mustParse":false}
-{"id":"757011c026eb","expression":"[66][66][611.6][2][66][61.62][661.6][2][6]","mustParse":true,"displayOracle":"null"}
+{"id":"757011c026eb","expression":"[66][66][611.6][2][66][61.62][661.6][2][6]","mustParse":false}
 {"id":"41fa7f3d3d78","expression":"if(tr+uet, tr22*0663)\n","mustParse":true,"displayOracle":"null"}
-{"id":"47dcc433b30f","expression":"[66][12][66][66][61.6][2][6]","mustParse":true,"displayOracle":"null"}
+{"id":"47dcc433b30f","expression":"[66][12][66][66][61.6][2][6]","mustParse":false}
 {"id":"1adfbf22cda4","expression":"0000000211368671166633330*666666661*66-66/26666661*66-66/203-6*66-666-66/266666661*66-66/2666666-61*666616666661*66-66/266-66/266666661*66661*667/263-66/266666660*66-66/26666661*66-666*66661*66-66/203-66-66661*66-66/266666661*66-66/26666661*66-666*66661*6203-6*66-666-66/266666661*66-66/2666666-66/26666661*66-666*666-61*66-66/203-6*66-666-66/2666","mustParse":true,"displayOracle":"9300221452277299426654366140"}
 {"id":"44b9662c1075","expression":"i1.Z/ZZ1.Z11.Z1.Z.Z11Zi1.ZZ1.Z11.Z1.ZZi1.Z11.ZZ1.Z11.Zi1.Z11.ZZ11.Zq.Z1.Z1.Z.Z11xi1.Z.Z11.Z1.ZZi1.Z11.ZZ1.Z11.Zi1.Z11.ZZ1.Z11.Z","mustParse":true,"displayOracle":"null"}
 {"id":"629caee70769","expression":"if(tr(f(","mustParse":false}
@@ -5459,7 +5459,7 @@
 {"id":"2ca9daa5a7fc","expression":"466666661*66-66/2666661*6-66/26666661*66-6*6666-66/203-6/263","mustParse":true,"displayOracle":"30799959629.651751308727437584"}
 {"id":"a750d907f439","expression":"-3-3--[q,3-2-3--[q-0,1,3]\n-3-330,13--[q,0,1,33]\n-3-330,1,-330,1,0>43-3-1,3]\n-3-333","mustParse":true,"displayOracle":"[null, null, null, -341, -672, -341, null, -339]"}
 {"id":"a18e3cce5a10","expression":"266626*66*666*66*666*7*66*6616*76*7*666*7","mustParse":true,"displayOracle":"3905352145651582873296580608"}
-{"id":"012713edfc31","expression":"MMMMMMMMMMMMM[66][6][66][666][611611.6][2][66][61.6][26]","mustParse":true,"displayOracle":"null"}
+{"id":"012713edfc31","expression":"MMMMMMMMMMMMM[66][6][66][666][611611.6][2][66][61.6][26]","mustParse":false}
 {"id":"a1e0b68551c5","expression":"068--2.6+8+862+360","mustParse":true,"displayOracle":"1300.6"}
 {"id":"bb45945cf824","expression":"0=3<5","mustParse":true,"displayOracle":"null"}
 {"id":"896fe368afe0","expression":"6666-66/233-1-6666-66/23+613-06633","mustParse":true,"displayOracle":"-6024.1528270199664116439634261"}
@@ -6475,7 +6475,7 @@
 {"id":"766b0a7cd5f8","expression":"6/2*32*3-56/263-53-{sssssssss:ss3sssssssss-{sssssssss:ss3-{sssss:ss3sssssssss-53-{sss?sss/2/5-26363{-53---{s3","mustParse":false}
 {"id":"41e8e06a04d3","expression":"!!!-!!!-!!!!!!!!-!!!-!!!!!!-!!!-!!!0","mustParse":true,"displayOracle":"null"}
 {"id":"5b780c5c996d","expression":"16/3306/663000063000000062","mustParse":true,"displayOracle":"0.0000000000000000000072996757"}
-{"id":"e372c86bc517","expression":"[66][66][611.6][2][66][61.62][66][61.6][2][6]","mustParse":true,"displayOracle":"null"}
+{"id":"e372c86bc517","expression":"[66][66][611.6][2][66][61.62][66][61.6][2][6]","mustParse":false}
 {"id":"f0154f5620ed","expression":"!@@6666-66-63","mustParse":false}
 {"id":"726c8fb82b4c","expression":"-37-@5554--3377--333---754-@7777-@5554-77@7777-@5554-$A3-33","mustParse":false}
 {"id":"3c986dfbc972","expression":"$+-----$----$+$--$+--$--$+-----$-$+$--$--$----$+$--$+---$+--------$--------$----$+$--$+-----$-$+$--$=$----$+$--$+-----$-$+$--$----$+$----$+$","mustParse":true,"displayOracle":"true"}
@@ -6743,7 +6743,7 @@
 {"id":"ac0924ff5ff9","expression":"1/6666666666-65/666666666666666-56/666666666666-65/666600005363","mustParse":true,"displayOracle":"-0.0000000000316072501756858749"}
 {"id":"a1f190337cdb","expression":"1202063066481633066481f6306","mustParse":false}
 {"id":"01c84620ed8a","expression":"1*66-66/163-66/33---33","mustParse":true,"displayOracle":"30.595092024539877300613496932"}
-{"id":"2c246b665bc6","expression":"[61.6][2][66][61.6][2][6]","mustParse":true,"displayOracle":"null"}
+{"id":"2c246b665bc6","expression":"[61.6][2][66][61.6][2][6]","mustParse":false}
 {"id":"f97057d8edc9","expression":"i1.Z11.Z2.Z1ZZ1.Z11.Zq.ZZ1Zq.ZZ11.Zi1.Z11.ZZ1.Z11.Zy.ZZ11q.ZZ1Zq.ZZ11.ZiZq.ZZ1Zq*ZZ11.Zi1.Z11.ZZ1.Z11.Zy.ZZ11q.ZZ1Zq.ZZ35.Zi1.Z11.ZZ1.i1.Z11.Z11.ZZ11.ZZ1.Z11.Zq.ZZ1ZZZ11.Zi1.Z12.ZZ1.Z.ZZ11.Zi1.Z1ZZ1.Z11._q.ZZ1Zq.ZZ11.Zi11.Zi1.Z11.ZZ1.Z11.Zy.ZZ11q.ZZ1Z1.ZZ11.Zi1.Z11.ZZ","mustParse":true,"displayOracle":"null"}
 {"id":"d90acec88b92","expression":"6263-53-{sssssssos:ss3ss-53-{ssssssss:ss3sss}sss3","mustParse":false}
 {"id":"65e312e7e57a","expression":"I3-3--3---33--3--s-if(true, 1, 2)\n-3--s-if(true, 1, 2)-33--33","mustParse":true,"displayOracle":"null"}
@@ -6816,7 +6816,7 @@
 {"id":"10afa276ae5e","expression":"1*66-60/2306/23-66/26-60/26/30622/2666-60/230666-60/-32/2666-60/23066/2306666-66-60/2=0666-606-60/2666-60/-3/230666-6060/2666-60/23-662or-0or-0011or-0or-8882/2306623-66-632","mustParse":true,"displayOracle":"null"}
 {"id":"8ec99b47cf4b","expression":"\n0.3\n\n\n","mustParse":true,"displayOracle":"0.3"}
 {"id":"66e4fc00c67a","expression":"6666266/233-3--6--4-4--3---3--2-3-3-64--3---3--2-3-3-6666-66-3---3---4--3---3-4-4--3---3--2-3-3-6666-6-0663+613-0673-3--2-3-3-6666-3---3--2-3-3-663","mustParse":true,"displayOracle":"7046.583690987124463519313305"}
-{"id":"4404dd67b257","expression":"[66][6][66][66][66][611.6][2][66][2][6]","mustParse":true,"displayOracle":"null"}
+{"id":"4404dd67b257","expression":"[66][6][66][66][66][611.6][2][66][2][6]","mustParse":false}
 {"id":"2efb30c53864","expression":"2*6)-63/66.688688888868888884e-36/62%061%66888.6886886808888884e-3%061180","mustParse":false}
 {"id":"d39ecaf1e7ff","expression":"(($>>>>>>>>>>>)","mustParse":false}
 {"id":"717c2f0ba26a","expression":"6-6%63.61/0*36--1/6670/06*62*[[6],tr]/6%666*76*6-3---3--3---3--3--3-3*--3--3-33---3--3-3----3--3--3-3---3--3-3---3----3-3--3--3-3---3----3-6","mustParse":true,"displayOracle":"[null, null]"}
@@ -6989,7 +6989,7 @@
 {"id":"5428a7a6526c","expression":"15-6/26-2633","mustParse":true,"displayOracle":"-2618.2307692307692307692307692"}
 {"id":"ee2c5faf0703","expression":"Z11+11.ZZ1.Z&1.ZZZZZ","mustParse":true,"displayOracle":"null"}
 {"id":"37385002b9b0","expression":"1*66-66/63-5-65/3-3-33","mustParse":true,"displayOracle":"2.285714285714285714285714285"}
-{"id":"5032bbd9e1c7","expression":"MMMMMMMMMMMMM[660][6][66][666][611611.6][2][66][61.6][2][6]","mustParse":true,"displayOracle":"null"}
+{"id":"5032bbd9e1c7","expression":"MMMMMMMMMMMMM[660][6][66][666][611611.6][2][66][61.6][2][6]","mustParse":false}
 {"id":"d3602107da61","expression":"1+2*p3-6-9661/2*[[6]]*26%-6-3662/2*[[6]]*2*2*p+3-6-366/22*661/2*[[6]]*2*636306%-6-366/2/2*[[6]]*2*632*62632*620","mustParse":true,"displayOracle":"[null]"}
 {"id":"8431328957b1","expression":"i3-s--f(tq--ru,q,0< Xq,q,2)--f(tqq--ru,q,0< Xq, ruq,2)--f(tq--ru,--ru,q,0< X, ru,q2)\n","mustParse":true,"displayOracle":"null"}
 {"id":"ddaecc1eb27a","expression":"-6626.662666676666662666666666693-663*666666766666666666666665/666*7.6666266693-663*666667666666666666665/663*6693-662","mustParse":true,"displayOracle":"-9550068999498420682563688.51"}
@@ -7193,7 +7193,7 @@
 {"id":"9bd1babd2c84","expression":"df<d(r<df(t<&","mustParse":false}
 {"id":"d9c9de267076","expression":"6/2*36---t-1*636*0333%3e-20*6-6*203-46-6%3e-13-33*462","mustParse":true,"displayOracle":"null"}
 {"id":"d96f3b90a6ca","expression":"s&i/d&f&f&f","mustParse":true,"displayOracle":"null"}
-{"id":"cbae3d8f0c36","expression":"MMMMMMMMMMMMMMM[6116][66][61.6][2]","mustParse":true,"displayOracle":"null"}
+{"id":"cbae3d8f0c36","expression":"MMMMMMMMMMMMMMM[6116][66][61.6][2]","mustParse":false}
 {"id":"67ab8b87ff51","expression":"-3-3--3---3-3--5--3--3---33-3--3--11/6666/62--3---3----3-3--33-33-3--3---3--3--3--3","mustParse":true,"displayOracle":"-24.999973384435217715319919089"}
 {"id":"7b0878474abe","expression":"66666666661*66-66/20306666666666666661*66-66/20306*661*66-66/20306666666666666661*66-66/20306*66-66/26*66-6","mustParse":true,"displayOracle":"4399999999310.4507042253521122"}
 {"id":"dbcc1d0718c0","expression":"-65/666*2665/666*666*266*726626.662666676666662666666666693-663*66666766666666666666666665/666*26666*7.6666*266*726626.66266693-663*66666766666666266666666665/663*6693-662","mustParse":true,"displayOracle":"null"}
@@ -7234,7 +7234,7 @@
 {"id":"b0a4f6ff8c7e","expression":"id&id/d&f&f","mustParse":true,"displayOracle":"null"}
 {"id":"1d4a6548383d","expression":"!!--[BBBBB,BB--BB6]-1","mustParse":true,"displayOracle":"null"}
 {"id":"b4fc30a074cb","expression":"if(e[[[,iff(","mustParse":false}
-{"id":"96273e04733c","expression":"[66][6][66][66][66][611.6][2][66][61.6][2][6]","mustParse":true,"displayOracle":"null"}
+{"id":"96273e04733c","expression":"[66][6][66][66][66][611.6][2][66][61.6][2][6]","mustParse":false}
 {"id":"484b51bbf7e4","expression":"66666666666/20306666666666666661*6//66-6","mustParse":true,"displayOracle":"0.0000000196979645434668417654"}
 {"id":"4c04db840c4d","expression":"77777777777773/777/77775000000014803649","mustParse":true,"displayOracle":"0.0000000012870472529742834857"}
 {"id":"cb7285e5b0d0","expression":"1126888822.26888821","mustParse":true,"displayOracle":"1126888822.26888821"}

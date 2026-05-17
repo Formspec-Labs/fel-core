@@ -37,6 +37,7 @@ fn diagnostic_kind_name(kind: &DiagnosticKind) -> &'static str {
     match kind {
         DiagnosticKind::UndefinedFunction { .. } => "UndefinedFunction",
         DiagnosticKind::TypeMismatch { .. } => "TypeMismatch",
+        DiagnosticKind::ArityMismatch { .. } => "ArityMismatch",
     }
 }
 

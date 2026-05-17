@@ -27,10 +27,16 @@ pub enum ExtensionCallOutcome {
     NotFound,
     /// Extension invoked (or null-propagated without invoking).
     Ok(TypeValue),
-    /// Argument count outside registered bounds; host should record `message` and yield null.
+    /// Argument count outside registered bounds; host should record a diagnostic and yield null.
     ArityMismatch {
-        /// Human-readable message aligned with builtin arity diagnostics.
-        message: String,
+        /// Extension name.
+        name: String,
+        /// Registered minimum arity.
+        min_args: usize,
+        /// Registered maximum arity, if bounded.
+        max_args: Option<usize>,
+        /// Supplied argument count.
+        got: usize,
     },
 }
 
@@ -48,28 +54,6 @@ impl std::fmt::Display for ExtensionError {
 }
 
 impl std::error::Error for ExtensionError {}
-
-fn arity_mismatch_message(
-    name: &str,
-    min_args: usize,
-    max_args: Option<usize>,
-    got: usize,
-) -> String {
-    if let Some(max) = max_args {
-        if min_args == max && got != min_args {
-            return format!("{name}: requires exactly {min_args} arguments");
-        }
-        if got < min_args {
-            return format!("{name}: requires at least {min_args} arguments");
-        }
-        if got > max {
-            return format!("{name}: requires at most {max} arguments");
-        }
-    } else if got < min_args {
-        return format!("{name}: requires at least {min_args} arguments");
-    }
-    unreachable!("arity_mismatch_message called with valid arity")
-}
 
 impl ExtensionRegistry {
     /// Empty registry (no custom extensions).
@@ -134,7 +118,10 @@ impl ExtensionRegistry {
         let len = args.len();
         if len < ext.min_args || ext.max_args.is_some_and(|max| len > max) {
             return ExtensionCallOutcome::ArityMismatch {
-                message: arity_mismatch_message(name, ext.min_args, ext.max_args, len),
+                name: name.to_string(),
+                min_args: ext.min_args,
+                max_args: ext.max_args,
+                got: len,
             };
         }
 

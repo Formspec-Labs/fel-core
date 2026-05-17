@@ -480,7 +480,22 @@ impl Parser {
             PathSegment::Wildcard
         } else if let Token::Number(n) = self.peek().clone() {
             self.advance();
-            PathSegment::Index(n.to_u64().unwrap_or(0) as usize)
+            if !n.fract().is_zero() || n.is_sign_negative() {
+                return Err(self.parse_err_current(format!(
+                    "expected non-negative integer index in {bracket_context}brackets, got {n}"
+                )));
+            }
+            let Some(idx_u64) = n.to_u64() else {
+                return Err(self.parse_err_current(format!(
+                    "index out of range in {bracket_context}brackets, got {n}"
+                )));
+            };
+            let Ok(idx) = usize::try_from(idx_u64) else {
+                return Err(self.parse_err_current(format!(
+                    "index out of range in {bracket_context}brackets, got {n}"
+                )));
+            };
+            PathSegment::Index(idx)
         } else {
             return Err(self.parse_err_current(format!(
                 "expected number or * in {bracket_context}brackets, got {:?}",
@@ -1144,6 +1159,26 @@ mod tests {
                 name: Some("items".into()),
                 path: vec![PathSegment::Wildcard, PathSegment::Dot("name".into())]
             }
+        );
+    }
+
+    #[test]
+    fn parse_bracket_rejects_fractional_index() {
+        let err = parse("$rows[1.5].id").unwrap_err();
+        assert!(
+            err.to_string().contains("non-negative integer index"),
+            "got: {err}"
+        );
+    }
+
+    #[test]
+    fn parse_bracket_error_messages_differ_by_context() {
+        let postfix = parse("items[foo]").unwrap_err().to_string();
+        let field_ref = parse("$rows[foo]").unwrap_err().to_string();
+        assert!(postfix.contains("brackets"), "postfix: {postfix}");
+        assert!(
+            field_ref.contains("field ref") && field_ref.contains("brackets"),
+            "field ref: {field_ref}"
         );
     }
 

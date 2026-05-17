@@ -39,6 +39,42 @@ fn power_exponent_above_cap_returns_null() {
 }
 
 #[test]
+fn power_exponent_at_cap_succeeds() {
+    let result = eval_power(1, 10_000);
+    assert!(result.diagnostics.is_empty());
+    assert_eq!(result.value, Value::Number(Decimal::ONE));
+}
+
+#[test]
+fn power_integer_overflow_returns_null() {
+    let result = eval_power(10, 10_000);
+    assert_eq!(result.value, Value::Null);
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("overflow")),
+        "expected overflow diagnostic, got: {:?}",
+        result.diagnostics
+    );
+}
+
+#[test]
+fn power_fractional_exponent_requires_f64() {
+    use fel_core::parse;
+    let expr = parse("power(2, 0.5)").expect("parse");
+    let result = evaluate(&expr, &MapEnvironment::new());
+    assert_ne!(result.value, Value::Null);
+}
+
+#[test]
+fn power_negative_exponent_uses_f64_path() {
+    let result = eval_power(2, -2);
+    assert!(result.diagnostics.is_empty());
+    assert_eq!(result.value, Value::Number(Decimal::new(25, 2))); // 0.25
+}
+
+#[test]
 fn power_huge_exponent_completes_without_linear_loop() {
     let start = Instant::now();
     let result = eval_power(2,  1_000_000_000);

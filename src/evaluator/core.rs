@@ -373,16 +373,26 @@ impl<'a> Evaluator<'a> {
     /// Emits `{fn_name}: requires at least {min} arguments` and returns `false` when `args.len() < min`.
     pub(super) fn require_min_args(&mut self, args: &[Expr], min: usize, fn_name: &str) -> bool {
         if args.len() < min {
-            self.diag(format!("{fn_name}: requires at least {min} arguments"));
+            self.diagnostics.push(crate::error::Diagnostic::arity_mismatch(
+                fn_name,
+                min,
+                None,
+                args.len(),
+            ));
             return false;
         }
         true
     }
 
-    /// Emits `{fn_name}: requires exactly {n} arguments` and returns `false` when arity differs.
+    /// Emits an arity diagnostic and returns `false` when the argument count differs.
     pub(super) fn require_exact_args(&mut self, args: &[Expr], n: usize, fn_name: &str) -> bool {
         if args.len() != n {
-            self.diag(format!("{fn_name}: requires exactly {n} arguments"));
+            self.diagnostics.push(crate::error::Diagnostic::arity_mismatch(
+                fn_name,
+                n,
+                Some(n),
+                args.len(),
+            ));
             return false;
         }
         true
@@ -1447,8 +1457,15 @@ impl<'a> Evaluator<'a> {
                             }
                             return result;
                         }
-                        ExtensionCallOutcome::ArityMismatch { message } => {
-                            self.diagnostics.push(Diagnostic::error(message));
+                        ExtensionCallOutcome::ArityMismatch {
+                            name,
+                            min_args,
+                            max_args,
+                            got,
+                        } => {
+                            self.diagnostics.push(Diagnostic::arity_mismatch(
+                                name, min_args, max_args, got,
+                            ));
                             return Value::Null;
                         }
                         ExtensionCallOutcome::NotFound => {}
