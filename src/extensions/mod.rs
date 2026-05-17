@@ -260,7 +260,7 @@ mod tests {
 
     #[test]
     fn result_json_parses_for_all_examples() {
-        for entry in BUILTIN_FUNCTIONS {
+        for entry in BUILTIN_FUNCTIONS.iter() {
             for ex in entry.examples {
                 serde_json::from_str::<serde_json::Value>(ex.result_json).unwrap_or_else(|e| {
                     panic!(

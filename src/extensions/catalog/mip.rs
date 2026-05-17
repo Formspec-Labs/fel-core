@@ -1,0 +1,121 @@
+//! Static builtin catalog data (`BUILTIN_FUNCTIONS`) and reserved names.
+#![allow(clippy::missing_docs_in_private_items)]
+
+use super::super::types::*;
+
+pub(super) const ENTRIES: &[BuiltinFunctionCatalogEntry] = &[
+    // ── mip ──────────────────────────────────────────────────────────────────
+    BuiltinFunctionCatalogEntry {
+        name: "valid",
+        category: "mip",
+        parameters: &[Parameter {
+            name: "path",
+            fel_type: FelType::String,
+            description: Some(
+                "Field path (NOT evaluated as expression — extracted as literal path string).",
+            ),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Boolean,
+        return_description: None,
+        description: "Returns true if the field at the given path has zero validation errors. The argument is a field reference path, not a general expression — the parser extracts it as a literal string rather than evaluating it.",
+        null_handling: Some("N/A — path is a literal reference."),
+        deterministic: true,
+        emit_deterministic_explicitly: false,
+        short_circuit: false,
+        examples: &[
+            Example {
+                expression: "valid($totalBudget)",
+                result_json: "true",
+                note: None,
+            },
+            Example {
+                expression: "valid($email) and valid($phone)",
+                result_json: "false",
+                note: None,
+            },
+        ],
+        since_version: "1.0",
+        package: Package::Formspec,
+    },
+    BuiltinFunctionCatalogEntry {
+        name: "relevant",
+        category: "mip",
+        parameters: &[Parameter {
+            name: "path",
+            fel_type: FelType::String,
+            description: Some("Field path (literal, not evaluated)."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Boolean,
+        return_description: None,
+        description: "Returns the computed relevance (visibility) state of the field at the given path. True means the field is visible/active.",
+        null_handling: Some("N/A — path is a literal reference."),
+        deterministic: true,
+        emit_deterministic_explicitly: false,
+        short_circuit: false,
+        examples: &[Example {
+            expression: "relevant($spouseInfo)",
+            result_json: "false",
+            note: None,
+        }],
+        since_version: "1.0",
+        package: Package::Formspec,
+    },
+    BuiltinFunctionCatalogEntry {
+        name: "readonly",
+        category: "mip",
+        parameters: &[Parameter {
+            name: "path",
+            fel_type: FelType::String,
+            description: Some("Field path (literal, not evaluated)."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Boolean,
+        return_description: None,
+        description: "Returns the computed readonly state of the field at the given path.",
+        null_handling: Some("N/A — path is a literal reference."),
+        deterministic: true,
+        emit_deterministic_explicitly: false,
+        short_circuit: false,
+        examples: &[Example {
+            expression: "readonly($approvedAmount)",
+            result_json: "true",
+            note: None,
+        }],
+        since_version: "1.0",
+        package: Package::Formspec,
+    },
+    BuiltinFunctionCatalogEntry {
+        name: "required",
+        category: "mip",
+        parameters: &[Parameter {
+            name: "path",
+            fel_type: FelType::String,
+            description: Some("Field path (literal, not evaluated)."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Boolean,
+        return_description: None,
+        description: "Returns the computed required state of the field at the given path.",
+        null_handling: Some("N/A — path is a literal reference."),
+        deterministic: true,
+        emit_deterministic_explicitly: false,
+        short_circuit: false,
+        examples: &[Example {
+            expression: "required($email)",
+            result_json: "true",
+            note: None,
+        }],
+        since_version: "1.0",
+        package: Package::Formspec,
+    },
+];

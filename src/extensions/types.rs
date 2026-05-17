@@ -60,6 +60,7 @@ impl FelType {
 
 /// One parameter in a built-in function signature.
 #[non_exhaustive]
+#[derive(Copy, Clone)]
 pub struct Parameter {
     /// Parameter name.
     pub name: &'static str,
@@ -77,6 +78,7 @@ pub struct Parameter {
 
 /// One worked example attached to a built-in function.
 #[non_exhaustive]
+#[derive(Copy, Clone)]
 pub struct Example {
     /// FEL expression demonstrating the function.
     pub expression: &'static str,
@@ -93,6 +95,7 @@ pub struct Example {
 /// Emit [`crate::extensions::emit_schema_json`] to regenerate
 /// `formspec/schemas/fel-functions.schema.json`.
 #[non_exhaustive]
+#[derive(Copy, Clone)]
 pub struct BuiltinFunctionCatalogEntry {
     /// Function name as used in FEL source.
     pub name: &'static str,

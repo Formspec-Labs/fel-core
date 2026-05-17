@@ -1,0 +1,223 @@
+//! Static builtin catalog data (`BUILTIN_FUNCTIONS`) and reserved names.
+#![allow(clippy::missing_docs_in_private_items)]
+
+use super::super::types::*;
+
+pub(super) const ENTRIES: &[BuiltinFunctionCatalogEntry] = &[
+    // ── logical ──────────────────────────────────────────────────────────────
+    BuiltinFunctionCatalogEntry {
+        name: "if",
+        category: "logical",
+        parameters: &[
+            Parameter {
+                name: "condition",
+                fel_type: FelType::Boolean,
+                description: Some("Condition to evaluate."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "thenValue",
+                fel_type: FelType::Any,
+                description: Some("Value returned when condition is true."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "elseValue",
+                fel_type: FelType::Any,
+                description: Some("Value returned when condition is false."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+        ],
+        returns: FelType::Any,
+        return_description: Some("Type matches whichever branch is selected."),
+        description: "Conditional function. Returns thenValue when condition is true, elseValue when false. Only the selected branch is evaluated (short-circuit). Alternative syntax: 'if cond then a else b' (keyword form). Note: 'if' is a reserved word; this function is special-cased in the parser.",
+        null_handling: Some("Null condition is an evaluation error."),
+        deterministic: true,
+        emit_deterministic_explicitly: false,
+        short_circuit: true,
+        examples: &[
+            Example {
+                expression: "if($age >= 18, 'adult', 'minor')",
+                result_json: "\"adult\"",
+                note: None,
+            },
+            Example {
+                expression: "if($status = 'married', $income * 0.75, $income)",
+                result_json: "45000",
+                note: None,
+            },
+        ],
+        since_version: "1.0",
+        package: Package::Universal,
+    },
+    BuiltinFunctionCatalogEntry {
+        name: "coalesce",
+        category: "logical",
+        parameters: &[Parameter {
+            name: "values",
+            fel_type: FelType::Any,
+            description: Some("Values to check."),
+            required: true,
+            variadic: true,
+            allowed_values: None,
+        }],
+        returns: FelType::Any,
+        return_description: None,
+        description: "Returns the first argument that is not null, undefined, or empty string. If all arguments are null/empty, returns null.",
+        null_handling: Some(
+            "Core purpose is null handling — returns first non-null, non-empty value.",
+        ),
+        deterministic: true,
+        emit_deterministic_explicitly: false,
+        short_circuit: false,
+        examples: &[
+            Example {
+                expression: "coalesce($preferredName, $firstName, 'Unknown')",
+                result_json: "\"Alice\"",
+                note: None,
+            },
+            Example {
+                expression: "coalesce(null, '', 'fallback')",
+                result_json: "\"fallback\"",
+                note: None,
+            },
+        ],
+        since_version: "1.0",
+        package: Package::Universal,
+    },
+    BuiltinFunctionCatalogEntry {
+        name: "empty",
+        category: "logical",
+        parameters: &[Parameter {
+            name: "value",
+            fel_type: FelType::Any,
+            description: Some("Value to test."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Boolean,
+        return_description: None,
+        description: "Returns true if the value is null, undefined, empty string (''), or an empty array ([]). Broader than a simple null check.",
+        null_handling: Some("Null returns true (that's the point)."),
+        deterministic: true,
+        emit_deterministic_explicitly: false,
+        short_circuit: false,
+        examples: &[
+            Example {
+                expression: "empty(null)",
+                result_json: "true",
+                note: None,
+            },
+            Example {
+                expression: "empty('')",
+                result_json: "true",
+                note: None,
+            },
+            Example {
+                expression: "empty([])",
+                result_json: "true",
+                note: None,
+            },
+            Example {
+                expression: "empty('hello')",
+                result_json: "false",
+                note: None,
+            },
+            Example {
+                expression: "empty(0)",
+                result_json: "false",
+                note: Some("0 is not empty"),
+            },
+        ],
+        since_version: "1.0",
+        package: Package::Universal,
+    },
+    BuiltinFunctionCatalogEntry {
+        name: "present",
+        category: "logical",
+        parameters: &[Parameter {
+            name: "value",
+            fel_type: FelType::Any,
+            description: Some("Value to test."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Boolean,
+        return_description: None,
+        description: "Inverse of empty(). Returns true if the value is non-null, non-empty-string, and non-empty-array.",
+        null_handling: Some("Null returns false."),
+        deterministic: true,
+        emit_deterministic_explicitly: false,
+        short_circuit: false,
+        examples: &[
+            Example {
+                expression: "present($email)",
+                result_json: "true",
+                note: None,
+            },
+            Example {
+                expression: "present(null)",
+                result_json: "false",
+                note: None,
+            },
+            Example {
+                expression: "not empty($email) or not empty($phone)",
+                result_json: "true",
+                note: Some("Equivalent to: present($email) or present($phone)"),
+            },
+        ],
+        since_version: "1.0",
+        package: Package::Universal,
+    },
+    BuiltinFunctionCatalogEntry {
+        name: "selected",
+        category: "logical",
+        parameters: &[
+            Parameter {
+                name: "value",
+                fel_type: FelType::Any,
+                description: Some("Field value (string for choice, array for multiChoice)."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "option",
+                fel_type: FelType::String,
+                description: Some("Option value to check for."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+        ],
+        returns: FelType::Boolean,
+        return_description: None,
+        description: "For multiChoice (array): returns true if the option is included in the array. For choice (string): returns true if value equals option. Designed for testing selected options in choice/multiChoice fields.",
+        null_handling: Some("Null value returns false."),
+        deterministic: true,
+        emit_deterministic_explicitly: false,
+        short_circuit: false,
+        examples: &[
+            Example {
+                expression: "selected($categories, 'personnel')",
+                result_json: "true",
+                note: Some("multiChoice field"),
+            },
+            Example {
+                expression: "selected($status, 'active')",
+                result_json: "true",
+                note: Some("choice field"),
+            },
+        ],
+        since_version: "1.0",
+        package: Package::Universal,
+    },
+];

@@ -1,0 +1,198 @@
+//! Static builtin catalog data (`BUILTIN_FUNCTIONS`) and reserved names.
+#![allow(clippy::missing_docs_in_private_items)]
+
+use super::super::types::*;
+
+pub(super) const ENTRIES: &[BuiltinFunctionCatalogEntry] = &[
+    // ── numeric ──────────────────────────────────────────────────────────────
+    BuiltinFunctionCatalogEntry {
+        name: "round",
+        category: "numeric",
+        parameters: &[
+            Parameter {
+                name: "value",
+                fel_type: FelType::Number,
+                description: Some("Number to round."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "precision",
+                fel_type: FelType::Number,
+                description: Some("Decimal places (default 0)."),
+                required: false,
+                variadic: false,
+                allowed_values: None,
+            },
+        ],
+        returns: FelType::Number,
+        return_description: None,
+        description: "Rounds to the specified number of decimal places using banker's rounding (round half to even).",
+        null_handling: Some("Null treated as 0."),
+        deterministic: true,
+        emit_deterministic_explicitly: false,
+        short_circuit: false,
+        examples: &[
+            Example {
+                expression: "round(3.456, 2)",
+                result_json: "3.46",
+                note: None,
+            },
+            Example {
+                expression: "round(2.5)",
+                result_json: "2",
+                note: Some("Banker's rounding: half rounds to even"),
+            },
+            Example {
+                expression: "round(3.5)",
+                result_json: "4",
+                note: None,
+            },
+        ],
+        since_version: "1.0",
+        package: Package::Universal,
+    },
+    BuiltinFunctionCatalogEntry {
+        name: "floor",
+        category: "numeric",
+        parameters: &[Parameter {
+            name: "value",
+            fel_type: FelType::Number,
+            description: Some("Number to floor."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Number,
+        return_description: None,
+        description: "Returns the largest integer less than or equal to the value.",
+        null_handling: Some("Null treated as 0."),
+        deterministic: true,
+        emit_deterministic_explicitly: false,
+        short_circuit: false,
+        examples: &[
+            Example {
+                expression: "floor(3.7)",
+                result_json: "3",
+                note: None,
+            },
+            Example {
+                expression: "floor(-2.3)",
+                result_json: "-3",
+                note: None,
+            },
+        ],
+        since_version: "1.0",
+        package: Package::Universal,
+    },
+    BuiltinFunctionCatalogEntry {
+        name: "ceil",
+        category: "numeric",
+        parameters: &[Parameter {
+            name: "value",
+            fel_type: FelType::Number,
+            description: Some("Number to ceil."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Number,
+        return_description: None,
+        description: "Returns the smallest integer greater than or equal to the value.",
+        null_handling: Some("Null treated as 0."),
+        deterministic: true,
+        emit_deterministic_explicitly: false,
+        short_circuit: false,
+        examples: &[
+            Example {
+                expression: "ceil(3.2)",
+                result_json: "4",
+                note: None,
+            },
+            Example {
+                expression: "ceil(-2.7)",
+                result_json: "-2",
+                note: None,
+            },
+        ],
+        since_version: "1.0",
+        package: Package::Universal,
+    },
+    BuiltinFunctionCatalogEntry {
+        name: "abs",
+        category: "numeric",
+        parameters: &[Parameter {
+            name: "value",
+            fel_type: FelType::Number,
+            description: Some("Number to take absolute value of."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Number,
+        return_description: None,
+        description: "Returns the absolute value of the number.",
+        null_handling: Some("Null treated as 0."),
+        deterministic: true,
+        emit_deterministic_explicitly: false,
+        short_circuit: false,
+        examples: &[
+            Example {
+                expression: "abs(-42)",
+                result_json: "42",
+                note: None,
+            },
+            Example {
+                expression: "abs(42)",
+                result_json: "42",
+                note: None,
+            },
+        ],
+        since_version: "1.0",
+        package: Package::Universal,
+    },
+    BuiltinFunctionCatalogEntry {
+        name: "power",
+        category: "numeric",
+        parameters: &[
+            Parameter {
+                name: "base",
+                fel_type: FelType::Number,
+                description: Some("Base number."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+            Parameter {
+                name: "exponent",
+                fel_type: FelType::Number,
+                description: Some("Exponent."),
+                required: true,
+                variadic: false,
+                allowed_values: None,
+            },
+        ],
+        returns: FelType::Number,
+        return_description: None,
+        description: "Returns base raised to the power of exponent.",
+        null_handling: Some("Null arguments treated as 0."),
+        deterministic: true,
+        emit_deterministic_explicitly: false,
+        short_circuit: false,
+        examples: &[
+            Example {
+                expression: "power(2, 10)",
+                result_json: "1024",
+                note: None,
+            },
+            Example {
+                expression: "power(10, 2)",
+                result_json: "100",
+                note: None,
+            },
+        ],
+        since_version: "1.0",
+        package: Package::Universal,
+    },
+];
