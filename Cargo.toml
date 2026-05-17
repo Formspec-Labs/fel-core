@@ -25,7 +25,7 @@ regex = "1"
 rust_decimal = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
-unic-langid = "0.9"
+unic-langid = { version = "0.9", features = ["macros"] }
 
 [[bin]]
 name = "emit-fel-schema"

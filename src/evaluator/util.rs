@@ -1,7 +1,7 @@
 #![allow(clippy::missing_docs_in_private_items)]
 use intl_pluralrules::{PluralCategory, PluralRuleType, PluralRules};
 use rust_decimal::Decimal;
-use unic_langid::LanguageIdentifier;
+use unic_langid::{langid, LanguageIdentifier};
 
 use crate::ast::*;
 
@@ -147,14 +147,18 @@ pub(super) fn parse_time_str(s: &str) -> Option<(i64, i64, i64)> {
     ))
 }
 
+#[inline]
+fn en_plural_rules_langid() -> LanguageIdentifier {
+    langid!("en")
+}
+
 /// BCP 47 tag for plural rules: empty host locale behaves like `en` (prior hand-rolled default).
 fn language_id_for_plural_rules(locale_str: &str) -> LanguageIdentifier {
     let s = locale_str.trim();
     if s.is_empty() {
-        return "en".parse().expect("en is valid BCP 47");
+        return en_plural_rules_langid();
     }
-    s.parse()
-        .unwrap_or_else(|_| "en".parse().expect("en is valid BCP 47"))
+    s.parse().unwrap_or_else(|_| en_plural_rules_langid())
 }
 
 /// Cardinal plural category string for FEL, using CLDR data from `intl_pluralrules`.
@@ -162,13 +166,8 @@ fn language_id_for_plural_rules(locale_str: &str) -> LanguageIdentifier {
 /// Unknown or unsupported locales fall back to English cardinal rules.
 pub(super) fn fel_cardinal_plural_category(locale_str: &str, n: i64) -> Option<&'static str> {
     let langid = language_id_for_plural_rules(locale_str);
-    let rules = PluralRules::create(langid, PluralRuleType::CARDINAL).or_else(|_| {
-        PluralRules::create(
-            "en".parse::<LanguageIdentifier>()
-                .expect("en is valid BCP 47"),
-            PluralRuleType::CARDINAL,
-        )
-    });
+    let rules = PluralRules::create(langid, PluralRuleType::CARDINAL)
+        .or_else(|_| PluralRules::create(en_plural_rules_langid(), PluralRuleType::CARDINAL));
     let pr = rules.ok()?;
     let cat = pr.select(n).ok()?;
     Some(plural_category_fel_name(cat))
