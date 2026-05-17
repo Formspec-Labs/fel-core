@@ -50,6 +50,50 @@ fn is_ident_start(c: char) -> bool {
     c.is_ascii_alphabetic() || c == '_'
 }
 
+/// Cursor over a char slice that skips quoted spans (`'` / `"`) and honors `\` escapes.
+struct QuoteAwareCursor<'a> {
+    chars: &'a [char],
+    idx: usize,
+    quote: Option<char>,
+}
+
+impl<'a> QuoteAwareCursor<'a> {
+    fn new(chars: &'a [char]) -> Self {
+        Self { chars, idx: 0, quote: None }
+    }
+    fn len(&self) -> usize { self.chars.len() }
+    fn idx(&self) -> usize { self.idx }
+    fn at(&self, i: usize) -> Option<char> { self.chars.get(i).copied() }
+    fn step_quote(&mut self, out: &mut String) -> bool {
+        let Some(c) = self.at(self.idx) else { return false };
+        if let Some(q) = self.quote {
+            out.push(c);
+            if c == '\\' && self.idx + 1 < self.len() {
+                out.push(self.chars[self.idx + 1]);
+                self.idx += 2;
+                return true;
+            }
+            if c == q { self.quote = None; }
+            self.idx += 1;
+            return true;
+        }
+        if c == '"' || c == '\'' {
+            self.quote = Some(c);
+            out.push(c);
+            self.idx += 1;
+            return true;
+        }
+        false
+    }
+    fn push_current(&mut self, out: &mut String) {
+        if let Some(c) = self.at(self.idx) {
+            out.push(c);
+            self.idx += 1;
+        }
+    }
+    fn advance_to(&mut self, next: usize) { self.idx = next; }
+}
+
 /// Strips trailing `[n]` from the last path segment (TS `splitIndexedPath` last + replace).
 fn current_field_leaf(item_path: &str) -> String {
     let segments = path_segments(item_path);
@@ -144,42 +188,25 @@ fn replace_bare_current_field_refs(expr: &str, current_field: &str) -> String {
     }
     let chars: Vec<char> = expr.chars().collect();
     let mut out = String::with_capacity(expr.len() + current_field.len());
-    let mut i = 0;
-    let mut quote: Option<char> = None;
+    let mut cur = QuoteAwareCursor::new(&chars);
 
-    while i < chars.len() {
+    while cur.idx() < cur.len() {
+        if cur.step_quote(&mut out) {
+            continue;
+        }
+        let i = cur.idx();
         let c = chars[i];
-        if let Some(q) = quote {
-            out.push(c);
-            if c == '\\' && i + 1 < chars.len() {
-                out.push(chars[i + 1]);
-                i += 2;
-                continue;
-            }
-            if c == q {
-                quote = None;
-            }
-            i += 1;
-            continue;
-        }
-        if c == '"' || c == '\'' {
-            quote = Some(c);
-            out.push(c);
-            i += 1;
-            continue;
-        }
         if c == '$' {
             let prev_ok = i == 0 || !is_ident_char(chars[i - 1]);
             let next_ok = i + 1 >= chars.len() || !is_ident_char(chars[i + 1]);
             if prev_ok && next_ok {
                 out.push('$');
                 out.push_str(current_field);
-                i += 1;
+                cur.advance_to(i + 1);
                 continue;
             }
         }
-        out.push(c);
-        i += 1;
+        cur.push_current(&mut out);
     }
     out
 }
@@ -227,32 +254,14 @@ fn replace_qualified_group_ref_outside_quotes(
     let chars: Vec<char> = expr.chars().collect();
     let group_chars: Vec<char> = group_name.chars().collect();
     let mut out = String::with_capacity(expr.len());
-    let mut i = 0usize;
-    let mut quote: Option<char> = None;
+    let mut cur = QuoteAwareCursor::new(&chars);
 
-    while i < chars.len() {
-        let c = chars[i];
-        if let Some(q) = quote {
-            out.push(c);
-            if c == '\\' && i + 1 < chars.len() {
-                out.push(chars[i + 1]);
-                i += 2;
-                continue;
-            }
-            if c == q {
-                quote = None;
-            }
-            i += 1;
+    while cur.idx() < cur.len() {
+        if cur.step_quote(&mut out) {
             continue;
         }
 
-        if c == '"' || c == '\'' {
-            quote = Some(c);
-            out.push(c);
-            i += 1;
-            continue;
-        }
-
+        let i = cur.idx();
         let has_group = i + 1 + group_chars.len() < chars.len()
             && chars[i] == '$'
             && chars[i + 1..i + 1 + group_chars.len()] == group_chars[..];
@@ -270,13 +279,12 @@ fn replace_qualified_group_ref_outside_quotes(
                 } else {
                     out.push_str(&format!("{}.{field}", to_fel_indexed_path(concrete_prefix)));
                 }
-                i = j;
+                cur.advance_to(j);
                 continue;
             }
         }
 
-        out.push(c);
-        i += 1;
+        cur.push_current(&mut out);
     }
 
     out
