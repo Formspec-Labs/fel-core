@@ -11,12 +11,21 @@ use fel_core::{
 use std::time::Instant;
 
 fn eval_budget(src: &str, budget: &EvalBudget) -> fel_core::EvalResult {
+    eval_budget_with_extensions(src, budget, None)
+}
+
+fn eval_budget_with_extensions(
+    src: &str,
+    budget: &EvalBudget,
+    extensions: Option<&ExtensionRegistry>,
+) -> fel_core::EvalResult {
     let expr = parse(src).unwrap();
     let env = MapEnvironment::new();
     evaluate_with(
         &expr,
         &env,
         EvaluatorOptions {
+            extensions,
             budget: budget.clone(),
             ..EvaluatorOptions::default()
         },
@@ -277,17 +286,7 @@ fn extension_result_respects_alloc_budget() {
         max_alloc_bytes: 64,
         deadline: None,
     };
-    let expr = parse("bigResult()").unwrap();
-    let env = MapEnvironment::new();
-    let result = evaluate_with(
-        &expr,
-        &env,
-        EvaluatorOptions {
-            extensions: Some(&registry),
-            budget: budget.clone(),
-            ..EvaluatorOptions::default()
-        },
-    );
+    let result = eval_budget_with_extensions("bigResult()", &budget, Some(&registry));
     let has_budget_diag = result
         .diagnostics
         .iter()
@@ -309,17 +308,7 @@ fn extension_small_result_within_alloc_budget() {
         max_alloc_bytes: 1024,
         deadline: None,
     };
-    let expr = parse("smallResult()").unwrap();
-    let env = MapEnvironment::new();
-    let result = evaluate_with(
-        &expr,
-        &env,
-        EvaluatorOptions {
-            extensions: Some(&registry),
-            budget: budget.clone(),
-            ..EvaluatorOptions::default()
-        },
-    );
+    let result = eval_budget_with_extensions("smallResult()", &budget, Some(&registry));
     assert!(result.diagnostics.is_empty());
     assert_eq!(result.value, Value::String("ok".to_string()));
 }

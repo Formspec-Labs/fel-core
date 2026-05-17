@@ -41,7 +41,7 @@ help:
 	@echo "  make fuzz-setup                  — install nightly + llvm-tools + cargo-fuzz"
 	@echo "  make fuzz-coverage               — generate HTML coverage from fuzz corpus"
 	@echo "  make fuzz-all                    — run all fuzz maintenance targets"
-	@echo "  make seed-fuzz                   — seed fuzz corpus from conformance suite"
+	@echo "  make seed-fuzz                   — seed fuzz corpus (FORMSPEC_ROOT for monorepo layout)"
 	@echo ""
 
 build:

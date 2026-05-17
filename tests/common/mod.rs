@@ -12,6 +12,10 @@ pub fn eval(input: &str) -> Value {
 }
 
 pub fn eval_fields(input: &str, fields: Vec<(&str, Value)>) -> Value {
+    eval_fields_result(input, fields).value
+}
+
+pub fn eval_fields_result(input: &str, fields: Vec<(&str, Value)>) -> EvalResult {
     let expr = parse(input).unwrap();
     let env = MapEnvironment::with_fields(
         fields
@@ -19,7 +23,7 @@ pub fn eval_fields(input: &str, fields: Vec<(&str, Value)>) -> Value {
             .map(|(k, v)| (k.to_string(), v))
             .collect(),
     );
-    evaluate(&expr, &env).value
+    evaluate(&expr, &env)
 }
 
 pub fn num(n: impl Into<Decimal>) -> Value {

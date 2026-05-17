@@ -1,7 +1,7 @@
 /// Comprehensive FEL evaluator tests.
 mod common;
 
-use common::{arr, dec, eval, eval_fields, num, obj, s};
+use common::{arr, dec, eval, eval_fields, eval_fields_result, num, obj, s};
 use fel_core::*;
 use rust_decimal::Decimal;
 use serde_json::json;
@@ -273,6 +273,36 @@ fn test_indexed_access() {
     // 1-based indexing
     let result = eval_fields("$items[1]", vec![("items", items)]);
     assert_eq!(result, num(10));
+}
+
+#[test]
+fn test_index_zero_is_null_with_diagnostic() {
+    let items = arr(vec![num(10), num(20)]);
+    let result = eval_fields_result("$items[0]", vec![("items", items)]);
+    assert_eq!(result.value, Value::Null);
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("index 0") && d.message.contains("out of bounds")),
+        "expected 1-based index diagnostic, got {:?}",
+        result.diagnostics
+    );
+}
+
+#[test]
+fn test_index_out_of_bounds_is_null_with_diagnostic() {
+    let items = arr(vec![num(10), num(20), num(30)]);
+    let result = eval_fields_result("$items[5]", vec![("items", items.clone())]);
+    assert_eq!(result.value, Value::Null);
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("index 5") && d.message.contains("out of bounds")),
+        "expected OOB diagnostic, got {:?}",
+        result.diagnostics
+    );
 }
 
 // ── Array broadcasting ──────────────────────────────────────────

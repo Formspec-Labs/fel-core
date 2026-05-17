@@ -48,3 +48,8 @@ insta = "1"
 
 [features]
 proptest-strategies = ["proptest"]
+
+[[test]]
+name = "fel_proptest"
+path = "tests/fel_proptest.rs"
+required-features = ["proptest-strategies"]
