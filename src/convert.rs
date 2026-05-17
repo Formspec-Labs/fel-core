@@ -65,7 +65,9 @@ pub fn json_to_fel(val: &Value) -> TypeValue {
             } else if let Some(u) = n.as_u64() {
                 TypeValue::Number(Decimal::from(u))
             } else if let Some(f) = n.as_f64() {
-                TypeValue::Number(Decimal::from_f64(f).unwrap_or(Decimal::ZERO))
+                Decimal::from_f64(f)
+                    .map(TypeValue::Number)
+                    .unwrap_or(TypeValue::Null)
             } else {
                 TypeValue::Null
             }
@@ -556,5 +558,26 @@ mod tests {
             TypeValue::Number(n) => assert_eq!(*n, Decimal::from(big)),
             other => panic!("expected Number, got {other:?}"),
         }
+    }
+
+    /// Plain JSON numbers must not map `from_f64` failure to zero (typed paths use Null).
+    #[test]
+    fn plain_json_float_non_representable_becomes_null() {
+        for f in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            let val = json_to_fel(&Value::from(f));
+            assert!(
+                matches!(val, TypeValue::Null),
+                "f={f:?}: expected Null, got {val:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn typed_number_non_representable_float_becomes_null() {
+        let val = json_to_fel(&json!({
+            "$type": "number",
+            "value": Value::from(f64::NAN),
+        }));
+        assert!(matches!(val, TypeValue::Null));
     }
 }
