@@ -7,6 +7,24 @@ use crate::types::*;
 
 use super::super::core::Evaluator;
 
+/// Maximum non-negative integer exponent for `power()` (defense-in-depth; integer path is O(log n)).
+const MAX_POWER_EXPONENT: u64 = 10_000;
+
+/// Raises `base` to `exp` using binary exponentiation (`exp` must fit the cap).
+fn decimal_pow_int(mut base: Decimal, mut exp: u64) -> Option<Decimal> {
+    let mut acc = Decimal::ONE;
+    while exp > 0 {
+        if exp & 1 != 0 {
+            acc = acc.checked_mul(base)?;
+        }
+        exp >>= 1;
+        if exp > 0 {
+            base = base.checked_mul(base)?;
+        }
+    }
+    Some(acc)
+}
+
 impl<'a> Evaluator<'a> {
     // ── Numeric helpers ─────────────────────────────────────────
 
@@ -60,19 +78,19 @@ impl<'a> Evaluator<'a> {
             Value::Null => return Value::Null,
             other => return self.reject_expected_type("power", "number", &other),
         };
-        // For non-negative integer exponents, use repeated multiplication
+        // Non-negative integer exponents: O(log n) multiply + hard cap (MAX_EVAL_DEPTH does not apply).
         if let Some(exp_u64) = exp.to_u64() {
-            let mut result = Decimal::ONE;
-            for _ in 0..exp_u64 {
-                result = match result.checked_mul(base) {
-                    Some(r) => r,
-                    None => {
-                        self.diag("power: overflow");
-                        return Value::Null;
-                    }
-                };
+            if exp_u64 > MAX_POWER_EXPONENT {
+                self.diag("power: exponent too large");
+                return Value::Null;
             }
-            return Value::Number(result);
+            return match decimal_pow_int(base, exp_u64) {
+                Some(result) => Value::Number(result),
+                None => {
+                    self.diag("power: overflow");
+                    Value::Null
+                }
+            };
         }
         // Negative or fractional exponent: fall back to f64 and convert back
         let base_f = base.to_f64().unwrap_or(0.0);
