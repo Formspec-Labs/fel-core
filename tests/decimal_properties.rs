@@ -57,12 +57,11 @@ fn decimal_coercion_roundtrip() {
 }
 
 #[test]
-fn decimal_json_roundtrip_large() {
+fn decimal_json_string_fallback_for_integer_above_js_safe_range() {
     let v = 9_223_372_036_854_775_807_i64;
     let num = Value::Number(v.into());
     let json = fel_to_json(&num);
-    let back = json_to_fel(&json);
-    assert_eq!(back, num);
+    assert_eq!(json, serde_json::json!("9223372036854775807"));
 }
 
 #[test]

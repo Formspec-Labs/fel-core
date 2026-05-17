@@ -90,7 +90,8 @@ pub struct Example {
 /// Structured metadata for a built-in FEL function.
 ///
 /// This is the canonical source of truth for the FEL function catalog.
-/// Emit [`emit_schema_json`] to regenerate `formspec/schemas/fel-functions.schema.json`.
+/// Emit [`crate::extensions::emit_schema_json`] to regenerate
+/// `formspec/schemas/fel-functions.schema.json`.
 #[non_exhaustive]
 pub struct BuiltinFunctionCatalogEntry {
     /// Function name as used in FEL source.

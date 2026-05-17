@@ -4,6 +4,10 @@ Cross-runtime differential-testing fixtures for the Formspec Expression Language
 Third-party FEL evaluators consume `fel-conformance.jsonl` to verify evaluation
 semantics match the reference Rust runtime.
 
+This corpus is part of the FEL 1.0 internal-ratification specification set.
+The manifest in [`manifest.json`](manifest.json) records the expected line count
+and SHA-256 digest for the public corpus.
+
 ## Format
 
 JSONL — one test case per line. Each line is a JSON object:
@@ -14,6 +18,15 @@ JSONL — one test case per line. Each line is a JSON object:
 | `environment` | object | Flat field bindings (`{"field": <JSON value>}`); empty object when no bindings needed |
 | `expectedValue` | JSON value | Canonical runtime result after `fel_to_json` |
 | `expectedDiagnosticKinds` | string[] | Diagnostic variant names produced during evaluation (`"UndefinedFunction"`, `"TypeMismatch"`) |
+
+Every fixture uses this public schema. Stale development-only fixture shapes such
+as `{ "source": ..., "value": ... }` are not ratification artifacts.
+
+`expectedValue` uses public/result JSON, not the typed wire encoding. FEL
+numbers are decimal values: JSON numbers appear only when the canonical encoder
+can emit stable JSON number text and safe whole integers; otherwise expected
+numeric results appear as normalized decimal strings. Native JavaScript
+`BigInt` is not part of this corpus because JSON has no `BigInt` value.
 
 ## Third-party evaluator protocol
 
@@ -40,3 +53,21 @@ make conformance
 
 Run from `fel-core/`. Requires `--features proptest-strategies`. The generator is
 deterministic — identical output on every run.
+
+The ratification gate verifies this claim:
+
+```sh
+make check-ratification
+```
+
+For the full local internal-ratification gate, run:
+
+```sh
+make ratify
+```
+
+For optional cross-runtime implementation evidence, run:
+
+```sh
+make ratify-external
+```

@@ -1,18 +1,79 @@
 # FEL Semantics Specification v1.0
 
-This is the canonical, normative specification for the Formspec Expression Language (FEL). An independent implementor can produce a conformant FEL engine from this document alone.
+This is the canonical, normative semantics specification for the Formspec
+Expression Language (FEL). It is one member of the FEL internal-ratification
+specification set:
+
+- this document, for value, evaluation, diagnostics, host-environment, budget,
+  and extension semantics;
+- [`../specs/fel/fel-grammar.md`](../specs/fel/fel-grammar.md), for normative
+  syntax;
+- [`../conformance/fel-conformance.jsonl`](../conformance/fel-conformance.jsonl),
+  for executable conformance fixtures;
+- the generated builtin-function catalog schema emitted by
+  `cargo run --bin emit-fel-schema`, for machine-readable builtin metadata.
+
+A conformant implementation can be produced from the specification set without
+copying the Rust reference implementation.
 
 ---
 
+## Status of This Specification
+
+This is a Formspec-internal W3C-style ratified specification as of 2026-05-17.
+It is not a W3C Recommendation and has not been reviewed or endorsed by W3C.
+
+The FEL 1.0 language semantics are ratified for downstream Formspec, Workspec,
+and third-party evaluator implementations. The Rust crate remains
+pre-1.0 as a library API: public Rust entry points may still be renamed before
+crate publication, but language syntax, value semantics, builtin behavior,
+diagnostic-kind wire shapes, and conformance-fixture expectations are treated as
+ratified unless this document and the conformance corpus change together.
+
+Normative requirements use the RFC 2119 keywords **MUST**, **MUST NOT**,
+**SHOULD**, **SHOULD NOT**, and **MAY**.
+
+## Normative References
+
+- **FEL Grammar v1.0** — [`../specs/fel/fel-grammar.md`](../specs/fel/fel-grammar.md).
+- **FEL Conformance Corpus** — [`../conformance/fel-conformance.jsonl`](../conformance/fel-conformance.jsonl).
+- **FEL Conformance Manifest** — [`../conformance/manifest.json`](../conformance/manifest.json).
+- **Builtin Function Catalog** — `src/extensions/catalog.rs`, serialized by
+  `src/extensions/schema.rs` and checked by `tests/schema_round_trip.rs`.
+- **Rust Reference Engine** — this crate. It is the reference implementation,
+  but prose, grammar, schema, and fixtures are the normative specification set.
+
+## Conformance Classes
+
+A FEL implementation MAY claim one or more conformance classes:
+
+| Class | Requirements |
+|-------|--------------|
+| Parser | Accepts and rejects the language defined by the normative grammar and reports approximate syntax-error position. |
+| Evaluator | Implements the value model, operators, null propagation, builtin semantics, date/money/decimal behavior, and resource-budget outcomes defined here. |
+| Diagnostics | Emits the diagnostic wire shape in §8 and preserves existing `DiagnosticKind` variants as append-only. |
+| Host environment | Implements field, context, repeat, MIP, locale, clock, and extension-function hooks with the contracts in this document. |
+
+An implementation claiming evaluator conformance MUST pass the public
+conformance corpus for every fixture whose host-environment features it claims.
+An implementation claiming parser conformance MUST also satisfy the parser
+requirements in the grammar document's conformance section.
+
 ## 1. Grammar
 
-The grammar is defined in three source files that together constitute the normative parse description:
+The grammar is defined normatively in
+[`../specs/fel/fel-grammar.md`](../specs/fel/fel-grammar.md). The Rust lexer,
+parser, and AST are the reference implementation of that grammar:
 
 - **Lexer** — [`src/lexer.rs`](../src/lexer.rs): hand-rolled character scanner producing `SpannedToken`s. Token types defined in the `Token` enum (line 11). Entry point: `Lexer::tokenize()`.
 - **Parser** — [`src/parser.rs`](../src/parser.rs): hand-rolled recursive-descent parser over the token stream. Entry point: `parse(input: &str) -> Result<Expr, Error>`.
 - **AST** — [`src/ast.rs`](../src/ast.rs): the `Expr` enum (line 20) defines all expression nodes, `UnaryOp` and `BinaryOp` enums define operator discriminants, `PathSegment` (line 5) defines field-path segments.
 
-The grammar is **not** reproduced inline here. The PEG-equivalent specification lives at `specs/fel/fel-grammar.llm.md` in the Formspec repo. The Rust parser is the reference implementation.
+If this document and the grammar document disagree on syntax, the grammar
+document wins. If this document and the Rust implementation disagree on
+evaluation semantics, the discrepancy is a specification or implementation bug
+and MUST be resolved by updating both this document and the conformance corpus
+where observable behavior changes.
 
 Key structural points:
 - Both `=` and `==` denote equality (a single `=` is not assignment).
@@ -47,6 +108,20 @@ Runtime values are defined in [`src/types.rs`](../src/types.rs). The `Value` enu
 **`CurrencyCode`** is an opaque wrapper around a 3-byte ASCII uppercase ISO 4217 code (e.g. `USD`). Constructed via `CurrencyCode::parse(s)` which accepts any casing.
 
 **No implicit conversions exist between types.** FEL is strict-typed.
+
+### 2.1 JSON Encodings
+
+FEL defines two JSON encodings:
+
+| Encoding | Purpose | Number representation |
+|----------|---------|-----------------------|
+| Public/result JSON (`fel_to_json`, `fel_to_ui_json`) | Conformance fixtures, display surfaces, and host APIs that do not need type tags. | JSON number only when the emitted number text round-trips to the same FEL `Decimal`; whole integers are additionally limited to JavaScript's safe integer range. Other numbers are normalized decimal strings. |
+| Typed wire JSON (`fel_to_wire_json`) | Exact machine interchange and host values that must rehydrate as FEL types. | `{"$type":"number","value":...}` where `value` is a JSON integer only for whole safe integers and is otherwise a normalized decimal string. |
+
+Native JavaScript `BigInt` is not a FEL wire type because it is not JSON and it
+does not represent fractional decimal values. Implementations MAY use `BigInt`
+internally for integer-only fast paths, but conformant interop MUST preserve the
+FEL base-10 decimal model and the JSON encodings above.
 
 ---
 
@@ -158,7 +233,17 @@ Notes:
 
 ## 6. Builtin Function Catalog
 
-The definitive function catalog is the static `BUILTIN_FUNCTIONS` slice in [`src/extensions/catalog.rs`](../src/extensions/catalog.rs). A machine-readable JSON Schema is emitted via `cargo run -p fel-core --bin emit-fel-schema` (see [`src/extensions/schema.rs`](../src/extensions/schema.rs)).
+The definitive function catalog is the static `BUILTIN_FUNCTIONS` slice in
+[`src/extensions/catalog.rs`](../src/extensions/catalog.rs). A machine-readable
+catalog schema is emitted via `cargo run -p fel-core --bin emit-fel-schema`
+(see [`src/extensions/schema.rs`](../src/extensions/schema.rs)).
+
+The emitted catalog is normative builtin metadata. Implementations MUST use the
+same function names, arity rules, parameter types, return types, determinism
+flags, short-circuit flags, null-handling text, and package availability
+markers. Implementations MAY expose the catalog through a different API shape
+as long as observable evaluation behavior matches this specification and the
+conformance corpus.
 
 Function categories:
 
@@ -253,3 +338,50 @@ FEL **explicitly does NOT** provide:
 6. **Side effects.** FEL evaluation is pure. No I/O, no network, no filesystem access. Date/time functions (`today()`, `now()`) read from the `Environment` clock, which is injected by the host. Extension functions are the integration point for host-mediated effects but are architecturally bounded by the `EvalBudget`.
 
 7. **User-defined functions.** Only the `ExtensionRegistry` mechanism exists for host-provided functions. There is no `def` or `fn` construct in FEL grammar.
+
+---
+
+## Extensibility and Versioning
+
+FEL 1.0 reserves syntax and wire shapes conservatively:
+
+- `|>` is reserved by the grammar and MUST be rejected in v1.0.
+- `DiagnosticKind` is append-only. Existing kind names and field shapes MUST NOT
+  change inside the 1.0 line.
+- Builtin function names are reserved. Extension functions MAY supplement but
+  MUST NOT override builtins.
+- New builtin functions MAY be added when the catalog schema, conformance
+  corpus, and version notes are updated together.
+- Host APIs MAY add convenience wrappers, but language-level observable
+  behavior is governed by this specification set.
+
+## Security Considerations
+
+FEL evaluation is pure: it has no grammar-level I/O, network, filesystem,
+process, mutation, reflection, or user-defined-function capability. Hosts MUST
+keep extension functions inside the same resource-budget discipline as builtins.
+
+Implementations SHOULD enforce parser depth and evaluator budget limits
+equivalent to the reference implementation to avoid stack exhaustion,
+unbounded allocation, and long-running expressions. Host applications MUST treat
+FEL source as untrusted input and MUST NOT let diagnostics reveal secrets from
+the host environment.
+
+## Privacy Considerations
+
+FEL expressions can inspect only values supplied by the host environment. Hosts
+SHOULD minimize the environment passed to evaluation and avoid exposing fields,
+runtime metadata, locale data, or instance data that are not required by the
+expression being evaluated.
+
+Diagnostics and traces can include source snippets, field paths, function names,
+and serialized values. Hosts that persist or transmit diagnostics/traces SHOULD
+apply the same privacy controls used for form data.
+
+## Internationalization Considerations
+
+FEL string values are Unicode strings. Identifiers are ASCII-only in v1.0.
+Locale-sensitive behavior is limited to explicit host-provided locale functions
+such as `locale()` and `pluralCategory()`. Date/time values do not carry a
+timezone; host environments that need timezone semantics MUST supply them
+outside FEL or through explicit extension functions.

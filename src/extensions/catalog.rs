@@ -2599,7 +2599,10 @@ pub(crate) const BUILTIN_FUNCTIONS: &[BuiltinFunctionCatalogEntry] = &[
     },
 ];
 
-/// Slice of all built-in functions (names reserved for [`ExtensionRegistry::register`]).
+/// Slice of all built-in functions.
+///
+/// Names in this catalog are reserved for
+/// [`ExtensionRegistry::register`](crate::extensions::ExtensionRegistry::register).
 pub fn builtin_function_catalog() -> &'static [BuiltinFunctionCatalogEntry] {
     BUILTIN_FUNCTIONS
 }

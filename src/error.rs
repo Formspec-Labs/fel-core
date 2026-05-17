@@ -4,7 +4,7 @@ use std::ops::Range;
 
 /// Lex or parse failure with optional source span (byte offsets into the expression).
 ///
-/// [`Error`]'s [`Display`] output uses the `message` field.
+/// [`Error`]'s [`std::fmt::Display`] output uses the `message` field.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseError {
     /// Human-readable explanation.

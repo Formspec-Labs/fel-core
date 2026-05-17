@@ -1,0 +1,32 @@
+{
+  "specification": "Formspec Expression Language (FEL)",
+  "version": "1.0",
+  "status": "internal-ratified",
+  "ratifiedDate": "2026-05-17",
+  "normativeDocuments": [
+    "docs/SPEC.md",
+    "specs/fel/fel-grammar.md",
+    "conformance/README.md",
+    "conformance/fel-conformance.jsonl"
+  ],
+  "corpus": {
+    "path": "conformance/fel-conformance.jsonl",
+    "format": "application/x-ndjson",
+    "lineCount": 249,
+    "sha256": "b81c18a06811d8f8a49a9ec39c9f2d158094272df7d0abd13434504f60874de6"
+  },
+  "ratificationGates": [
+    "make ratify",
+    "make ratify-external"
+  ],
+  "conformanceClasses": [
+    "parser",
+    "evaluator",
+    "diagnostics",
+    "host-environment"
+  ],
+  "notes": [
+    "make ratify is the hermetic local internal-ratification gate.",
+    "make ratify-external runs differential checks against sibling Python and WASM implementations when those runtimes are present."
+  ]
+}

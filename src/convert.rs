@@ -12,6 +12,11 @@ use serde_json::Value;
 
 use crate::types::{CurrencyCode, Money as TypeMoney, Value as TypeValue};
 
+/// Largest integer that JavaScript can represent exactly in a `number`.
+const JSON_SAFE_INTEGER_MAX: i64 = 9_007_199_254_740_991;
+/// Smallest integer that JavaScript can represent exactly in a `number`.
+const JSON_SAFE_INTEGER_MIN: i64 = -9_007_199_254_740_991;
+
 /// JSON object → flat field map for FEL `MapEnvironment` (`{}` / empty → empty map).
 pub fn json_object_to_field_map(val: &Value) -> HashMap<String, TypeValue> {
     let mut map = HashMap::new();
@@ -134,12 +139,12 @@ pub fn json_to_fel(val: &Value) -> TypeValue {
 /// Conversion rules:
 /// - `Null` → `Value::Null`
 /// - `Boolean(b)` → `Value::Bool(b)`
-/// - `Number(n)` → JSON integer when whole and within `i64`; otherwise JSON number only when
-///   `n == Decimal::from_f64(n.to_f64())` (exact lossless round-trip through IEEE-754); else a
-///   normalized decimal string (host JSON variable rehydrate must not turn scalars into strings)
+/// - `Number(n)` → `{"$type": "number", "value": <number|string>}`. The `value`
+///   member is a JSON integer only when whole and within JavaScript's safe integer range;
+///   otherwise it is a normalized decimal string.
 /// - `String(s)` → `Value::String(s)`
-/// - `Date(d)` → `Value::String(d.format_iso())`
-/// - `Money { amount, currency }` → `{"$type": "money", "amount": <number>, "currency": <string>}`
+/// - `Date(d)` → `{"$type": "date", "value": <iso-string>}`
+/// - `Money { amount, currency }` → `{"$type": "money", "amount": <decimal-string>, "currency": <string>}`
 /// - `Array(arr)` → `Value::Array` (recursive)
 /// - `Object(entries)` → `Value::Object` (recursive)
 pub fn fel_to_wire_json(val: &TypeValue) -> Value {
@@ -149,19 +154,7 @@ pub fn fel_to_wire_json(val: &TypeValue) -> Value {
         TypeValue::Number(n) => {
             let mut map = serde_json::Map::new();
             map.insert("$type".to_string(), Value::String("number".to_string()));
-            if n.fract().is_zero()
-                && let Some(i) = n.to_i64()
-            {
-                map.insert(
-                    "value".to_string(),
-                    Value::Number(serde_json::Number::from(i)),
-                );
-            } else {
-                map.insert(
-                    "value".to_string(),
-                    Value::String(n.normalize().to_string()),
-                );
-            }
+            map.insert("value".to_string(), decimal_to_wire_number_value(n));
             Value::Object(map)
         }
         TypeValue::String(s) => Value::String(s.clone()),
@@ -195,28 +188,18 @@ pub fn fel_to_wire_json(val: &TypeValue) -> Value {
     }
 }
 
-/// Convert a `TypeValue` into UI-friendly JSON (lossy for large decimals).
+/// Convert a `TypeValue` into UI-friendly JSON.
 ///
 /// Intended for display surfaces and host APIs that do not feed values back into
-/// FEL evaluation.
+/// FEL evaluation. Decimal values are emitted as JSON numbers only when the
+/// serialized JSON number text round-trips exactly to the same Decimal.
 pub fn fel_to_ui_json(val: &TypeValue) -> Value {
     match val {
         TypeValue::Null => Value::Null,
         TypeValue::Boolean(b) => Value::Bool(*b),
         TypeValue::Number(n) => {
-            if n.fract().is_zero()
-                && let Some(i) = n.to_i64()
-            {
-                return Value::Number(serde_json::Number::from(i));
-            }
-            if let Some(f) = n.to_f64() {
-                if f.is_finite()
-                    && let Some(via_f64) = Decimal::from_f64(f)
-                    && via_f64 == *n
-                    && let Some(num) = serde_json::Number::from_f64(f)
-                {
-                    return Value::Number(num);
-                }
+            if let Some(num) = decimal_to_lossless_ui_number(n) {
+                return Value::Number(num);
             }
             Value::String(n.normalize().to_string())
         }
@@ -243,6 +226,36 @@ pub fn fel_to_ui_json(val: &TypeValue) -> Value {
             Value::Object(map)
         }
     }
+}
+
+fn decimal_to_lossless_ui_number(n: &Decimal) -> Option<serde_json::Number> {
+    if n.fract().is_zero()
+        && let Some(i) = n.to_i64()
+        && (JSON_SAFE_INTEGER_MIN..=JSON_SAFE_INTEGER_MAX).contains(&i)
+    {
+        return Some(serde_json::Number::from(i));
+    }
+
+    let f = n.to_f64()?;
+    if !f.is_finite() {
+        return None;
+    }
+    let num = serde_json::Number::from_f64(f)?;
+    let serialized = num.to_string();
+    let reparsed = Decimal::from_str_exact(&serialized)
+        .or_else(|_| Decimal::from_scientific(&serialized))
+        .ok()?;
+    (reparsed == *n).then_some(num)
+}
+
+fn decimal_to_wire_number_value(n: &Decimal) -> Value {
+    if n.fract().is_zero()
+        && let Some(i) = n.to_i64()
+        && (JSON_SAFE_INTEGER_MIN..=JSON_SAFE_INTEGER_MAX).contains(&i)
+    {
+        return Value::Number(serde_json::Number::from(i));
+    }
+    Value::String(n.normalize().to_string())
 }
 
 /// Backward-compatible alias for UI-friendly encoding (`fel_to_ui_json`).
@@ -407,6 +420,29 @@ mod tests {
     }
 
     #[test]
+    fn number_wire_uses_json_integer_for_safe_integer() {
+        let json = fel_to_wire_json(&TypeValue::Number(Decimal::from(42)));
+        assert_eq!(json.get("$type"), Some(&json!("number")));
+        assert_eq!(json.get("value"), Some(&json!(42)));
+    }
+
+    #[test]
+    fn number_wire_uses_string_for_integer_above_js_safe_range() {
+        let dec = Decimal::from(9_223_372_036_854_775_707_i64);
+        let json = fel_to_wire_json(&TypeValue::Number(dec));
+        assert_eq!(json.get("$type"), Some(&json!("number")));
+        assert_eq!(json.get("value"), Some(&json!("9223372036854775707")));
+    }
+
+    #[test]
+    fn number_wire_uses_string_for_fractional_decimal() {
+        let dec = Decimal::from_str_exact("0.1").unwrap();
+        let json = fel_to_wire_json(&TypeValue::Number(dec));
+        assert_eq!(json.get("$type"), Some(&json!("number")));
+        assert_eq!(json.get("value"), Some(&json!("0.1")));
+    }
+
+    #[test]
     fn money_missing_currency_becomes_object() {
         // Object with "amount" but no "currency" should NOT become Money
         let val = json_to_fel(&json!({"$type": "money", "amount": 100}));
@@ -466,6 +502,20 @@ mod tests {
         let dec = Decimal::from_str_exact("0.1234567890123456789012345678").unwrap();
         let json = fel_to_json(&TypeValue::Number(dec));
         assert_eq!(json, json!("0.1234567890123456789012345678"));
+    }
+
+    #[test]
+    fn tiny_decimal_that_serializes_inexactly_falls_back_to_string() {
+        let dec = Decimal::from_str_exact("0.0000000000000000000000000001").unwrap();
+        let json = fel_to_json(&TypeValue::Number(dec));
+        assert_eq!(json, json!("0.0000000000000000000000000001"));
+    }
+
+    #[test]
+    fn integer_above_js_safe_range_falls_back_to_string() {
+        let dec = Decimal::from(9_223_372_036_854_775_707_i64);
+        let json = fel_to_json(&TypeValue::Number(dec));
+        assert_eq!(json, json!("9223372036854775707"));
     }
 
     #[test]

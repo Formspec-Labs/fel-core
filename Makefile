@@ -11,7 +11,7 @@ CARGO_FLAGS_PROPTEST_FEATURES = --features proptest-strategies
 RUST_TRIPLE = $(shell rustc -Vv | sed -n 's/^host: //p')
 NIGHTLY_LLVM_PROFDATA = $(HOME)/.rustup/toolchains/nightly-$(RUST_TRIPLE)/lib/rustlib/$(RUST_TRIPLE)/bin/llvm-profdata
 
-.PHONY: all help build test test-full test-differential test-differential-python test-differential-wasm test-all emit-fixtures conformance fuzz-extract fuzz-setup fuzz-coverage fuzz-all seed-fuzz clean
+.PHONY: all help build test test-full test-differential test-differential-python test-differential-wasm test-all check-ratification ratify ratify-external conformance fuzz-extract fuzz-setup fuzz-coverage fuzz-all seed-fuzz clean
 
 all: build
 
@@ -22,11 +22,13 @@ help:
 	@echo "  make test                        — cargo nextest run --all-features"
 	@echo "  make test-full                   — cargo test --all-features"
 	@echo "  make test-all                    — run all test targets"
+	@echo "  make check-ratification          — validate spec/conformance ratification artifacts"
+	@echo "  make ratify                      — local candidate-ratification gate"
+	@echo "  make ratify-external             — cross-runtime differential implementation gate"
 	@echo "  make clean                       — cargo clean"
 	@echo "  make test-differential           — run cross-runtime oracle (Python + WASM)"
 	@echo "  make test-differential-python    — Rust↔Python oracle only"
 	@echo "  make test-differential-wasm      — Rust↔WASM oracle only"
-	@echo "  make emit-fixtures               — emit conformance fixtures JSONL"
 	@echo "  make conformance                 — generate conformance/fel-conformance.jsonl"
 	@echo "  make fuzz-extract                — convert fuzz corpus to regression tests"
 	@echo "  make fuzz-setup                  — install nightly + llvm-tools + cargo-fuzz"
@@ -55,9 +57,13 @@ test-differential-wasm:
 
 test-all: test-full test-differential
 
-emit-fixtures:
-	@mkdir -p tests/fixtures
-	$(CARGO) run $(CARGO_FLAGS_PROPTEST_FEATURES) --bin emit-conformance-fixtures -- 256 > tests/fixtures/conformance.jsonl
+check-ratification:
+	$(PYTHON) scripts/check-ratification.py --verify-generated
+
+ratify: check-ratification test-full
+	RUSTDOCFLAGS="-D rustdoc::broken-intra-doc-links" $(CARGO) doc --no-deps
+
+ratify-external: test-differential
 
 conformance:
 	@mkdir -p conformance

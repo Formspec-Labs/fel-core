@@ -100,7 +100,7 @@ fn catalog_example_fixtures() -> Vec<ConformanceFixture> {
 }
 
 fn catalog_example_to_fixture(
-    entry: &BuiltinFunctionCatalogEntry,
+    _entry: &BuiltinFunctionCatalogEntry,
     ex: &Example,
 ) -> Option<ConformanceFixture> {
     if ex.expression.contains('$') {

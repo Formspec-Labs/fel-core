@@ -2,21 +2,31 @@
 
 All backlog rows from the 2026-05-06 audit, 2026-05-07 chaos initiative (C1–C10), and 2026-05-08 multi-lens review (R21–R41) are **closed**. See [`COMPLETED.md`](COMPLETED.md) for full narratives.
 
-No open items remain — except the debt markers surfaced by the 2026-05-08 monorepo audit below.
+No open ratification blockers remain.
 
-### Monorepo audit — untracked debt
+The 2026-05-17 internal-ratification pass retired the stale monorepo-audit
+markers:
 
-- **FEL-DEPRECATED-EVALUATE-001 — Remove `#[deprecated]` evaluate-family functions** `[4 / 2 / 3]` (12)
-  - Seven `#[deprecated(since = "0.1.0")]` wrappers in `src/evaluator/core.rs:283-379` (evaluate, evaluate_with_env, evaluate_single, etc.) redirect to `evaluate_with`. No removal date set. Downstream consumers (formspec, WOS) migrated to `evaluate_with` — verify zero call-sites remain, then delete the deprecated surface in a minor bump.
-  - **Done when:** `grep -r '#\[deprecated' src/` returns zero hits in the evaluator module; `cargo test --workspace` green.
+- **FEL-DEPRECATED-EVALUATE-001** — no deprecated evaluate-family wrappers
+  remain in `src/`; `evaluate()` and `evaluate_with()` are the live entry
+  points.
+- **FEL-BACKWARD-ALIAS-001** — `fel_to_json()` remains a compatibility alias for
+  the pre-1.0 Rust API, not normative FEL language surface. The normative value
+  wire behavior is specified in [`docs/SPEC.md`](docs/SPEC.md) and covered by
+  conformance fixtures.
+- **FEL-DIFFERENTIAL-ORACLE-001** — the cross-runtime oracle remains ignored in
+  ordinary `cargo test` because it requires sibling Python and WASM runtimes.
+  The ratification posture is explicit: `make ratify` is the hermetic local
+  gate, and `make ratify-external` is the implementation-report gate.
 
-- **FEL-BACKWARD-ALIAS-001 — Remove backward-compat `fel_to_ui_json` alias** `[3 / 1 / 2]` (6)
-  - `src/convert.rs:248` carries a `Backward-compatible alias for UI-friendly encoding` redirect. Low surface, but every alias is a name the codebase must carry forever. Confirm no external consumer, then inline or delete.
-  - **Done when:** alias removed; all callers use the canonical name.
+Internal-ratification artifacts:
 
-- **FEL-DIFFERENTIAL-ORACLE-001 — Decision on `#[ignore]` differential oracle test** `[3 / 1 / 2]` (6)
-  - `tests/differential_oracle.rs` is `#[ignore]` by default; requires `make test-differential` to enable. Decide: promote to CI-gated nightly, or document the invariant it guards and close.
-  - **Done when:** test runs in CI (nightly label or similar) or is closed with documented rationale.
+- [`docs/SPEC.md`](docs/SPEC.md)
+- [`specs/fel/fel-grammar.md`](specs/fel/fel-grammar.md)
+- [`conformance/manifest.json`](conformance/manifest.json)
+- [`conformance/fel-conformance.jsonl`](conformance/fel-conformance.jsonl)
+- `make ratify`
+- `make ratify-external` for sibling implementation-report evidence
 
 ---
 

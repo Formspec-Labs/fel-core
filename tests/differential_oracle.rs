@@ -78,6 +78,14 @@ fn wasm_val(
         } else {
             Err(format!("node eval error: {err}"))
         }
+    } else if let Some(result_json) = parsed.get("resultJson").and_then(|v| v.as_str()) {
+        if result_json.is_empty() {
+            Ok(None)
+        } else {
+            serde_json::from_str(result_json)
+                .map(Some)
+                .map_err(|e| format!("invalid JSON result from node: {e}"))
+        }
     } else {
         Ok(parsed.get("result").cloned())
     }

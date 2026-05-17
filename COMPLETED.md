@@ -673,3 +673,39 @@ The semi-formal code review identified three findings that were fixed after the 
 - **Finding 9 (NIT):** Power oracle no-panic test had vacuous diagnostic assertion. Fixed: removed the vacuous `!message.contains("panic")` assertion (test value is that it completes without panicking).
 
 All 575 tests pass across 23 test targets.
+
+---
+
+## 2026-05-17 internal-ratification pass
+
+Prepared FEL as a W3C-style internally ratified specification/tool surface:
+
+- Added explicit status, conformance classes, normative references,
+  versioning, security, privacy, and internationalization sections to
+  `docs/SPEC.md`.
+- Added `conformance/manifest.json` with the public corpus line count and
+  SHA-256 digest.
+- Added `scripts/check-ratification.py` plus `make check-ratification` and
+  `make ratify` gates. The local gate validates required spec headings,
+  conformance JSONL schema, manifest integrity, public corpus regeneration,
+  all-features tests, and rustdoc broken-link denial.
+- Removed stale `tests/fixtures/conformance.jsonl`, which used an obsolete
+  `{source,value}` shape and was not consumed by tests. The public corpus in
+  `conformance/fel-conformance.jsonl` is now the single ratification corpus.
+- Documented `make ratify-external` as the cross-runtime implementation-report
+  gate for sibling Python and WASM runtimes.
+- Added normative public/result JSON versus typed wire JSON language. Native
+  JavaScript `BigInt` is explicitly not a wire type; exact FEL number
+  interchange uses tagged JSON with decimal strings for fractional decimals and
+  unsafe integers.
+- Tightened `fel_to_json` / `fel_to_ui_json` number emission so unsafe integers
+  and decimal values that would stringify imprecisely fall back to decimal
+  strings. Tightened `fel_to_wire_json` so tagged number values use strings for
+  unsafe integers as well.
+- Updated the WASM differential helper to compare raw JSON returned from WASM,
+  avoiding Node-side precision loss before the Rust oracle can compare values.
+  Added saved proptest regression seeds for the large-integer and tiny-decimal
+  Rust↔WASM failures.
+- Verified `make ratify` and `make ratify-external` on 2026-05-17. The external
+  gate required rebuilding the ignored sibling `formspec-engine` runtime WASM
+  artifact so it reflected this checkout's `fel-core`.

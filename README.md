@@ -15,7 +15,13 @@ Rust implementation of **Formspec Expression Language (FEL)** — lex, parse, ev
 | **environment** | `FormspecEnvironment` for engine-style evaluation (host adapter; non-formspec hosts implement the trait directly via `MapEnvironment`). |
 | **extensions** | Typed builtin catalog (`BuiltinFunctionCatalogEntry`, `Parameter`, `FelType`, `Package`), schema JSON emission, `ExtensionRegistry` for runtime host functions. |
 
-This crate **is** the FEL spec source of truth: `formspec/schemas/fel-functions.schema.json` is generated from `BUILTIN_FUNCTIONS` via `cargo run --bin emit-fel-schema`. TypeScript and Python implementations conform to that schema; a round-trip test (`tests/schema_round_trip.rs`) keeps emission and the canonical schema in lock-step.
+The FEL 1.0 internal-ratification surface is the specification set under
+[`docs/SPEC.md`](docs/SPEC.md), [`specs/fel/fel-grammar.md`](specs/fel/fel-grammar.md),
+and [`conformance/`](conformance/). `formspec/schemas/fel-functions.schema.json`
+is generated from `BUILTIN_FUNCTIONS` via `cargo run --bin emit-fel-schema`.
+TypeScript and Python implementations conform to that schema; a round-trip test
+(`tests/schema_round_trip.rs`) keeps emission and the canonical schema in
+lock-step.
 
 ## Architecture
 
@@ -63,11 +69,45 @@ Stable entry points (`evaluate`, `Trace`, `IndexMap`, JSON helpers, …) are re-
 
 ### Versioning posture
 
-**Pre-1.0.** Not yet published to crates.io. Consumed exclusively via `path = "../fel-core"` in the monorepo. The API will change — AST shape, builtin signatures, error wire shape, and public re-exports may break between commits without a version signal. Publication to crates.io and semver commitment are deferred until the API surface stabilizes (see TODO R33).
+**Language ratified, Rust API pre-1.0.** FEL language semantics are tracked as a
+Formspec-internal v1.0 ratified specification in `docs/SPEC.md`, the normative
+grammar, and the conformance corpus. The Rust crate is not yet published to
+crates.io and is consumed via `path = "../fel-core"` in the monorepo. Public
+Rust entry points may still be renamed before crate publication; syntax,
+evaluation semantics, builtin behavior, diagnostic-kind wire shapes, and
+conformance expectations should change only through a spec+fixture update.
 
-### JSON conversion and dates
+### Ratification gates
 
-[`convert`](src/convert.rs) serializes FEL dates as ISO strings and does **not** coerce arbitrary JSON strings into `Date` on ingest (see `string_no_date_coercion` tests). That avoids silent type surprises unless a host opts into an explicit tagged shape (similar to Money’s `$type` marker).
+```bash
+make ratify
+```
+
+Runs the local internal-ratification gate: static spec/conformance checks,
+byte-for-byte public conformance regeneration, full all-features tests, and
+rustdoc broken-link denial.
+
+```bash
+make ratify-external
+```
+
+Runs the optional cross-runtime implementation gate against sibling Python and
+WASM runtimes when those runtimes are present.
+
+### JSON conversion, numbers, and dates
+
+[`convert`](src/convert.rs) serializes FEL dates as ISO strings and does **not**
+coerce arbitrary JSON strings into `Date` on ingest (see
+`string_no_date_coercion` tests). That avoids silent type surprises unless a
+host opts into an explicit tagged shape.
+
+FEL numbers are base-10 decimals, not JavaScript numbers or `BigInt`s.
+`fel_to_json` / `fel_to_ui_json` emit JSON numbers only when the printed JSON
+number preserves the decimal text and whole integers are within JavaScript's
+safe integer range; otherwise they emit normalized decimal strings. Exact
+machine interchange should use `fel_to_wire_json`, which tags numbers as
+`{"$type":"number","value":...}` and uses strings for fractional decimals or
+unsafe integers.
 
 ### Source modules (`src/`)
 
