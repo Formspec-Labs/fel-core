@@ -373,12 +373,13 @@ impl<'a> Evaluator<'a> {
     /// Emits `{fn_name}: requires at least {min} arguments` and returns `false` when `args.len() < min`.
     pub(super) fn require_min_args(&mut self, args: &[Expr], min: usize, fn_name: &str) -> bool {
         if args.len() < min {
-            self.diagnostics.push(crate::error::Diagnostic::arity_mismatch(
-                fn_name,
-                min,
-                None,
-                args.len(),
-            ));
+            self.diagnostics
+                .push(crate::error::Diagnostic::arity_mismatch(
+                    fn_name,
+                    min,
+                    None,
+                    args.len(),
+                ));
             return false;
         }
         true
@@ -387,12 +388,13 @@ impl<'a> Evaluator<'a> {
     /// Emits an arity diagnostic and returns `false` when the argument count differs.
     pub(super) fn require_exact_args(&mut self, args: &[Expr], n: usize, fn_name: &str) -> bool {
         if args.len() != n {
-            self.diagnostics.push(crate::error::Diagnostic::arity_mismatch(
-                fn_name,
-                n,
-                Some(n),
-                args.len(),
-            ));
+            self.diagnostics
+                .push(crate::error::Diagnostic::arity_mismatch(
+                    fn_name,
+                    n,
+                    Some(n),
+                    args.len(),
+                ));
             return false;
         }
         true
@@ -1429,8 +1431,6 @@ impl<'a> Evaluator<'a> {
             "formatDate" => self.fn_format_date(args),
             "runtimeMeta" => self.fn_runtime_meta(args),
             "pluralCategory" => self.fn_plural_category(args),
-            "formatNumber" => self.fn_format_number(args),
-            "formatDate" => self.fn_format_date(args),
 
             _ => {
                 let evaluated_args: Vec<Value> = args.iter().map(|arg| self.eval(arg)).collect();
@@ -1464,9 +1464,8 @@ impl<'a> Evaluator<'a> {
                             max_args,
                             got,
                         } => {
-                            self.diagnostics.push(Diagnostic::arity_mismatch(
-                                name, min_args, max_args, got,
-                            ));
+                            self.diagnostics
+                                .push(Diagnostic::arity_mismatch(name, min_args, max_args, got));
                             return Value::Null;
                         }
                         ExtensionCallOutcome::NotFound => {}

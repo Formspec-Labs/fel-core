@@ -59,13 +59,25 @@ struct QuoteAwareCursor<'a> {
 
 impl<'a> QuoteAwareCursor<'a> {
     fn new(chars: &'a [char]) -> Self {
-        Self { chars, idx: 0, quote: None }
+        Self {
+            chars,
+            idx: 0,
+            quote: None,
+        }
     }
-    fn len(&self) -> usize { self.chars.len() }
-    fn idx(&self) -> usize { self.idx }
-    fn at(&self, i: usize) -> Option<char> { self.chars.get(i).copied() }
+    fn len(&self) -> usize {
+        self.chars.len()
+    }
+    fn idx(&self) -> usize {
+        self.idx
+    }
+    fn at(&self, i: usize) -> Option<char> {
+        self.chars.get(i).copied()
+    }
     fn step_quote(&mut self, out: &mut String) -> bool {
-        let Some(c) = self.at(self.idx) else { return false };
+        let Some(c) = self.at(self.idx) else {
+            return false;
+        };
         if let Some(q) = self.quote {
             out.push(c);
             if c == '\\' && self.idx + 1 < self.len() {
@@ -73,7 +85,9 @@ impl<'a> QuoteAwareCursor<'a> {
                 self.idx += 2;
                 return true;
             }
-            if c == q { self.quote = None; }
+            if c == q {
+                self.quote = None;
+            }
             self.idx += 1;
             return true;
         }
@@ -91,7 +105,9 @@ impl<'a> QuoteAwareCursor<'a> {
             self.idx += 1;
         }
     }
-    fn advance_to(&mut self, next: usize) { self.idx = next; }
+    fn advance_to(&mut self, next: usize) {
+        self.idx = next;
+    }
 }
 
 /// Strips trailing `[n]` from the last path segment (TS `splitIndexedPath` last + replace).

@@ -480,33 +480,38 @@ impl Parser {
 
     /// Parse `[*]` or `[N]` after the opening `[` has been consumed; consumes `]`.
     fn parse_bracket_segment(&mut self, bracket_context: &str) -> Result<PathSegment, Error> {
-        let seg = if matches!(self.peek(), Token::Star) {
-            self.advance();
-            PathSegment::Wildcard
-        } else if let Token::Number(n) = self.peek().clone() {
-            let token = self.current().clone();
-            if !n.fract().is_zero() || n.is_sign_negative() {
-                return Err(self.parse_err_token(&token, format!(
-                    "expected non-negative integer index in {bracket_context}brackets, got {n}"
+        let seg = match self.peek().clone() {
+            Token::Star => {
+                self.advance();
+                PathSegment::Wildcard
+            }
+            Token::Number(n) => {
+                let token = self.current().clone();
+                if !n.fract().is_zero() || n.is_sign_negative() {
+                    return Err(self.parse_err_token(&token, format!(
+                        "expected non-negative integer index in {bracket_context}brackets, got {n}"
+                    )));
+                }
+                let Some(idx_u64) = n.to_u64() else {
+                    return Err(self.parse_err_token(
+                        &token,
+                        format!("index out of range in {bracket_context}brackets, got {n}"),
+                    ));
+                };
+                let Ok(idx) = usize::try_from(idx_u64) else {
+                    return Err(self.parse_err_token(
+                        &token,
+                        format!("index out of range in {bracket_context}brackets, got {n}"),
+                    ));
+                };
+                self.advance();
+                PathSegment::Index(idx)
+            }
+            other => {
+                return Err(self.parse_err_current(format!(
+                    "expected number or * in {bracket_context}brackets, got {other:?}"
                 )));
             }
-            let Some(idx_u64) = n.to_u64() else {
-                return Err(self.parse_err_token(&token, format!(
-                    "index out of range in {bracket_context}brackets, got {n}"
-                )));
-            };
-            let Ok(idx) = usize::try_from(idx_u64) else {
-                return Err(self.parse_err_token(&token, format!(
-                    "index out of range in {bracket_context}brackets, got {n}"
-                )));
-            };
-            self.advance();
-            PathSegment::Index(idx)
-        } else {
-            return Err(self.parse_err_current(format!(
-                "expected number or * in {bracket_context}brackets, got {:?}",
-                self.peek()
-            )));
         };
         self.expect(&Token::RBracket)?;
         Ok(seg)

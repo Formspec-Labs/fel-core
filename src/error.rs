@@ -114,19 +114,12 @@ pub enum DiagnosticKind {
 
 /// Pluralizes the word `argument` for arity diagnostics.
 pub(crate) fn arity_argument_word(count: usize) -> &'static str {
-    if count == 1 {
-        "argument"
-    } else {
-        "arguments"
-    }
+    if count == 1 { "argument" } else { "arguments" }
 }
 
 /// `{name}: requires exactly {n} argument(s)`.
 pub(crate) fn arity_requires_exactly_message(name: &str, n: usize) -> String {
-    format!(
-        "{name}: requires exactly {n} {}",
-        arity_argument_word(n)
-    )
+    format!("{name}: requires exactly {n} {}", arity_argument_word(n))
 }
 
 /// `{name}: requires at least {min} argument(s)`.

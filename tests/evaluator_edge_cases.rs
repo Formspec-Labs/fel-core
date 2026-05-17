@@ -690,11 +690,9 @@ fn fuzz_regression_corpus() {
                 let display = format!("{}", result.value);
                 if let Some(expected) = &case.display_oracle {
                     assert_eq!(
-                        display,
-                        *expected,
+                        display, *expected,
                         "line {line_no} id {} expression {:?}",
-                        case.id,
-                        case.expression
+                        case.id, case.expression
                     );
                 }
             }

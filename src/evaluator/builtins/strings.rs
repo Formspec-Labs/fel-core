@@ -9,7 +9,12 @@ use super::super::core::Evaluator;
 use super::super::util::dec;
 
 impl<'a> Evaluator<'a> {
-    fn push_format_tail(out: &mut String, mut rest: &str, values: &[String], percent_index: &mut usize) {
+    fn push_format_tail(
+        out: &mut String,
+        mut rest: &str,
+        values: &[String],
+        percent_index: &mut usize,
+    ) {
         while !rest.is_empty() {
             let Some(pos) = rest.find("%s") else {
                 out.push_str(rest);
@@ -169,7 +174,7 @@ impl<'a> Evaluator<'a> {
         }
         if result.contains("%s") {
             let mut sequential = String::with_capacity(result.len());
-            let mut rest = result.as_str();
+            let rest = result.as_str();
             let mut value_index = 0usize;
             Self::push_format_tail(&mut sequential, rest, &values, &mut value_index);
             result = sequential;

@@ -486,7 +486,8 @@ mod tests {
         #[test]
         fn extract_style_prefixes_dot_when_base_nonempty() {
             let mut path = "items".to_string();
-            PathSegment::Dot("qty".into()).append_to_path(&mut path, PathDotJoin::PrefixWhenNonempty);
+            PathSegment::Dot("qty".into())
+                .append_to_path(&mut path, PathDotJoin::PrefixWhenNonempty);
             assert_eq!(path, "items.qty");
         }
 

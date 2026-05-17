@@ -699,11 +699,20 @@ fn test_extension_registry_arity_mismatch_emits_diagnostic() {
     let expr = parse("needsTwo(1)").unwrap();
     let env = MapEnvironment::new();
     let mut extensions = ExtensionRegistry::new();
-    extensions.register("needsTwo", 2, Some(2), |args| match (&args[0], &args[1]) {
-        (Value::Number(a), Value::Number(b)) => Value::Number(*a + *b),
-        _ => Value::Null,
-    }).unwrap();
-    let result = evaluate_with(&expr, &env, EvaluatorOptions { extensions: Some(&extensions), ..EvaluatorOptions::default() });
+    extensions
+        .register("needsTwo", 2, Some(2), |args| match (&args[0], &args[1]) {
+            (Value::Number(a), Value::Number(b)) => Value::Number(*a + *b),
+            _ => Value::Null,
+        })
+        .unwrap();
+    let result = evaluate_with(
+        &expr,
+        &env,
+        EvaluatorOptions {
+            extensions: Some(&extensions),
+            ..EvaluatorOptions::default()
+        },
+    );
     assert!(matches!(result.value, Value::Null));
     assert!(result.diagnostics.iter().any(|d| {
         d.message == "needsTwo: requires exactly 2 arguments"

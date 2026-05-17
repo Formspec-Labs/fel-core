@@ -46,8 +46,7 @@ fn push_repeat_context(env: &mut FormspecEnvironment, repeat: &Value, depth: u8)
 pub fn formspec_environment_from_json_map(ctx: &Map<String, Value>) -> FormspecEnvironment {
     let mut env = FormspecEnvironment::new();
 
-    if let Some(now_iso) = pick_key(ctx, &["nowIso", "now_iso"]).and_then(|v| v.as_str())
-    {
+    if let Some(now_iso) = pick_key(ctx, &["nowIso", "now_iso"]).and_then(|v| v.as_str()) {
         env.set_now_from_iso(now_iso);
     }
 
@@ -63,8 +62,7 @@ pub fn formspec_environment_from_json_map(ctx: &Map<String, Value>) -> FormspecE
         }
     }
 
-    if let Some(mips) = pick_key(ctx, &["mipStates", "mip_states"]).and_then(|v| v.as_object())
-    {
+    if let Some(mips) = pick_key(ctx, &["mipStates", "mip_states"]).and_then(|v| v.as_object()) {
         for (k, v) in mips {
             if let Some(mip_obj) = v.as_object() {
                 env.set_mip(

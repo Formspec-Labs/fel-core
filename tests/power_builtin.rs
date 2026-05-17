@@ -77,7 +77,7 @@ fn power_negative_exponent_uses_f64_path() {
 #[test]
 fn power_huge_exponent_completes_without_linear_loop() {
     let start = Instant::now();
-    let result = eval_power(2,  1_000_000_000);
+    let result = eval_power(2, 1_000_000_000);
     let elapsed = start.elapsed();
     assert!(
         elapsed < Duration::from_millis(200),

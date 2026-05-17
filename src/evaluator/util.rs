@@ -1,7 +1,7 @@
 #![allow(clippy::missing_docs_in_private_items)]
 use intl_pluralrules::{PluralCategory, PluralRuleType, PluralRules};
 use rust_decimal::Decimal;
-use unic_langid::{langid, LanguageIdentifier};
+use unic_langid::{LanguageIdentifier, langid};
 
 use crate::ast::*;
 

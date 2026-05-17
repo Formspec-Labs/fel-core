@@ -64,7 +64,6 @@ impl DateFormatPattern {
             _ => None,
         }
     }
-
 }
 
 impl<'a> Evaluator<'a> {
@@ -110,7 +109,10 @@ impl<'a> Evaluator<'a> {
         self.make_string(format_date_locale(&date, pattern, locale.as_deref()))
     }
 
-    fn parse_format_date_pattern_locale(&mut self, args: &[Expr]) -> (DateFormatPattern, Option<String>) {
+    fn parse_format_date_pattern_locale(
+        &mut self,
+        args: &[Expr],
+    ) -> (DateFormatPattern, Option<String>) {
         let mut pattern = DateFormatPattern::Medium;
         let mut locale = self.env.locale().map(|s| s.to_string());
 
