@@ -23,6 +23,21 @@ Six **code-scout** passes over `fel-core/` on HEAD. Findings are ticketed under 
 
 **Post-review (formspec-scout):** `CallArgCache` keeps `args_ptr` identity (not arity-only); `fn_format` stays two-phase (`{n}` then `%s`) for correct semantics; trace tests cover `contains` + nested `formatNumber`. `pick_key` snake_case aliases are covered in `context_json` unit tests (`builds_env_from_snake_case_context_keys`). H-006 index guards have `test_index_zero_*` / `test_index_out_of_bounds_*` in `evaluator_tests.rs`.
 
+## Scout validation (2026-05-17)
+
+Four parallel **formspec-scout** passes on the closed P4 batch → **PASS WITH NOTES** (no reopen list).
+
+| Area | Result |
+|------|--------|
+| Evaluator / trace / builtins | DONE — 93 targeted tests green |
+| Catalog / deny / gitignore | DONE — 74 builtins, `cargo deny` licenses OK |
+| Lexer / parser / docs / scripts | PASS — `sumWhere` / array literals intact |
+| `tk` vs code | 28/29 P4 closed; only `fs-hd03` (L-017) correctly open |
+
+**Waived closes (documented in `tk` notes, not reopened):** `fs-991y` (pointer `CallArgCache`, not index-only); `fs-tzxb` (two-phase `format`, not single-pass).
+
+**Nit closure (commits `98a2820`, `44f1cb3`):** `eval_budget_with_extensions`; index 0/OOB tests; `[[test]] fel_proptest` + `proptest-strategies`; `FORMSPEC_ROOT` in Makefile help + `conformance/README.md`.
+
 ## Still open (not in Priority 4 batch)
 
 | Ref | Ticket | Blocker |

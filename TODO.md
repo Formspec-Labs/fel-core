@@ -39,7 +39,17 @@ markers:
 
 ## Code smell audit (2026-05-17)
 
-Epic **`fs-aui0`** — validated findings in [`code-smell-audit.md`](code-smell-audit.md). Priority 4 chores (DOC-001, H-006, L-001–L-016, L-018–L-025, M-013, M-014) are **closed** in `tk` (28 tickets). **Still open:** L-017 (`fs-hd03`, blocked on `fs-w2ao`). High/medium refactors (H-001–H-005, etc.) remain on the epic.
+Epic **`fs-aui0`** — validated findings in [`code-smell-audit.md`](code-smell-audit.md).
+
+| Slice | `tk` status |
+|-------|-------------|
+| Priority 4 (28 tickets) | **Closed** — DOC-001, H-006, L-001–L-016, L-018–L-025, M-013, M-014 |
+| Priority 4 remaining | **Open** — L-017 only (`fs-hd03`, blocked on `fs-w2ao`) |
+| Epic total (55 children) | **38 closed / 17 open** (H/M refactors) |
+
+**Scout validation (2026-05-17):** four `formspec-scout` passes — **PASS WITH NOTES**. No false closes; `fs-991y` / `fs-tzxb` closed with documented AC waivers (pointer cache, two-phase `format`).
+
+**Nit follow-up (same day, on `main`):** `eval_budget_with_extensions` in all `budget_tests`; H-006 index diagnostic tests; `fel_proptest` gated behind `proptest-strategies`; `FORMSPEC_ROOT` documented for `seed-fuzz`. Commits `98a2820`, `44f1cb3`.
 
 Internal-ratification artifacts:
 
