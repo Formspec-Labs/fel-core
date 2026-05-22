@@ -1,7 +1,7 @@
 ---
 title: FEL Host-Supplied Context Bindings Protocol
 date: 2026-05-22
-status: active
+status: completed
 owner: spec-author
 related:
   - ../../../formspec/thoughts/plans/2026-05-22-response-actions-spec.md
