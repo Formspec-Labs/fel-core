@@ -59,12 +59,19 @@ fn write_expr(buf: &mut String, expr: &Expr, needs_parens: bool) {
             buf.push_str(name);
             write_path_segments(buf, path);
         }
-        Expr::ContextRef { name, arg, tail } => {
+        Expr::ContextRef {
+            name,
+            called,
+            arg,
+            tail,
+        } => {
             buf.push('@');
             buf.push_str(name);
-            if let Some(a) = arg {
+            if *called {
                 buf.push('(');
-                write_string_literal(buf, a);
+                if let Some(a) = arg {
+                    write_string_literal(buf, a);
+                }
                 buf.push(')');
             }
             for t in tail {

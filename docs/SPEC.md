@@ -80,6 +80,7 @@ Key structural points:
 - `!` is a parse-time synonym for `not` (except `!in` is rejected; use `not in`).
 - Chained equality/comparisons (`a == b == c`, `0 < x < 10`) are **parse errors** — use explicit `and`.
 - `$` field references, `@` context references, `let` bindings, `if...then...else` (keyword form), `if(...)` (function form), and ternary `? :` are all first-class AST nodes.
+- Host-supplied `@name` context bindings are governed by FEL Grammar §6.3. A catalog-aware evaluator rejects unregistered non-reserved `@name` references as evaluation errors; evaluations without an active catalog may retain implementation-defined environment context behavior.
 - String literals support single-quote and double-quote delimiters, `\n`, `\t`, `\r`, `\\`, `\"`, `\'`, and `\uXXXX` Unicode escapes.
 - Line comments (`//`) and block comments (`/* */`) are supported.
 - Reserved words: `true`, `false`, `null`, `let`, `in`, `if`, `then`, `else`, `and`, `or`, `not`.

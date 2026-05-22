@@ -328,12 +328,12 @@ expressions — they appear as atoms in the expression grammar.
 ```peg
 FieldRef       ← '$' Identifier PathTail*
                / '$'
-               / ContextRef
+               / ContextRef PathTail*
 
 PathTail       ← '.' Identifier
                / '[' _ ( Integer / '*' ) _ ']'
 
-ContextRef     ← '@' Identifier ('(' _ StringLiteral _ ')')? ('.' Identifier)*
+ContextRef     ← '@' Identifier ('(' _ StringLiteral? _ ')')?
 ```
 
 ### 6.1 Reference Forms
@@ -350,7 +350,7 @@ ContextRef     ← '@' Identifier ('(' _ StringLiteral _ ')')? ('.' Identifier)*
 | `@current` | Explicit reference to the current repeat instance. | `@current.amount` |
 | `@index` | 1-based position of current repeat instance. | `@index = 1` |
 | `@count` | Total instances in current repeat collection. | `@count >= 1` |
-| `@name`             | Value of named variable declared in `variables` |
+| `@name` | Context identifier; host-supplied catalogs are governed by §6.3. | `@response.applicantName` |
 | `@instance('n')` | Secondary data-source instance. | `@instance('prior').income` |
 | `@source` | Source binding in mapping DSL. | `@source.fieldA` |
 | `@target` | Target binding in mapping DSL. | `@target.fieldB` |
@@ -367,6 +367,126 @@ ContextRef     ← '@' Identifier ('(' _ StringLiteral _ ')')? ('.' Identifier)*
 4. **Chaining:** Dot-segments after an indexed or wildcard subscript continue
    path resolution into the selected object(s). Multiple subscripts may be
    chained: `$a[1].nested[*].value` is valid.
+5. **Context postfix access:** `PathTail` applies after `ContextRef`, so
+   `@response.items[1].amount` and `@effects[*].outcomeRef` use the same
+   postfix traversal rules as `$` field references.
+
+### 6.3 Host-Supplied Context Bindings
+
+FEL is host-agnostic: the same grammar embeds in Formspec Definitions, Mapping
+documents, Response Actions documents, Experience documents, and other future
+host specifications. Each host MAY require additional context that the FEL
+grammar reserves a slot for but does NOT itself enumerate. Such context flows
+through the `ContextRef` production (§6) using `@name` syntax. This section
+specifies the protocol a host spec MUST follow when declaring such bindings,
+and what a conformant catalog-aware FEL evaluator MUST do at evaluation time.
+
+#### 6.3.1 Declaration shape
+
+A host specification declaring host-supplied context bindings MUST publish a
+binding catalog: a closed list of identifiers, each entry carrying:
+
+| Field | Required | Description |
+|---|---|---|
+| `name` | Yes | The identifier following `@`. MUST satisfy the `Identifier` lexical rule (§3.2). MUST NOT collide with grammar-reserved context names (`current`, `index`, `count`, `instance`). |
+| `kind` | Yes | One of `value`, `object`, `function`. Determines path access semantics (§6.3.2). |
+| `type` | Yes | Informative human-readable type contract (for example, "object with fields `id`, `attempt`", "datetime", or "function() -> datetime"). FEL evaluators do not normatively type-check this field. |
+| `purity` | Yes | One of `pure` (deterministic over the bound value) or `impure` (evaluation MAY produce a different value across invocations, for example a clock read). |
+| `evaluationTiming` | Yes | One of `eager` (resolved once before expression evaluation begins) or `lazy` (resolved on demand at the access site). |
+| `scope` | Yes | One of `expression` (bound for the entire expression) or `subexpression` (bound only within a specific scope; reserved for future use). |
+
+Host specs MUST publish the catalog in normative prose adjacent to wherever the
+FEL expression is declared. The catalog MUST be closed: a catalog-aware FEL
+evaluator MUST reject any `@name` whose `name` is not registered and is not a
+grammar-reserved context name.
+
+#### 6.3.2 Evaluator obligations
+
+A conformant FEL evaluator that supports host-supplied bindings:
+
+1. **MUST** accept a host-supplied binding catalog at the start of evaluation.
+   The crate-level API for accepting the catalog is implementation-defined; the
+   conformance requirement is observable behavior, not API shape.
+2. **MUST** reject a `@name` reference whose `name` is not in the active catalog
+   AND is not a grammar-reserved context name (§6.1). Rejection is an evaluation
+   error, not a parse error.
+3. **MUST** resolve `@name` references according to the catalog entry's `kind`:
+   - `value`: `@name` returns the bound scalar. `@name.suffix` is an evaluation
+     error.
+   - `object`: `@name` returns the root bound object. The evaluator, not the
+     catalog, traverses dot-segments per §6.2 path-resolution rules.
+   - `function`: `@name(...)` invokes the bound function. Bare `@name` is an
+     evaluation error. The existing grammar permits a context call with no
+     arguments or a single string literal argument.
+4. **MUST** pass function-call string arguments to the host binding resolver
+   when the implementation exposes such an API. A function binding that does
+   not accept the supplied argument MUST reject the access as an evaluation
+   error.
+5. **MUST** isolate catalogs across evaluator instances. A catalog supplied to
+   one evaluation MUST NOT leak into another evaluation that did not receive it.
+
+Evaluations that do not opt into a host-supplied catalog MAY retain
+implementation-defined environment context behavior for backwards
+compatibility. Once a host catalog is active, unregistered non-reserved names
+MUST be rejected.
+
+The host adapter or catalog implementation, not the grammar, is responsible for
+honoring `evaluationTiming`: `eager` bindings are materialized once for the
+evaluation, while `lazy` bindings are resolved on demand. A reference evaluator
+MAY receive already-materialized roots as long as observable behavior satisfies
+the host spec's declared timing.
+
+#### 6.3.3 Examples (non-normative)
+
+A Response Actions document can declare:
+
+| name | kind | type | purity | evaluationTiming | scope |
+|---|---|---|---|---|---|
+| `response` | object | Current Response snapshot | pure | eager | expression |
+| `definition` | object | Pinned Definition | pure | eager | expression |
+| `action` | object | `{ id, intent, actor }` | pure | eager | expression |
+| `now` | function | `() -> datetime` | impure | lazy | expression |
+| `validation` | object | `{ lastReport: ValidationReport \| null }` | pure | eager | expression |
+| `invocation` | object | `{ id: string, attempt: integer }` | pure | eager | expression |
+
+Example expressions: `@response.applicantName != null`, `@now() >
+@response.openedAt`, and `@invocation.attempt = 1`.
+
+Grammar-built-ins are a separate category. The grammar-reserved context names
+(`current`, `index`, `count`, `instance` per §6.1) are NOT host-supplied
+bindings. They are normative parts of the FEL grammar. Host specs MUST NOT
+re-declare grammar-built-ins in their §6.3 catalog.
+
+The Mapping spec owns `@source` / `@target` as Mapping-context bindings. Those
+names are not globally reserved outside Mapping; a catalog-aware non-Mapping
+host that does not register them MUST reject them as unbound.
+
+#### 6.3.4 Relationship to §6.2
+
+Host-supplied object bindings interact with §6.2 path-resolution rules as
+follows:
+
+- §6.2.1 (lexical scope) does NOT apply to host bindings. `@name` is global to
+  the expression; it is not affected by repeatable-group scope.
+- §6.2.2 (index bounds) applies to host bindings whose object structure
+  contains arrays; `@effects[1].outcomeRef` uses one-based FEL indexing.
+- §6.2.3 (instance lookup) is for `@instance('name')`, which is
+  grammar-reserved and not subject to §6.3 registration.
+- §6.2.4 (chaining) applies: `@response.items[1].amount` is legal when
+  `response` is registered as an `object`-kind binding and the path traverses
+  validly.
+
+#### 6.3.5 Conformance hook
+
+A host spec adopting §6.3 MUST publish:
+
+1. The closed catalog (§6.3.1 fields populated).
+2. The relationship between the host's evaluation moments and each binding's
+   `evaluationTiming`.
+3. Negative conformance fixtures asserting unbound `@name` references are
+   rejected.
+
+These three items are the §6.3 acceptance bar for a host adopter.
 
 ## 7. Conformance
 

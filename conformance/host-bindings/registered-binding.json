@@ -1,0 +1,17 @@
+{
+  "name": "registered-binding",
+  "description": "FEL evaluator resolves @response when a host catalog registers response as an object binding.",
+  "expression": "@response.applicantName",
+  "catalog": {
+    "response": {
+      "kind": "object",
+      "value": {
+        "applicantName": "Alice"
+      }
+    }
+  },
+  "expected": {
+    "value": "Alice",
+    "diagnostics": []
+  }
+}

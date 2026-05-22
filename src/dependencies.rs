@@ -76,7 +76,12 @@ fn walk(expr: &Expr, deps: &mut Dependencies, let_vars: &mut Vec<String>) {
             }
         }
 
-        Expr::ContextRef { name, arg, tail } => {
+        Expr::ContextRef {
+            name,
+            called,
+            arg,
+            tail,
+        } => {
             if name == "instance"
                 && let Some(instance_name) = arg
             {
@@ -87,10 +92,14 @@ fn walk(expr: &Expr, deps: &mut Dependencies, let_vars: &mut Vec<String>) {
             );
             ref_str.push('@');
             ref_str.push_str(name);
-            if let Some(a) = arg {
-                ref_str.push_str("('");
-                ref_str.push_str(a);
-                ref_str.push_str("')");
+            if *called {
+                if let Some(a) = arg {
+                    ref_str.push_str("('");
+                    ref_str.push_str(a);
+                    ref_str.push_str("')");
+                } else {
+                    ref_str.push_str("()");
+                }
             }
             for t in tail {
                 ref_str.push('.');

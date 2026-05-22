@@ -17,6 +17,7 @@ const JSON_SAFE_INTEGER_MAX: i64 = 9_007_199_254_740_991;
 /// Smallest integer that JavaScript can represent exactly in a `number`.
 const JSON_SAFE_INTEGER_MIN: i64 = -9_007_199_254_740_991;
 
+/// Returns true when `i` fits exactly in a JavaScript `number`.
 fn is_json_safe_integer(i: i64) -> bool {
     (JSON_SAFE_INTEGER_MIN..=JSON_SAFE_INTEGER_MAX).contains(&i)
 }

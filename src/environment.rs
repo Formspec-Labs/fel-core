@@ -62,8 +62,8 @@ impl Default for MipState {
 /// - Named instances via `@instance('name')`
 /// - Repeat context via `@current`, `@index`, `@count`
 /// - MIP state queries via `valid()`, `relevant()`, etc.
-/// - Definition variables via `@variableName`
-/// - Mapping context via `@source`, `@target`
+/// - Environment variables via `@variableName` when no host catalog is active
+/// - Mapping-style context via host-specific `Environment` implementations
 /// - Locale via `locale()` and `pluralCategory()`
 /// - Runtime metadata via `runtimeMeta(key)`
 pub struct FormspecEnvironment {
@@ -73,7 +73,7 @@ pub struct FormspecEnvironment {
     pub instances: HashMap<String, TypeValue>,
     /// MIP states per dotted field path.
     pub mip_states: HashMap<String, MipState>,
-    /// Definition variables — backs `@variableName`.
+    /// Environment variables — backs `@variableName` when no host catalog is active.
     pub variables: HashMap<String, TypeValue>,
     /// Current repeat context (if inside a repeat iteration).
     pub repeat_context: Option<RepeatContext>,

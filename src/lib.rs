@@ -49,8 +49,9 @@ pub use error::{
     undefined_function_names_from_diagnostics,
 };
 pub use evaluator::{
-    BudgetExceededKind, Environment, EvalBudget, EvalResult, Evaluator, EvaluatorOptions,
-    MapEnvironment, eval_with_fields, evaluate, evaluate_with,
+    BudgetExceededKind, ContextBinding, ContextBindingCatalog, ContextBindingKind, EmptyCatalog,
+    Environment, EvalBudget, EvalResult, Evaluator, EvaluatorOptions, MapEnvironment,
+    UNBOUND_CONTEXT_REF_CODE, eval_with_fields, evaluate, evaluate_with, evaluate_with_catalog,
 };
 pub use extensions::{
     ExtensionCallOutcome, ExtensionError, ExtensionFn, ExtensionFunc, ExtensionRegistry, Package,

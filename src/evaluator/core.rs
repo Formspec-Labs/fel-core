@@ -19,6 +19,9 @@ use super::util::{binary_op_symbol, dec, is_eager_traceable_function, render_fie
 /// that use ~48-term chains; far below LibFuzzer inputs that nested thousands of operators).
 const MAX_EVAL_DEPTH: usize = 128;
 
+/// Diagnostic code for unregistered host context references.
+pub const UNBOUND_CONTEXT_REF_CODE: &str = "FEL-UNBOUND-CONTEXT";
+
 // ── Evaluation context ──────────────────────────────────────────
 
 /// Resolves `$` field paths, `@` context, MIP queries, repeat navigation, and clock for FEL builtins.
@@ -72,6 +75,81 @@ pub trait Environment {
     /// Runtime metadata value for `runtimeMeta(key)` — default null.
     fn runtime_meta(&self, _key: &str) -> Value {
         Value::Null
+    }
+}
+
+/// Classifies a host context binding root.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ContextBindingKind {
+    /// Scalar or otherwise indivisible value; dot traversal is rejected.
+    Value,
+    /// Object-like root; the evaluator owns dot-segment traversal.
+    Object,
+    /// Callable context binding; the catalog materializes its return value.
+    Function,
+}
+
+/// Materialized host context binding returned by a catalog.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ContextBinding {
+    /// Binding kind declared by the host catalog.
+    pub kind: ContextBindingKind,
+    /// Root FEL value supplied by the host catalog.
+    pub value: Value,
+}
+
+impl ContextBinding {
+    /// Creates a value-kind host binding.
+    pub fn value(value: Value) -> Self {
+        Self {
+            kind: ContextBindingKind::Value,
+            value,
+        }
+    }
+
+    /// Creates an object-kind host binding.
+    pub fn object(value: Value) -> Self {
+        Self {
+            kind: ContextBindingKind::Object,
+            value,
+        }
+    }
+
+    /// Creates a function-kind host binding result.
+    pub fn function(value: Value) -> Self {
+        Self {
+            kind: ContextBindingKind::Function,
+            value,
+        }
+    }
+}
+
+/// Resolves host-supplied `@name` context bindings.
+///
+/// The catalog returns the binding root only. Dot-segment traversal is performed
+/// by the evaluator so every host receives the same path behavior.
+pub trait ContextBindingCatalog {
+    /// Returns the declared kind for `name`, or `None` when unregistered.
+    fn binding_kind(&self, name: &str) -> Option<ContextBindingKind>;
+
+    /// Resolves the binding root for `name`.
+    ///
+    /// Function bindings receive the optional string literal from `@name('arg')`.
+    /// Value and object bindings receive `None`.
+    fn resolve(&self, name: &str, arg: Option<&str>) -> Option<Value>;
+}
+
+/// No-op host context binding catalog.
+#[derive(Default, Debug, Clone, Copy)]
+pub struct EmptyCatalog;
+
+impl ContextBindingCatalog for EmptyCatalog {
+    fn binding_kind(&self, _name: &str) -> Option<ContextBindingKind> {
+        None
+    }
+
+    fn resolve(&self, _name: &str, _arg: Option<&str>) -> Option<Value> {
+        None
     }
 }
 
@@ -188,6 +266,7 @@ pub struct EvalResult {
 pub struct Evaluator<'a> {
     pub(super) env: &'a dyn Environment,
     pub(super) extensions: Option<&'a ExtensionRegistry>,
+    pub(super) context_bindings: Option<&'a dyn ContextBindingCatalog>,
     pub(super) diagnostics: Vec<Diagnostic>,
     pub(super) let_scopes: Vec<HashMap<String, Value>>,
     /// Optional evaluation trace. `None` on the hot path, `Some` when the
@@ -239,22 +318,72 @@ impl Default for EvaluatorOptions<'_> {
     }
 }
 
+fn is_grammar_reserved_context(name: &str) -> bool {
+    matches!(name, "current" | "index" | "count" | "instance")
+}
+
+fn context_tail_path(tail: &[String]) -> Vec<PathSegment> {
+    tail.iter().cloned().map(PathSegment::Dot).collect()
+}
+
+fn split_context_env_path(path: &[PathSegment]) -> (Vec<String>, &[PathSegment]) {
+    for (index, segment) in path.iter().enumerate() {
+        if !matches!(segment, PathSegment::Dot(_)) {
+            let prefix = path[..index]
+                .iter()
+                .filter_map(|segment| match segment {
+                    PathSegment::Dot(name) => Some(name.clone()),
+                    _ => None,
+                })
+                .collect();
+            return (prefix, &path[index..]);
+        }
+    }
+    let prefix = path
+        .iter()
+        .filter_map(|segment| match segment {
+            PathSegment::Dot(name) => Some(name.clone()),
+            _ => None,
+        })
+        .collect();
+    (prefix, &[])
+}
+
 /// Evaluate an expression against an environment (no budget, no trace, no extensions).
 pub fn evaluate(expr: &Expr, env: &dyn Environment) -> EvalResult {
     evaluate_with(expr, env, EvaluatorOptions::default())
 }
 
 /// Evaluate with full configuration via [`EvaluatorOptions`].
-pub fn evaluate_with(
+pub fn evaluate_with(expr: &Expr, env: &dyn Environment, options: EvaluatorOptions) -> EvalResult {
+    evaluate_configured(expr, env, options, None)
+}
+
+/// Evaluate with a host-supplied context binding catalog.
+///
+/// This sibling entry point preserves the [`EvaluatorOptions`] struct shape for
+/// existing callers while enabling FEL §6.3 catalog-aware evaluation.
+pub fn evaluate_with_catalog<'a>(
     expr: &Expr,
     env: &dyn Environment,
-    mut options: EvaluatorOptions,
+    options: EvaluatorOptions<'a>,
+    catalog: &'a dyn ContextBindingCatalog,
+) -> EvalResult {
+    evaluate_configured(expr, env, options, Some(catalog))
+}
+
+fn evaluate_configured<'a>(
+    expr: &Expr,
+    env: &dyn Environment,
+    mut options: EvaluatorOptions<'a>,
+    context_bindings: Option<&'a dyn ContextBindingCatalog>,
 ) -> EvalResult {
     let caller_trace = options.trace.take();
     let wants_trace = caller_trace.is_some();
     let mut evaluator = Evaluator {
         env,
         extensions: options.extensions,
+        context_bindings,
         diagnostics: Vec::new(),
         let_scopes: Vec::new(),
         trace: if wants_trace {
@@ -430,6 +559,109 @@ impl<'a> Evaluator<'a> {
             t.push(step);
         }
     }
+
+    fn eval_context_ref(
+        &mut self,
+        name: &str,
+        called: bool,
+        arg: Option<&str>,
+        tail: &[String],
+    ) -> Value {
+        let path = context_tail_path(tail);
+        self.eval_context_ref_path(name, called, arg, &path)
+    }
+
+    fn eval_context_ref_path(
+        &mut self,
+        name: &str,
+        called: bool,
+        arg: Option<&str>,
+        path: &[PathSegment],
+    ) -> Value {
+        if is_grammar_reserved_context(name) || self.context_bindings.is_none() {
+            let (env_tail, remaining_path) = split_context_env_path(path);
+            let base = self.env.resolve_context(name, arg, &env_tail);
+            return if remaining_path.is_empty() {
+                base
+            } else {
+                self.access_path(base, remaining_path)
+            };
+        }
+
+        let Some(catalog) = self.context_bindings else {
+            let (env_tail, remaining_path) = split_context_env_path(path);
+            let base = self.env.resolve_context(name, arg, &env_tail);
+            return if remaining_path.is_empty() {
+                base
+            } else {
+                self.access_path(base, remaining_path)
+            };
+        };
+        let Some(kind) = catalog.binding_kind(name) else {
+            self.diag_coded(
+                UNBOUND_CONTEXT_REF_CODE,
+                format!("unbound context reference: @{name}"),
+            );
+            return Value::Null;
+        };
+
+        match kind {
+            ContextBindingKind::Value => {
+                if called {
+                    self.diag_coded(
+                        "FEL-CONTEXT-BINDING-NOT-CALLABLE",
+                        format!("context binding @{name} is not callable"),
+                    );
+                    return Value::Null;
+                }
+                if !path.is_empty() {
+                    self.diag_coded(
+                        "FEL-CONTEXT-BINDING-PATH",
+                        format!("context binding @{name} does not support postfix traversal"),
+                    );
+                    return Value::Null;
+                }
+                self.resolve_context_binding_value(catalog, name, None, path)
+            }
+            ContextBindingKind::Object => {
+                if called {
+                    self.diag_coded(
+                        "FEL-CONTEXT-BINDING-NOT-CALLABLE",
+                        format!("context binding @{name} is not callable"),
+                    );
+                    return Value::Null;
+                }
+                self.resolve_context_binding_value(catalog, name, None, path)
+            }
+            ContextBindingKind::Function => {
+                if !called {
+                    self.diag_coded(
+                        "FEL-CONTEXT-BINDING-CALL-REQUIRED",
+                        format!("context binding @{name} must be called"),
+                    );
+                    return Value::Null;
+                }
+                self.resolve_context_binding_value(catalog, name, arg, path)
+            }
+        }
+    }
+
+    fn resolve_context_binding_value(
+        &mut self,
+        catalog: &dyn ContextBindingCatalog,
+        name: &str,
+        arg: Option<&str>,
+        path: &[PathSegment],
+    ) -> Value {
+        let Some(value) = catalog.resolve(name, arg) else {
+            self.diag_coded(
+                UNBOUND_CONTEXT_REF_CODE,
+                format!("unbound context reference: @{name}"),
+            );
+            return Value::Null;
+        };
+        self.access_path(value, path)
+    }
 }
 
 impl<'a> Evaluator<'a> {
@@ -500,9 +732,12 @@ impl<'a> Evaluator<'a> {
                 }
                 value
             }
-            Expr::ContextRef { name, arg, tail } => {
-                self.env.resolve_context(name, arg.as_deref(), tail)
-            }
+            Expr::ContextRef {
+                name,
+                called,
+                arg,
+                tail,
+            } => self.eval_context_ref(name, *called, arg.as_deref(), tail),
             Expr::UnaryOp { op, operand, .. } => {
                 let val = self.eval(operand);
                 self.eval_unary(*op, val)
@@ -596,6 +831,22 @@ impl<'a> Evaluator<'a> {
                     let mut combined = Vec::with_capacity(inner_path.len() + path.len());
                     combined.extend(inner_path.iter().cloned());
                     combined.extend(path.iter().cloned());
+                    if let Expr::ContextRef {
+                        name,
+                        called,
+                        arg,
+                        tail,
+                    } = inner.as_ref()
+                    {
+                        let mut context_path = context_tail_path(tail);
+                        context_path.extend(combined);
+                        return self.eval_context_ref_path(
+                            name,
+                            *called,
+                            arg.as_deref(),
+                            &context_path,
+                        );
+                    }
                     let base = self.eval(inner);
                     return self.access_path(base, &combined);
                 }
@@ -651,6 +902,22 @@ impl<'a> Evaluator<'a> {
                             return self.env.resolve_field(&segments);
                         }
                     }
+                }
+                if let Expr::ContextRef {
+                    name,
+                    called,
+                    arg,
+                    tail,
+                } = expr.as_ref()
+                {
+                    let mut context_path = context_tail_path(tail);
+                    context_path.extend(path.iter().cloned());
+                    return self.eval_context_ref_path(
+                        name,
+                        *called,
+                        arg.as_deref(),
+                        &context_path,
+                    );
                 }
                 let base = self.eval(expr);
                 self.access_path(base, path)

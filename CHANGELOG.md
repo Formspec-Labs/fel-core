@@ -9,6 +9,7 @@ conformance corpus.
 ## [Unreleased]
 
 ### Added
+- **Host Context Bindings**: Added FEL grammar §6.3 for closed host-supplied `@name` catalogs, plus `ContextBindingCatalog`, `ContextBinding`, `EmptyCatalog`, and `evaluate_with_catalog`.
 - **OSS Readiness**: Finalized public project governance files (LICENSE, SECURITY.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md).
 - **Documentation Tooling**: Integrated `cargo-doc-md` to produce the single-file `docs/rustdoc-md/API.md` mirror.
 

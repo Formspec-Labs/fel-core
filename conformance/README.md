@@ -25,6 +25,13 @@ JSONL — one test case per line. Each line is a JSON object:
 Every fixture uses this public schema. Stale development-only fixture shapes such
 as `{ "source": ..., "value": ... }` are not ratification artifacts.
 
+### Host-supplied bindings (§6.3)
+
+`conformance/host-bindings/` contains fixtures for the host-context binding
+protocol in `specs/fel/fel-grammar.md` §6.3. These fixtures are catalog-aware
+and are exercised by `tests/host_bindings.rs`; they are not part of the public
+`fel-conformance.jsonl` corpus until that corpus grows a catalog field.
+
 `expectedValue` uses public/result JSON, not the typed wire encoding. FEL
 numbers are decimal values: JSON numbers appear only when the canonical encoder
 can emit stable JSON number text and safe whole integers; otherwise expected

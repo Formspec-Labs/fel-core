@@ -1,0 +1,14 @@
+{
+  "name": "unbound-context-ref",
+  "description": "FEL evaluator rejects @unbound when no host catalog registers unbound.",
+  "expression": "@unbound",
+  "catalog": {},
+  "expected": {
+    "value": null,
+    "diagnostics": [
+      {
+        "code": "FEL-UNBOUND-CONTEXT"
+      }
+    ]
+  }
+}

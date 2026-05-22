@@ -76,7 +76,7 @@ Uses `rust_decimal` for base-10 arithmetic per spec S3.4.1 (minimum 18 significa
 
 ### [`evaluator::core`](evaluator/core.md)
 
-*1 trait, 2 functions, 4 structs*
+*1 constant, 1 enum, 2 traits, 3 functions, 6 structs*
 
 ### [`extensions::catalog`](extensions/catalog.md)
 
@@ -84,7 +84,7 @@ Uses `rust_decimal` for base-10 arithmetic per spec S3.4.1 (minimum 18 significa
 
 ### [`extensions::registry`](extensions/registry.md)
 
-*1 enum, 1 struct*
+*1 struct, 2 enums*
 
 ### [`extensions::schema`](extensions/schema.md)
 
@@ -161,12 +161,16 @@ Uses `rust_decimal` for base-10 arithmetic per spec S3.4.1 (minimum 18 significa
 
 FEL abstract syntax tree node definitions and operators.
 
+
+
 ## Module: convert
 
 Canonical conversion between serde_json::Value and TypeValue.
 
 These are the single source of truth for JSON↔FEL value conversion.
 All crates should use these instead of rolling their own.
+
+
 
 ## Module: dependencies
 
@@ -177,6 +181,8 @@ context references, MIP dependencies, and structural flags.
 
 The `walk` helper and related functions recurse the AST to populate [`Dependencies`].
 
+
+
 ## Module: environment
 
 FEL evaluation environment with field resolution, repeats, MIP state, and instances.
@@ -186,9 +192,13 @@ nested data dicts, repeat context, MIP states, named instances, and variables.
 
 Helpers such as `project_repeat_field` resolve repeat-group keys into projected field values.
 
+
+
 ## Module: error
 
 FEL error types and diagnostic messages.
+
+
 
 ## Module: evaluator
 
@@ -198,6 +208,8 @@ Non-fatal errors produce a Diagnostic + FelNull (never panic).
 Null propagation follows spec §3: most ops propagate, equality does NOT.
 
 The [`Evaluator`] owns `let` scopes and builtins; private `eval` / `fn_*` methods implement the tree walk.
+
+
 
 ## Module: extensions
 
@@ -224,11 +236,15 @@ authors. Neither layer alone would be sufficient: without the evaluator
 guard, a bug in the registry could allow shadowing; without the registry
 guard, extensions would silently be ignored instead of rejected.
 
+
+
 ## Module: lexer
 
 FEL hand-rolled lexer — tokenization with spans and decimal numbers.
 
 Internal scanning uses a char buffer and cursor; [`Lexer::tokenize`] is the public entry point.
+
+
 
 ## Module: parser
 
@@ -239,11 +255,18 @@ explicit conjunction (e.g. `0 <= $x and $x <= 10`).
 
 Private `parse_*` / `current` / `advance` implement the precedence ladder listed below.
 
+`peek().clone()` clones token payloads when inspecting or taking ownership; unavoidable
+for heap-backed tokens until the lexer borrows source text directly.
+
+
+
 ## Module: prepare_host
 
 FEL source normalization before host evaluation (parity with TS `normalizeExpressionForWasmEvaluation`).
 
 Rewrites bare `$`, qualified repeat group refs (`$group.field`), and repeat row aliases into wildcard paths.
+
+
 
 ## Module: printer
 
@@ -253,6 +276,8 @@ Used by the assembler to rewrite FEL expressions after AST transformations
 (e.g., field path prefixing during $ref resolution).
 
 `write_expr` and helpers serialize each [`Expr`] variant; parentheses only when needed.
+
+
 
 ## Module: types
 
@@ -284,7 +309,6 @@ FEL runtime value types with base-10 decimal arithmetic.
 Binary and logical operators (precedence enforced in the parser).
 
 **Variants:**
-
 - `Add` - `+`
 - `Sub` - `-`
 - `Mul` - `*`
@@ -311,6 +335,8 @@ Binary and logical operators (precedence enforced in the parser).
 - **Clone**
   - `fn clone(self: &Self) -> BinaryOp`
 
+
+
 ## fel_core::ast::Expr
 
 *Enum*
@@ -321,7 +347,6 @@ Covers literals, operators, `let`/`if`, function calls, `$` field refs, and `@` 
 Shape follows `specs/fel/fel-grammar.llm.md` in the Formspec repo.
 
 **Variants:**
-
 - `Null`
 - `Boolean(bool)`
 - `Number(rust_decimal::Decimal)`
@@ -332,7 +357,7 @@ Shape follows `specs/fel/fel-grammar.llm.md` in the Formspec repo.
 - `Object(Vec<(String, Expr)>)`
 - `FieldRef{ name: Option<String>, path: Vec<PathSegment> }` - `$` field reference (optional name for bare `$`).
 - `VarRef{ name: String, path: Vec<PathSegment> }` - Bare identifier path (`x`, `x.a`) — no leading `$` in source.
-- `ContextRef{ name: String, arg: Option<String>, tail: Vec<String> }`
+- `ContextRef{ name: String, called: bool, arg: Option<String>, tail: Vec<String> }`
 - `UnaryOp{ op: UnaryOp, operand: Box<Expr>, bang: bool }`
 - `BinaryOp{ op: BinaryOp, left: Box<Expr>, right: Box<Expr> }`
 - `Ternary{ condition: Box<Expr>, then_branch: Box<Expr>, else_branch: Box<Expr> }` - Symbol-form conditional (`cond ? then : else`).
@@ -345,12 +370,14 @@ Shape follows `specs/fel/fel-grammar.llm.md` in the Formspec repo.
 
 **Trait Implementations:**
 
-- **Clone**
-  - `fn clone(self: &Self) -> Expr`
 - **PartialEq**
   - `fn eq(self: &Self, other: &Expr) -> bool`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **Clone**
+  - `fn clone(self: &Self) -> Expr`
+
+
 
 ## fel_core::ast::PathSegment
 
@@ -359,7 +386,6 @@ Shape follows `specs/fel/fel-grammar.llm.md` in the Formspec repo.
 A path segment for field references and postfix access (`$a.b`, `$a[1]`, `$a[*]`).
 
 **Variants:**
-
 - `Dot(String)` - Property after a dot (identifier name).
 - `Index(usize)` - Numeric index inside `[` `]`.
 - `Wildcard` - Repeat wildcard `[*]`.
@@ -373,6 +399,8 @@ A path segment for field references and postfix access (`$a.b`, `$a[1]`, `$a[*]`
 - **Clone**
   - `fn clone(self: &Self) -> PathSegment`
 
+
+
 ## fel_core::ast::UnaryOp
 
 *Enum*
@@ -380,7 +408,6 @@ A path segment for field references and postfix access (`$a.b`, `$a[1]`, `$a[*]`
 Unary operators (`not`, unary `-`).
 
 **Variants:**
-
 - `Not` - Logical not.
 - `Neg` - Arithmetic negation.
 
@@ -455,6 +482,8 @@ Backward-compatible alias for UI-friendly encoding (`fel_to_ui_json`).
 fn fel_to_json(val: &crate::types::Value) -> serde_json::Value
 ```
 
+
+
 ## fel_core::convert::fel_to_ui_json
 
 *Function*
@@ -469,6 +498,8 @@ serialized JSON number text round-trips exactly to the same Decimal.
 fn fel_to_ui_json(val: &crate::types::Value) -> serde_json::Value
 ```
 
+
+
 ## fel_core::convert::fel_to_wire_json
 
 *Function*
@@ -476,7 +507,6 @@ fn fel_to_ui_json(val: &crate::types::Value) -> serde_json::Value
 Convert a `TypeValue` to a `serde_json::Value`.
 
 Conversion rules:
-
 - `Null` → `Value::Null`
 - `Boolean(b)` → `Value::Bool(b)`
 - `Number(n)` → `{"$type": "number", "value": <number|string>}`. The `value`
@@ -492,6 +522,8 @@ Conversion rules:
 fn fel_to_wire_json(val: &crate::types::Value) -> serde_json::Value
 ```
 
+
+
 ## fel_core::convert::field_map_from_json_str
 
 *Function*
@@ -501,6 +533,8 @@ Parse a JSON object string into a field map (empty or `"{}"` → empty map).
 ```rust
 fn field_map_from_json_str(fields_json: &str) -> Result<std::collections::HashMap<String, crate::types::Value>, String>
 ```
+
+
 
 ## fel_core::convert::json_object_to_field_map
 
@@ -512,6 +546,8 @@ JSON object → flat field map for FEL `MapEnvironment` (`{}` / empty → empty 
 fn json_object_to_field_map(val: &serde_json::Value) -> std::collections::HashMap<String, crate::types::Value>
 ```
 
+
+
 ## fel_core::convert::json_to_fel
 
 *Function*
@@ -519,7 +555,6 @@ fn json_object_to_field_map(val: &serde_json::Value) -> std::collections::HashMa
 Convert a `serde_json::Value` to a `TypeValue`.
 
 Conversion rules:
-
 - `Null` → `TypeValue::Null`
 - `Bool(b)` → `TypeValue::Boolean(b)`
 - `Number(n)` → `TypeValue::Number` (tries i64, then u64, then f64)
@@ -568,7 +603,6 @@ fn json_to_fel(val: &serde_json::Value) -> crate::types::Value
 Dependencies extracted from a FEL expression.
 
 **Fields:**
-
 - `fields: std::collections::HashSet<String>` - Field paths referenced (e.g., `["firstName", "address.city"]`).
 - `context_refs: std::collections::HashSet<String>` - Context references (e.g., `["@current", "@index"]`).
 - `instance_refs: std::collections::HashSet<String>` - Instance references from `@instance('name')`.
@@ -579,12 +613,14 @@ Dependencies extracted from a FEL expression.
 
 **Trait Implementations:**
 
-- **Clone**
-  - `fn clone(self: &Self) -> Dependencies`
 - **Default**
   - `fn default() -> Dependencies`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **Clone**
+  - `fn clone(self: &Self) -> Dependencies`
+
+
 
 ## fel_core::dependencies::dependencies_to_json_value
 
@@ -596,6 +632,8 @@ Serialize [`Dependencies`] for WASM / JSON FFI (camelCase keys).
 fn dependencies_to_json_value(deps: &Dependencies) -> serde_json::Value
 ```
 
+
+
 ## fel_core::dependencies::dependencies_to_json_value_styled
 
 *Function*
@@ -606,6 +644,8 @@ Serialize [`Dependencies`] with explicit host key style.
 fn dependencies_to_json_value_styled(deps: &Dependencies, style: crate::wire_style::JsonWireStyle) -> serde_json::Value
 ```
 
+
+
 ## fel_core::dependencies::extract_dependencies
 
 *Function*
@@ -613,7 +653,7 @@ fn dependencies_to_json_value_styled(deps: &Dependencies, style: crate::wire_sty
 Extract dependencies from an AST expression.
 
 ```rust
-fn extract_dependencies(expr: &Expr) -> Dependencies
+fn extract_dependencies(expr: &crate::ast::Expr) -> Dependencies
 ```
 
 ---
@@ -641,25 +681,23 @@ fn extract_dependencies(expr: &Expr) -> Dependencies
 A full-featured environment for FEL evaluation within a Formspec engine.
 
 Supports:
-
 - Field resolution via `$field.path` (walks nested data dict)
 - Named instances via `@instance('name')`
 - Repeat context via `@current`, `@index`, `@count`
 - MIP state queries via `valid()`, `relevant()`, etc.
-- Definition variables via `@variableName`
-- Mapping context via `@source`, `@target`
-- Locale via `locale()`, `pluralCategory()`, `formatNumber()`, and `formatDate()`
+- Environment variables via `@variableName` when no host catalog is active
+- Mapping-style context via host-specific `Environment` implementations
+- Locale via `locale()` and `pluralCategory()`
 - Runtime metadata via `runtimeMeta(key)`
 
 **Fields:**
-
 - `data: std::collections::HashMap<String, crate::types::Value>` - Primary data dict — backs `$field` references.
 - `instances: std::collections::HashMap<String, crate::types::Value>` - Named secondary instances — backs `@instance('name')`.
 - `mip_states: std::collections::HashMap<String, MipState>` - MIP states per dotted field path.
-- `variables: std::collections::HashMap<String, crate::types::Value>` - Definition variables — backs `@variableName`.
+- `variables: std::collections::HashMap<String, crate::types::Value>` - Environment variables — backs `@variableName` when no host catalog is active.
 - `repeat_context: Option<RepeatContext>` - Current repeat context (if inside a repeat iteration).
 - `current_datetime: Option<crate::types::Date>` - Current runtime date for today()/now().
-- `locale: Option<String>` - Active locale code (BCP 47) — backs `locale()`, default for `pluralCategory()`, `formatNumber()`, and `formatDate()`.
+- `locale: Option<String>` - Active locale code (BCP 47) — backs `locale()` and default for `pluralCategory()`.
 - `meta: std::collections::HashMap<String, crate::types::Value>` - Runtime metadata bag — backs `runtimeMeta(key)`.
 
 **Methods:**
@@ -677,8 +715,6 @@ Supports:
 
 **Trait Implementations:**
 
-- **Default**
-  - `fn default() -> Self`
 - **Environment**
   - `fn resolve_field(self: &Self, segments: &[String]) -> TypeValue`
   - `fn resolve_context(self: &Self, name: &str, arg: Option<&str>, tail: &[String]) -> TypeValue`
@@ -693,6 +729,10 @@ Supports:
   - `fn current_datetime(self: &Self) -> Option<TypeDate>`
   - `fn locale(self: &Self) -> Option<&str>`
   - `fn runtime_meta(self: &Self, key: &str) -> TypeValue`
+- **Default**
+  - `fn default() -> Self`
+
+
 
 ## fel_core::environment::MipState
 
@@ -701,7 +741,6 @@ Supports:
 XForms Model Item Properties for a single field path.
 
 **Fields:**
-
 - `valid: bool` - `valid($path)` result when set for this path.
 - `relevant: bool` - `relevant($path)`.
 - `readonly: bool` - `readonly($path)`.
@@ -716,6 +755,8 @@ XForms Model Item Properties for a single field path.
 - **Clone**
   - `fn clone(self: &Self) -> MipState`
 
+
+
 ## fel_core::environment::RepeatContext
 
 *Struct*
@@ -723,7 +764,6 @@ XForms Model Item Properties for a single field path.
 Repeat-group iteration context (§4.3).
 
 **Fields:**
-
 - `current: crate::types::Value` - The current row value.
 - `index: usize` - 1-based index within the repeat group.
 - `count: usize` - Total instance count.
@@ -775,7 +815,6 @@ Repeat-group iteration context (§4.3).
 A non-fatal diagnostic recorded during evaluation.
 
 **Fields:**
-
 - `severity: Severity` - Severity for hosts and JSON wire encoding.
 - `message: String` - Human-readable explanation.
 - `code: Option<String>` - Stable machine-readable code for lint/UI (e.g. `FEL_SUM_REJECTS_MONEY`).
@@ -788,15 +827,18 @@ A non-fatal diagnostic recorded during evaluation.
 - `fn error_coded<impl Into<String>, impl Into<String>>(code: impl Trait, msg: impl Trait) -> Self` - Build an error-severity diagnostic with a stable [`Diagnostic::code`].
 - `fn warning<impl Into<String>>(msg: impl Trait) -> Self` - Build a warning-severity diagnostic.
 - `fn undefined_function<impl Into<String>>(name: impl Trait) -> Self` - Build a structured undefined-function diagnostic.
+- `fn arity_mismatch<impl Into<String>>(name: impl Trait, min_args: usize, max_args: Option<usize>, got: usize) -> Self` - Build a structured arity-mismatch diagnostic (builtin or extension).
 - `fn type_mismatch<impl Into<String>, impl Into<String>, impl Into<String>>(fn_name: impl Trait, expected: impl Trait, got_type: impl Trait) -> Self` - Build a structured type-mismatch diagnostic (same message shape as runtime type errors).
 - `fn with_span(self: Self, span: Range<usize>) -> Self` - Attaches a source span (byte offsets into the FEL source string).
 
 **Trait Implementations:**
 
-- **Clone**
-  - `fn clone(self: &Self) -> Diagnostic`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **Clone**
+  - `fn clone(self: &Self) -> Diagnostic`
+
+
 
 ## fel_core::error::DiagnosticKind
 
@@ -805,9 +847,9 @@ A non-fatal diagnostic recorded during evaluation.
 Machine-readable diagnostic categories.
 
 **Variants:**
-
 - `UndefinedFunction{ name: String }` - Function name could not be resolved in builtins or extension registry.
 - `TypeMismatch{ fn_name: String, expected: String, got: String }` - Builtin or expression context expected a different runtime type.
+- `ArityMismatch{ name: String, min_args: usize, max_args: Option<usize>, got: usize }` - Extension or builtin invoked with the wrong number of arguments.
 
 **Traits:** Eq
 
@@ -820,6 +862,8 @@ Machine-readable diagnostic categories.
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 
+
+
 ## fel_core::error::Error
 
 *Enum*
@@ -827,19 +871,20 @@ Machine-readable diagnostic categories.
 Failure from [`crate::parse`] or fatal-style evaluation errors surfaced as `Err`.
 
 **Variants:**
-
 - `Parse(ParseError)` - Lex/parse failure (message from lexer or parser).
 
 **Traits:** Error
 
 **Trait Implementations:**
 
-- **Clone**
-  - `fn clone(self: &Self) -> Error`
 - **Display**
   - `fn fmt(self: &Self, f: & mut fmt::Formatter) -> fmt::Result`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **Clone**
+  - `fn clone(self: &Self) -> Error`
+
+
 
 ## fel_core::error::ParseError
 
@@ -850,7 +895,6 @@ Lex or parse failure with optional source span (byte offsets into the expression
 [`Error`]'s [`std::fmt::Display`] output uses the `message` field.
 
 **Fields:**
-
 - `message: String` - Human-readable explanation.
 - `span: Option<std::ops::Range<usize>>` - Byte range in the source, when known.
 
@@ -863,14 +907,16 @@ Lex or parse failure with optional source span (byte offsets into the expression
 
 **Trait Implementations:**
 
-- **Clone**
-  - `fn clone(self: &Self) -> ParseError`
 - **PartialEq**
   - `fn eq(self: &Self, other: &ParseError) -> bool`
 - **Display**
   - `fn fmt(self: &Self, f: & mut fmt::Formatter) -> fmt::Result`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **Clone**
+  - `fn clone(self: &Self) -> ParseError`
+
+
 
 ## fel_core::error::Severity
 
@@ -879,7 +925,6 @@ Lex or parse failure with optional source span (byte offsets into the expression
 Diagnostic severity for tooling and JSON wire format.
 
 **Variants:**
-
 - `Error` - Blocking / error-level.
 - `Warning` - Warning-level.
 - `Info` - Informational.
@@ -892,12 +937,14 @@ Diagnostic severity for tooling and JSON wire format.
 
 **Trait Implementations:**
 
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **PartialEq**
   - `fn eq(self: &Self, other: &Severity) -> bool`
 - **Clone**
   - `fn clone(self: &Self) -> Severity`
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+
+
 
 ## fel_core::error::fel_diagnostics_to_json_value
 
@@ -909,6 +956,8 @@ Evaluation diagnostics as JSON objects (default `camelCase`).
 fn fel_diagnostics_to_json_value(diagnostics: &[Diagnostic]) -> serde_json::Value
 ```
 
+
+
 ## fel_core::error::fel_diagnostics_to_json_value_styled
 
 *Function*
@@ -918,6 +967,8 @@ Evaluation diagnostics as JSON objects with configurable key style.
 ```rust
 fn fel_diagnostics_to_json_value_styled(diagnostics: &[Diagnostic], style: crate::wire_style::JsonWireStyle) -> serde_json::Value
 ```
+
+
 
 ## fel_core::error::has_error_diagnostics
 
@@ -929,6 +980,8 @@ Returns `true` if any diagnostic has error severity.
 fn has_error_diagnostics(diagnostics: &[Diagnostic]) -> bool
 ```
 
+
+
 ## fel_core::error::reject_undefined_functions
 
 *Function*
@@ -938,6 +991,8 @@ Returns `Err` when any undefined-function diagnostic is present (WASM / strict h
 ```rust
 fn reject_undefined_functions(diagnostics: &[Diagnostic]) -> Result<(), String>
 ```
+
+
 
 ## fel_core::error::undefined_function_names_from_diagnostics
 
@@ -1002,7 +1057,6 @@ fn eval_with_fields(input: &str, fields: std::collections::HashMap<String, crate
 Which resource limit was hit.
 
 **Variants:**
-
 - `Steps` - Step count exceeded [`EvalBudget::max_steps`].
 - `Alloc` - Allocation exceeded [`EvalBudget::max_alloc_bytes`].
 - `Deadline` - Wall-clock deadline expired.
@@ -1011,12 +1065,14 @@ Which resource limit was hit.
 
 **Trait Implementations:**
 
+- **Clone**
+  - `fn clone(self: &Self) -> BudgetExceededKind`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **PartialEq**
   - `fn eq(self: &Self, other: &BudgetExceededKind) -> bool`
-- **Clone**
-  - `fn clone(self: &Self) -> BudgetExceededKind`
+
+
 
 ## fel_core::evaluator::budget::EvalBudget
 
@@ -1025,7 +1081,6 @@ Which resource limit was hit.
 Hard cap on evaluation resource consumption. Exceeding any limit returns `Err(BudgetExceededKind)`.
 
 **Fields:**
-
 - `max_steps: u64` - Maximum number of node evaluations before returning `BudgetExceeded { kind: Steps }`.
 - `max_alloc_bytes: u64` - Approximate allocation ceiling (bytes) before returning `BudgetExceeded { kind: Alloc }`.
 - `deadline: Option<std::time::Instant>` - Wall-clock deadline for interactive/UI use (clock-bound).
@@ -1040,10 +1095,10 @@ Hard cap on evaluation resource consumption. Exceeding any limit returns `Err(Bu
 
 **Trait Implementations:**
 
-- **Clone**
-  - `fn clone(self: &Self) -> EvalBudget`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **Clone**
+  - `fn clone(self: &Self) -> EvalBudget`
 
 ---
 
@@ -1057,21 +1112,124 @@ Hard cap on evaluation resource consumption. Exceeding any limit returns `Err(Bu
 
 **Structs**
 
+- [`ContextBinding`](#contextbinding) - Materialized host context binding returned by a catalog.
+- [`EmptyCatalog`](#emptycatalog) - No-op host context binding catalog.
 - [`EvalResult`](#evalresult) - Result of evaluation: a value plus any accumulated diagnostics.
 - [`Evaluator`](#evaluator) - Tree-walking evaluator with `let` scopes and diagnostic collection.
 - [`EvaluatorOptions`](#evaluatoroptions) - Configuration for an evaluation run.
 - [`MapEnvironment`](#mapenvironment) - Flat `HashMap` environment for tests and simple hosts (no `@` context; fixed clock in default impl).
 
+**Enums**
+
+- [`ContextBindingKind`](#contextbindingkind) - Classifies a host context binding root.
+
 **Functions**
 
 - [`evaluate`](#evaluate) - Evaluate an expression against an environment (no budget, no trace, no extensions).
 - [`evaluate_with`](#evaluate_with) - Evaluate with full configuration via [`EvaluatorOptions`].
+- [`evaluate_with_catalog`](#evaluate_with_catalog) - Evaluate with a host-supplied context binding catalog.
 
 **Traits**
 
+- [`ContextBindingCatalog`](#contextbindingcatalog) - Resolves host-supplied `@name` context bindings.
 - [`Environment`](#environment) - Resolves `$` field paths, `@` context, MIP queries, repeat navigation, and clock for FEL builtins.
 
+**Constants**
+
+- [`UNBOUND_CONTEXT_REF_CODE`](#unbound_context_ref_code) - Diagnostic code for unregistered host context references.
+
 ---
+
+## fel_core::evaluator::core::ContextBinding
+
+*Struct*
+
+Materialized host context binding returned by a catalog.
+
+**Fields:**
+- `kind: ContextBindingKind` - Binding kind declared by the host catalog.
+- `value: Value` - Root FEL value supplied by the host catalog.
+
+**Methods:**
+
+- `fn value(value: Value) -> Self` - Creates a value-kind host binding.
+- `fn object(value: Value) -> Self` - Creates an object-kind host binding.
+- `fn function(value: Value) -> Self` - Creates a function-kind host binding result.
+
+**Trait Implementations:**
+
+- **PartialEq**
+  - `fn eq(self: &Self, other: &ContextBinding) -> bool`
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **Clone**
+  - `fn clone(self: &Self) -> ContextBinding`
+
+
+
+## fel_core::evaluator::core::ContextBindingCatalog
+
+*Trait*
+
+Resolves host-supplied `@name` context bindings.
+
+The catalog returns the binding root only. Dot-segment traversal is performed
+by the evaluator so every host receives the same path behavior.
+
+**Methods:**
+
+- `binding_kind`: Returns the declared kind for `name`, or `None` when unregistered.
+- `resolve`: Resolves the binding root for `name`.
+
+
+
+## fel_core::evaluator::core::ContextBindingKind
+
+*Enum*
+
+Classifies a host context binding root.
+
+**Variants:**
+- `Value` - Scalar or otherwise indivisible value; dot traversal is rejected.
+- `Object` - Object-like root; the evaluator owns dot-segment traversal.
+- `Function` - Callable context binding; the catalog materializes its return value.
+
+**Traits:** Eq, Copy
+
+**Trait Implementations:**
+
+- **PartialEq**
+  - `fn eq(self: &Self, other: &ContextBindingKind) -> bool`
+- **Clone**
+  - `fn clone(self: &Self) -> ContextBindingKind`
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+
+
+
+## fel_core::evaluator::core::EmptyCatalog
+
+*Struct*
+
+No-op host context binding catalog.
+
+**Unit Struct**
+
+**Traits:** Copy
+
+**Trait Implementations:**
+
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **ContextBindingCatalog**
+  - `fn binding_kind(self: &Self, _name: &str) -> Option<ContextBindingKind>`
+  - `fn resolve(self: &Self, _name: &str, _arg: Option<&str>) -> Option<Value>`
+- **Clone**
+  - `fn clone(self: &Self) -> EmptyCatalog`
+- **Default**
+  - `fn default() -> EmptyCatalog`
+
+
 
 ## fel_core::evaluator::core::Environment
 
@@ -1095,6 +1253,8 @@ Resolves `$` field paths, `@` context, MIP queries, repeat navigation, and clock
 - `locale`: Active locale code for `locale()` — default none (returns null).
 - `runtime_meta`: Runtime metadata value for `runtimeMeta(key)` — default null.
 
+
+
 ## fel_core::evaluator::core::EvalResult
 
 *Struct*
@@ -1102,16 +1262,17 @@ Resolves `$` field paths, `@` context, MIP queries, repeat navigation, and clock
 Result of evaluation: a value plus any accumulated diagnostics.
 
 **Fields:**
-
 - `value: Value` - Computed value (may be null after errors).
 - `diagnostics: Vec<crate::error::Diagnostic>` - Non-fatal issues (undefined functions, type errors, etc.).
 
 **Trait Implementations:**
 
-- **Clone**
-  - `fn clone(self: &Self) -> EvalResult`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **Clone**
+  - `fn clone(self: &Self) -> EvalResult`
+
+
 
 ## fel_core::evaluator::core::Evaluator
 
@@ -1120,8 +1281,9 @@ Result of evaluation: a value plus any accumulated diagnostics.
 Tree-walking evaluator with `let` scopes and diagnostic collection.
 
 **Generic Parameters:**
-
 - 'a
+
+
 
 ## fel_core::evaluator::core::EvaluatorOptions
 
@@ -1130,11 +1292,9 @@ Tree-walking evaluator with `let` scopes and diagnostic collection.
 Configuration for an evaluation run.
 
 **Generic Parameters:**
-
 - 'a
 
 **Fields:**
-
 - `trace: Option<&'a  mut crate::trace::Trace>` - Optional trace sink — when `Some`, the evaluator records structured steps into this trace.
 - `extensions: Option<&'a crate::extensions::ExtensionRegistry>` - Optional extension registry for resolving unknown function names.
 - `budget: super::budget::EvalBudget` - Resource budget for this evaluation run.
@@ -1144,6 +1304,8 @@ Configuration for an evaluation run.
 - **Default**
   - `fn default() -> Self`
 
+
+
 ## fel_core::evaluator::core::MapEnvironment
 
 *Struct*
@@ -1151,7 +1313,6 @@ Configuration for an evaluation run.
 Flat `HashMap` environment for tests and simple hosts (no `@` context; fixed clock in default impl).
 
 **Fields:**
-
 - `fields: std::collections::HashMap<String, Value>` - Top-level and nested values (nested via object values); keys may be dotted.
 - `current_datetime: Option<Date>` - Clock source for `today()` / `now()` lookups.
 
@@ -1171,6 +1332,16 @@ Flat `HashMap` environment for tests and simple hosts (no `@` context; fixed clo
 - **Default**
   - `fn default() -> Self`
 
+
+
+## fel_core::evaluator::core::UNBOUND_CONTEXT_REF_CODE
+
+*Constant*: `&str`
+
+Diagnostic code for unregistered host context references.
+
+
+
 ## fel_core::evaluator::core::evaluate
 
 *Function*
@@ -1181,6 +1352,8 @@ Evaluate an expression against an environment (no budget, no trace, no extension
 fn evaluate(expr: &Expr, env: &dyn Environment) -> EvalResult
 ```
 
+
+
 ## fel_core::evaluator::core::evaluate_with
 
 *Function*
@@ -1189,6 +1362,21 @@ Evaluate with full configuration via [`EvaluatorOptions`].
 
 ```rust
 fn evaluate_with(expr: &Expr, env: &dyn Environment, options: EvaluatorOptions) -> EvalResult
+```
+
+
+
+## fel_core::evaluator::core::evaluate_with_catalog
+
+*Function*
+
+Evaluate with a host-supplied context binding catalog.
+
+This sibling entry point preserves the [`EvaluatorOptions`] struct shape for
+existing callers while enabling FEL §6.3 catalog-aware evaluation.
+
+```rust
+fn evaluate_with_catalog<'a>(expr: &Expr, env: &dyn Environment, options: EvaluatorOptions<'a>, catalog: &'a dyn ContextBindingCatalog) -> EvalResult
 ```
 
 ---
@@ -1221,6 +1409,8 @@ Names in this catalog are reserved for
 fn builtin_function_catalog() -> &'static [BuiltinFunctionCatalogEntry]
 ```
 
+
+
 ## fel_core::extensions::catalog::builtin_function_catalog_for
 
 *Function*
@@ -1229,7 +1419,7 @@ Catalog filtered to entries reachable from `package`.
 
 `Package::Formspec` returns the union of `Universal` and `Formspec` entries
 (formspec hosts can call everything). `Package::Universal` returns only
-`Universal` entries — appropriate for hosts that use [`crate::MapEnvironment`] or
+`Universal` entries - appropriate for hosts that use [`crate::MapEnvironment`] or
 any non-formspec [`crate::Environment`] implementation.
 
 ```rust
@@ -1252,9 +1442,32 @@ fn builtin_function_catalog_for(package: Package) -> impl Trait
 
 **Enums**
 
+- [`ExtensionCallOutcome`](#extensioncalloutcome) - Result of [`ExtensionRegistry::call`].
 - [`ExtensionError`](#extensionerror) - Error type for extension registration failures.
 
 ---
+
+## fel_core::extensions::registry::ExtensionCallOutcome
+
+*Enum*
+
+Result of [`ExtensionRegistry::call`].
+
+**Variants:**
+- `NotFound` - No extension registered under this name.
+- `Ok(crate::types::Value)` - Extension invoked (or null-propagated without invoking).
+- `ArityMismatch{ name: String, min_args: usize, max_args: Option<usize>, got: usize }` - Argument count outside registered bounds; host should record a diagnostic and yield null.
+
+**Trait Implementations:**
+
+- **PartialEq**
+  - `fn eq(self: &Self, other: &ExtensionCallOutcome) -> bool`
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **Clone**
+  - `fn clone(self: &Self) -> ExtensionCallOutcome`
+
+
 
 ## fel_core::extensions::registry::ExtensionError
 
@@ -1263,19 +1476,20 @@ fn builtin_function_catalog_for(package: Package) -> impl Trait
 Error type for extension registration failures.
 
 **Variants:**
-
 - `NameConflict(String)` - Registration rejected: name matches a reserved word or built-in function.
 
 **Traits:** Error
 
 **Trait Implementations:**
 
+- **Clone**
+  - `fn clone(self: &Self) -> ExtensionError`
 - **Display**
   - `fn fmt(self: &Self, f: & mut std::fmt::Formatter) -> std::fmt::Result`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
-- **Clone**
-  - `fn clone(self: &Self) -> ExtensionError`
+
+
 
 ## fel_core::extensions::registry::ExtensionRegistry
 
@@ -1288,8 +1502,8 @@ Registry of extension functions.
 - `fn new() -> Self` - Empty registry (no custom extensions).
 - `fn register<impl Into<String>, impl Fn(&[TypeValue]) -> TypeValue + Send + Sync + 'static>(self: & mut Self, name: impl Trait, min_args: usize, max_args: Option<usize>, func: impl Trait) -> Result<(), ExtensionError>` - Register an extension function.
 - `fn get(self: &Self, name: &str) -> Option<&ExtensionFunc>` - Look up an extension function by name.
-- `fn contains(self: &Self, name: &str) -> bool` - Check if a name is registered.
-- `fn call(self: &Self, name: &str, args: &[TypeValue]) -> Option<TypeValue>` - Call an extension function with null propagation.
+- `fn contains(self: &Self, name: &str) -> bool` - True if `name` is registered.
+- `fn call(self: &Self, name: &str, args: &[TypeValue]) -> ExtensionCallOutcome` - Call an extension function with null propagation.
 
 **Trait Implementations:**
 
@@ -1326,6 +1540,8 @@ For the full normative schema document, use [`emit_schema_json`].
 fn builtin_function_catalog_json_value() -> serde_json::Value
 ```
 
+
+
 ## fel_core::extensions::schema::builtin_function_catalog_json_value_for
 
 *Function*
@@ -1336,6 +1552,8 @@ Each entry includes a synthesized `"signature"` string for UI display.
 ```rust
 fn builtin_function_catalog_json_value_for(package: Package) -> serde_json::Value
 ```
+
+
 
 ## fel_core::extensions::schema::emit_schema_json
 
@@ -1391,7 +1609,6 @@ Emit [`crate::extensions::emit_schema_json`] to regenerate
 `formspec/schemas/fel-functions.schema.json`.
 
 **Fields:**
-
 - `name: &'static str` - Function name as used in FEL source.
 - `category: &'static str` - Functional category. Closed enum from schema:
 - `parameters: &'static [Parameter]` - Ordered parameter list. Variadic parameters must be last.
@@ -1406,6 +1623,15 @@ Emit [`crate::extensions::emit_schema_json`] to regenerate
 - `since_version: &'static str` - Spec version in which the function was introduced (default `"1.0"`).
 - `package: Package` - Host-package classification for filtering by tooling.
 
+**Traits:** Copy
+
+**Trait Implementations:**
+
+- **Clone**
+  - `fn clone(self: &Self) -> BuiltinFunctionCatalogEntry`
+
+
+
 ## fel_core::extensions::types::Example
 
 *Struct*
@@ -1413,16 +1639,26 @@ Emit [`crate::extensions::emit_schema_json`] to regenerate
 One worked example attached to a built-in function.
 
 **Fields:**
-
 - `expression: &'static str` - FEL expression demonstrating the function.
 - `result_json: &'static str` - JSON literal for the example result, as a `&str`. Parsed to `serde_json::Value` at
 - `note: Option<&'static str>` - Optional clarifying note.
+
+**Traits:** Copy
+
+**Trait Implementations:**
+
+- **Clone**
+  - `fn clone(self: &Self) -> Example`
+
+
 
 ## fel_core::extensions::types::ExtensionFn
 
 *Type Alias*: `Box<dyn Fn>`
 
 Type alias for extension function implementations.
+
+
 
 ## fel_core::extensions::types::ExtensionFunc
 
@@ -1431,11 +1667,12 @@ Type alias for extension function implementations.
 A registered extension function.
 
 **Fields:**
-
 - `name: String` - Human-readable name for diagnostics.
 - `min_args: usize` - Minimum number of arguments.
 - `max_args: Option<usize>` - Maximum number of arguments (None = unbounded).
 - `func: ExtensionFn` - The implementation: receives pre-evaluated args, returns a value.
+
+
 
 ## fel_core::extensions::types::FelType
 
@@ -1444,7 +1681,6 @@ A registered extension function.
 FEL type identifier used in structured catalog entries.
 
 **Variants:**
-
 - `String` - String type.
 - `Number` - Number type.
 - `Boolean` - Boolean type.
@@ -1464,12 +1700,14 @@ FEL type identifier used in structured catalog entries.
 
 **Trait Implementations:**
 
+- **PartialEq**
+  - `fn eq(self: &Self, other: &FelType) -> bool`
 - **Clone**
   - `fn clone(self: &Self) -> FelType`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
-- **PartialEq**
-  - `fn eq(self: &Self, other: &FelType) -> bool`
+
+
 
 ## fel_core::extensions::types::Package
 
@@ -1483,7 +1721,6 @@ set per host. `Universal` builtins are reachable from any host;
 groups, instances, locale) and are no-ops against [`crate::MapEnvironment`].
 
 **Variants:**
-
 - `Universal` - Available to every host — pure language semantics.
 - `Formspec` - Requires formspec-shaped data: MIP queries, repeat groups, instances, locale.
 
@@ -1498,6 +1735,8 @@ groups, instances, locale) and are no-ops against [`crate::MapEnvironment`].
 - **Clone**
   - `fn clone(self: &Self) -> Package`
 
+
+
 ## fel_core::extensions::types::Parameter
 
 *Struct*
@@ -1505,13 +1744,19 @@ groups, instances, locale) and are no-ops against [`crate::MapEnvironment`].
 One parameter in a built-in function signature.
 
 **Fields:**
-
 - `name: &'static str` - Parameter name.
 - `fel_type: FelType` - FEL type of the parameter.
 - `description: Option<&'static str>` - Human-readable description of the parameter.
 - `required: bool` - Whether the parameter is required (default true).
 - `variadic: bool` - Whether the parameter is variadic — must be last (default false).
 - `allowed_values: Option<&'static [&'static str]>` - Closed set of allowed literal values (schema `enum` field).
+
+**Traits:** Copy
+
+**Trait Implementations:**
+
+- **Clone**
+  - `fn clone(self: &Self) -> Parameter`
 
 ---
 
@@ -1567,7 +1812,6 @@ fn expr_is_interpolation_static_literal(expr: &crate::ast::Expr) -> bool
 Outcome of parsing an ISO 8601 duration for FEL.
 
 **Variants:**
-
 - `Milliseconds(i64)` - Whole milliseconds (FEL `number`).
 - `Invalid` - Empty input, missing `P`, unsupported shape, or a numeric component that does not fit `i128`.
 - `OutOfRange` - Total milliseconds do not fit in `i64`.
@@ -1583,6 +1827,8 @@ Outcome of parsing an ISO 8601 duration for FEL.
 - **Clone**
   - `fn clone(self: &Self) -> IsoDurationParse`
 
+
+
 ## fel_core::iso_duration::parse_iso8601_duration
 
 *Function*
@@ -1592,6 +1838,8 @@ Parse an ISO 8601 duration; distinguishes invalid input from out-of-range totals
 ```rust
 fn parse_iso8601_duration(input: &str) -> IsoDurationParse
 ```
+
+
 
 ## fel_core::iso_duration::parse_iso8601_duration_ms
 
@@ -1643,13 +1891,14 @@ fn parse_iso8601_duration_ms(input: &str) -> Option<i64>
 Character-based lexer over a FEL expression string.
 
 **Generic Parameters:**
-
 - 'a
 
 **Methods:**
 
 - `fn new(input: &'a str) -> Self` - Create a lexer for `input` (no allocation beyond char buffer).
 - `fn tokenize(self: & mut Self) -> Result<Vec<SpannedToken>, ParseError>` - Consume the entire input and return all tokens, ending with [`Token::Eof`].
+
+
 
 ## fel_core::lexer::PositionedToken
 
@@ -1658,7 +1907,6 @@ Character-based lexer over a FEL expression string.
 One lexeme from [`tokenize`] for host bindings and tooling (stable type names + source span).
 
 **Fields:**
-
 - `token_type: String` - Logical token kind (e.g. `NumberLiteral`, `Identifier`).
 - `text: String` - Lexeme text from the source.
 - `start: usize` - Start offset in Unicode scalar indices.
@@ -1675,6 +1923,8 @@ One lexeme from [`tokenize`] for host bindings and tooling (stable type names + 
 - **Clone**
   - `fn clone(self: &Self) -> PositionedToken`
 
+
+
 ## fel_core::lexer::Span
 
 *Struct*
@@ -1682,7 +1932,6 @@ One lexeme from [`tokenize`] for host bindings and tooling (stable type names + 
 Byte/char span in the original source (Unicode scalar indices, inclusive start, exclusive end).
 
 **Fields:**
-
 - `start: usize` - Start offset.
 - `end: usize` - End offset (exclusive).
 
@@ -1693,6 +1942,8 @@ Byte/char span in the original source (Unicode scalar indices, inclusive start, 
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 
+
+
 ## fel_core::lexer::SpannedToken
 
 *Struct*
@@ -1700,7 +1951,6 @@ Byte/char span in the original source (Unicode scalar indices, inclusive start, 
 A [`Token`] with its [`Span`].
 
 **Fields:**
-
 - `token: Token` - Classified token.
 - `span: Span` - Position in source.
 
@@ -1711,6 +1961,8 @@ A [`Token`] with its [`Span`].
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 
+
+
 ## fel_core::lexer::Token
 
 *Enum*
@@ -1718,7 +1970,6 @@ A [`Token`] with its [`Span`].
 Lexical token for FEL source (literals, keywords, operators, punctuation).
 
 **Variants:**
-
 - `Number(rust_decimal::Decimal)` - Decimal number literal.
 - `StringLit(String)` - String literal (content without surrounding quotes).
 - `True` - Boolean `true`.
@@ -1772,6 +2023,8 @@ Lexical token for FEL source (literals, keywords, operators, punctuation).
 - **Clone**
   - `fn clone(self: &Self) -> Token`
 
+
+
 ## fel_core::lexer::is_valid_fel_identifier
 
 *Function*
@@ -1781,6 +2034,8 @@ Returns `true` if `s` is a valid FEL identifier: `[a-zA-Z_][a-zA-Z0-9_]*` and no
 ```rust
 fn is_valid_fel_identifier(s: &str) -> bool
 ```
+
+
 
 ## fel_core::lexer::sanitize_fel_identifier
 
@@ -1797,6 +2052,8 @@ Sanitizes a string into a valid FEL identifier.
 fn sanitize_fel_identifier(s: &str) -> String
 ```
 
+
+
 ## fel_core::lexer::tokenize
 
 *Function*
@@ -1807,6 +2064,8 @@ Tokenizes FEL source into [`PositionedToken`]s (lexical analysis only; no parse)
 fn tokenize(input: &str) -> Result<Vec<PositionedToken>, String>
 ```
 
+
+
 ## fel_core::lexer::tokenize_to_json_value
 
 *Function*
@@ -1816,6 +2075,8 @@ FEL lexer tokens as JSON for host bindings (default `camelCase`).
 ```rust
 fn tokenize_to_json_value(input: &str) -> Result<serde_json::Value, String>
 ```
+
+
 
 ## fel_core::lexer::tokenize_to_json_value_styled
 
@@ -1852,6 +2113,8 @@ fn tokenize_to_json_value_styled(input: &str, style: crate::wire_style::JsonWire
 *Struct*
 
 Recursive-descent parser over a [`SpannedToken`] stream (use [`parse`] to build from source).
+
+
 
 ## fel_core::parser::parse
 
@@ -1893,11 +2156,9 @@ fn parse(input: &str) -> Result<Expr, crate::error::Error>
 Inputs for [`prepare_for_host`], mirroring the engine WASM prepass.
 
 **Generic Parameters:**
-
 - 'a
 
 **Fields:**
-
 - `expression: &'a str` - Raw FEL expression.
 - `current_item_path: &'a str` - Dotted path of the item being evaluated (may include `[n]` indices).
 - `replace_self_ref: bool` - When true, bare `$` (not `$identifier`) becomes `$` + current field leaf name.
@@ -1911,6 +2172,8 @@ Inputs for [`prepare_for_host`], mirroring the engine WASM prepass.
 - **Clone**
   - `fn clone(self: &Self) -> PrepareHostInput<'a>`
 
+
+
 ## fel_core::prepare_host::PrepareHostOptions
 
 *Struct*
@@ -1918,7 +2181,6 @@ Inputs for [`prepare_for_host`], mirroring the engine WASM prepass.
 Owned inputs for [`prepare`] after JSON / host parsing.
 
 **Fields:**
-
 - `expression: String` - Raw FEL expression.
 - `current_item_path: String` - Item path for repeat / self-ref normalization.
 - `replace_self_ref: bool` - When true, bare `$` becomes `$` + current field leaf name.
@@ -1932,6 +2194,8 @@ Owned inputs for [`prepare`] after JSON / host parsing.
 - **Clone**
   - `fn clone(self: &Self) -> PrepareHostOptions`
 
+
+
 ## fel_core::prepare_host::host_options_from_json
 
 *Function*
@@ -1942,6 +2206,8 @@ Parses prepare-FEL options from a JSON object (WASM / Python hosts).
 fn host_options_from_json(obj: &serde_json::Map<String, serde_json::Value>) -> Result<PrepareHostOptions, String>
 ```
 
+
+
 ## fel_core::prepare_host::prepare
 
 *Function*
@@ -1951,6 +2217,8 @@ Normalizes using owned options (convenience after [`host_options_from_json`]).
 ```rust
 fn prepare(opts: &PrepareHostOptions) -> String
 ```
+
+
 
 ## fel_core::prepare_host::prepare_for_host
 
@@ -2019,7 +2287,6 @@ error-explainer) can render the sequence top-to-bottom to reconstruct
 *why* the expression produced its result.
 
 **Fields:**
-
 - `steps: Vec<TraceStep>` - Steps in evaluation order.
 
 **Methods:**
@@ -2040,6 +2307,8 @@ error-explainer) can render the sequence top-to-bottom to reconstruct
 - **Clone**
   - `fn clone(self: &Self) -> Trace`
 
+
+
 ## fel_core::trace::TraceStep
 
 *Enum*
@@ -2051,7 +2320,6 @@ The variant set is intentionally narrow: only events that help explain
 rather than emitting noise — correctness over completeness.
 
 **Variants:**
-
 - `FieldResolved{ path: String, value: serde_json::Value }` - A `$field` reference was resolved against the environment.
 - `FunctionCalled{ name: String, args: Vec<serde_json::Value>, result: serde_json::Value }` - A function call completed and returned a value.
 - `BinaryOp{ op: String, lhs: serde_json::Value, rhs: serde_json::Value, result: serde_json::Value }` - A binary operator produced a result from two operand values.
@@ -2114,16 +2382,18 @@ ISO 4217 alphabetic currency code (three ASCII letters), normalized to uppercase
 
 **Trait Implementations:**
 
+- **PartialEq**
+  - `fn eq(self: &Self, other: &CurrencyCode) -> bool`
+- **Clone**
+  - `fn clone(self: &Self) -> CurrencyCode`
 - **Display**
   - `fn fmt(self: &Self, f: & mut fmt::Formatter) -> fmt::Result`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Hash**
   - `fn hash<__H>(self: &Self, state: & mut __H)`
-- **PartialEq**
-  - `fn eq(self: &Self, other: &CurrencyCode) -> bool`
-- **Clone**
-  - `fn clone(self: &Self) -> CurrencyCode`
+
+
 
 ## fel_core::types::Date
 
@@ -2132,7 +2402,6 @@ ISO 4217 alphabetic currency code (three ASCII letters), normalized to uppercase
 Calendar date or date-time (no timezone model; used by date functions).
 
 **Variants:**
-
 - `Date{ year: i32, month: u32, day: u32 }` - Calendar date (year, month, day).
 - `DateTime{ year: i32, month: u32, day: u32, hour: u32, minute: u32, second: u32 }` - Date with time of day (no timezone).
 
@@ -2157,6 +2426,8 @@ Calendar date or date-time (no timezone model; used by date functions).
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 
+
+
 ## fel_core::types::Money
 
 *Struct*
@@ -2164,7 +2435,6 @@ Calendar date or date-time (no timezone model; used by date functions).
 Monetary value with ISO currency code.
 
 **Fields:**
-
 - `amount: rust_decimal::Decimal` - Decimal amount (base-10).
 - `currency: CurrencyCode` - ISO 4217 currency code (e.g. `USD`).
 
@@ -2172,12 +2442,14 @@ Monetary value with ISO currency code.
 
 **Trait Implementations:**
 
+- **Clone**
+  - `fn clone(self: &Self) -> Money`
 - **PartialEq**
   - `fn eq(self: &Self, other: &Money) -> bool`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
-- **Clone**
-  - `fn clone(self: &Self) -> Money`
+
+
 
 ## fel_core::types::Value
 
@@ -2186,7 +2458,6 @@ Monetary value with ISO currency code.
 Runtime value for FEL evaluation (mirrors JSON + dates + money).
 
 **Variants:**
-
 - `Null` - Null / absent value.
 - `Boolean(bool)` - Boolean (`true` or `false`).
 - `Number(rust_decimal::Decimal)` - Numeric value (high-precision decimal, rust_decimal 96-bit mantissa).
@@ -2219,6 +2490,8 @@ Runtime value for FEL evaluation (mirrors JSON + dates + money).
 - **Clone**
   - `fn clone(self: &Self) -> Value`
 
+
+
 ## fel_core::types::date_add_days
 
 *Function*
@@ -2229,6 +2502,8 @@ Add days to a date.
 fn date_add_days(d: &Date, n: i64) -> Date
 ```
 
+
+
 ## fel_core::types::format_number
 
 *Function*
@@ -2238,6 +2513,8 @@ Format a Decimal: strip trailing zeros, show as integer when possible.
 ```rust
 fn format_number(n: rust_decimal::Decimal) -> String
 ```
+
+
 
 ## fel_core::types::parse_date_literal
 
@@ -2251,6 +2528,8 @@ Stable public API — consumed by `formspec-py` and `formspec-eval`.
 fn parse_date_literal(s: &str) -> Option<Date>
 ```
 
+
+
 ## fel_core::types::parse_datetime_literal
 
 *Function*
@@ -2262,6 +2541,8 @@ Stable public API — consumed by `formspec-py` and `formspec-eval`.
 ```rust
 fn parse_datetime_literal(s: &str) -> Option<Date>
 ```
+
+
 
 ## fel_core::types::value_size_estimate
 
@@ -2301,7 +2582,6 @@ fn value_size_estimate(val: &Value) -> u64
 JSON object key style for WASM (`camelCase`) vs Python (`snake_case`) bindings.
 
 **Variants:**
-
 - `JsCamel` - JavaScript / `wasm-bindgen` (camelCase keys).
 - `PythonSnake` - Python `formspec_rust` surface (snake_case keys).
 

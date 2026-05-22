@@ -41,6 +41,9 @@ Postfix        ← Atom PathTail*
 
 **PathTail**: `.ident` or `[int | *]`.
 
+**ContextRef**: `@ident` with optional `()` or `('string')`; normal postfix
+tails apply, so `@response.items[1].amount` is valid.
+
 ## Operator Precedence (lowest → highest)
 
 | Prec | Operators | Category | Assoc |
@@ -71,11 +74,25 @@ Postfix (`.field`, `[index]`) binds tighter than all prefix operators.
 | `@current` | Current repeat instance |
 | `@index` | 1-based position in repeat |
 | `@count` | Total repeat instances |
-| `@name` | Named variable from `variables` |
+| `@name` | Context identifier; host-supplied catalogs are closed by §6.3 |
 | `@instance('name')` | Secondary data source |
 | `@source`, `@target` | Mapping DSL bindings |
 
 **Scoping**: Lexically scoped. Inside repeat, `$sibling` resolves within same instance. Index out of bounds → evaluation error. Unknown instance → definition error. Chaining allowed: `$a[1].nested[*].value`.
+
+## Host-Supplied Context Bindings (§6.3)
+
+Host specs that add `@name` context identifiers publish a closed binding catalog.
+Each entry declares `name`, `kind` (`value`, `object`, or `function`), `type`,
+`purity`, `evaluationTiming`, and `scope`. A catalog-aware evaluator rejects
+unregistered non-reserved `@name` references as evaluation errors.
+
+Grammar-reserved names (`@current`, `@index`, `@count`, `@instance`) are not
+host-supplied bindings and must not be redeclared. Mapping owns `@source` and
+`@target`; non-Mapping catalogs reject them unless explicitly registered.
+Object bindings traverse postfix path segments in the evaluator. Function
+bindings use the existing context-call syntax, for example `@now()` or
+`@clock('utc')`. Binding catalogs, not the grammar, honor eager/lazy timing.
 
 ## Key Conformance Points
 

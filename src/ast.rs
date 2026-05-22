@@ -74,6 +74,7 @@ pub enum Expr {
     },
     ContextRef {
         name: String,
+        called: bool,
         arg: Option<String>,
         tail: Vec<String>,
     },

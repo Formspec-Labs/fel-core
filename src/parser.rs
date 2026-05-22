@@ -623,11 +623,13 @@ impl Parser {
 
     fn parse_context_ref(&mut self) -> Result<Expr, Error> {
         let name = self.eat_identifier()?;
+        let mut called = false;
         let mut arg = None;
         let mut tail = Vec::new();
 
         // Optional argument: @instance('name')
         if matches!(self.peek(), Token::LParen) {
+            called = true;
             self.advance();
             if let Token::StringLit(s) = self.peek().clone() {
                 arg = Some(s.clone());
@@ -642,7 +644,12 @@ impl Parser {
             tail.push(self.eat_identifier()?);
         }
 
-        Ok(Expr::ContextRef { name, arg, tail })
+        Ok(Expr::ContextRef {
+            name,
+            called,
+            arg,
+            tail,
+        })
     }
 
     fn parse_function_call(&mut self, name: String) -> Result<Expr, Error> {
@@ -1124,6 +1131,7 @@ mod tests {
             expr,
             Expr::ContextRef {
                 name: "index".into(),
+                called: false,
                 arg: None,
                 tail: vec![]
             }
@@ -1137,6 +1145,7 @@ mod tests {
             expr,
             Expr::ContextRef {
                 name: "instance".into(),
+                called: true,
                 arg: Some("priorYear".into()),
                 tail: vec!["total".into()]
             }
