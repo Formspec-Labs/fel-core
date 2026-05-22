@@ -67,7 +67,7 @@ related:
 **Files:**
 - Modify: `specs/fel/fel-grammar.md`
 
-- [ ] **Step 1: Insert §6.3**
+- [x] **Step 1: Insert §6.3**
 
 Insert the following block immediately after the existing §6.2 "Path Resolution Rules" and before §7 "Conformance":
 
@@ -143,7 +143,7 @@ A host spec adopting §6.3 MUST publish:
 These three are the §6.3 acceptance bar for a host adopter.
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 cd fel-core && git add specs/fel/fel-grammar.md
@@ -162,7 +162,7 @@ change. Evaluator obligation: reject unbound @name as evaluation error."
 - Modify: `src/evaluator.rs` (or whichever module owns evaluator entry points; verify by inspection)
 - Modify: `src/lib.rs` to re-export the trait
 
-- [ ] **Step 1: Define the trait + default catalog**
+- [x] **Step 1: Define the trait + default catalog**
 
 Add to the evaluator module:
 
@@ -214,7 +214,7 @@ pub enum BoundValue<'a> {
 
 The exact `BoundValue` variants and lifetimes MUST match the existing evaluator's value type. If the evaluator uses an owned value enum, drop the lifetime parameter; do not introduce new lifetimes.
 
-- [ ] **Step 2: Wire catalog into evaluator entry points**
+- [x] **Step 2: Wire catalog into evaluator entry points**
 
 Existing evaluator entry points (likely `evaluate(expr, ctx)` or `Evaluator::new(...)`) gain a catalog parameter. Strict additive option: add a sibling entry that accepts a catalog and have the existing entry forward to it with `EmptyCatalog`. Example shape:
 
@@ -234,7 +234,7 @@ pub fn evaluate_with_catalog<C: ContextBindingCatalog>(
 
 Internal ContextRef branch: when the name is NOT in the grammar-reserved set, call `catalog.resolve(name, &path_segments)`. `None` becomes `EvalError::UnboundContextRef { name: name.to_owned() }`.
 
-- [ ] **Step 3: Cargo build + nextest**
+- [x] **Step 3: Cargo build + nextest**
 
 ```bash
 cd fel-core && cargo build && cargo nextest run --workspace
@@ -242,7 +242,7 @@ cd fel-core && cargo build && cargo nextest run --workspace
 
 Expected: build passes; existing tests pass (no behavioral change for callers using `EmptyCatalog`).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 cd fel-core && git add src/
@@ -262,7 +262,7 @@ Existing call sites unchanged via EmptyCatalog forwarding."
 - Create: `conformance/host-bindings/registered-binding.json`
 - Create: `tests/host_bindings.rs`
 
-- [ ] **Step 1: Fixture — unbound reference rejected**
+- [x] **Step 1: Fixture — unbound reference rejected**
 
 `unbound-context-ref.json`:
 
@@ -276,7 +276,7 @@ Existing call sites unchanged via EmptyCatalog forwarding."
 }
 ```
 
-- [ ] **Step 2: Fixture — registered binding resolves**
+- [x] **Step 2: Fixture — registered binding resolves**
 
 `registered-binding.json`:
 
@@ -294,7 +294,7 @@ Existing call sites unchanged via EmptyCatalog forwarding."
 
 (`catalog` is a test-harness shape, not normative wire format; the harness in Step 3 maps it to a `ContextBindingCatalog` impl.)
 
-- [ ] **Step 3: Integration test**
+- [x] **Step 3: Integration test**
 
 `tests/host_bindings.rs`:
 
@@ -336,7 +336,7 @@ fn registered_binding_resolves() {
 
 The exact Rust types (`Value`, `Object`, `Context`) MUST match the crate's existing public surface — replace placeholders with the real types during implementation.
 
-- [ ] **Step 4: Run**
+- [x] **Step 4: Run**
 
 ```bash
 cd fel-core && cargo nextest run --test host_bindings
@@ -344,7 +344,7 @@ cd fel-core && cargo nextest run --test host_bindings
 
 Expected: both tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd fel-core && git add conformance/host-bindings/ tests/host_bindings.rs
@@ -362,7 +362,7 @@ resolves through path traversal. Pins §6.3.2 evaluator obligations."
 - Modify: `conformance/fel-conformance.jsonl`
 - Modify: `conformance/README.md`
 
-- [ ] **Step 1: Append JSONL entries**
+- [x] **Step 1: Append JSONL entries**
 
 Add two lines (the harness reads JSONL, one fixture per line). Keep matching the existing JSONL shape (inspect the file for the field set before authoring):
 
@@ -373,7 +373,7 @@ Add two lines (the harness reads JSONL, one fixture per line). Keep matching the
 
 If the existing JSONL doesn't include a `catalog` field, leave the harness extension for a follow-up — the JSON files under `conformance/host-bindings/` already serve the test.
 
-- [ ] **Step 2: Update README**
+- [x] **Step 2: Update README**
 
 Add a paragraph under the existing fixture-organization section:
 
@@ -383,7 +383,7 @@ Add a paragraph under the existing fixture-organization section:
 `conformance/host-bindings/` contains fixtures exercising the host-context binding protocol from `specs/fel/fel-grammar.md §6.3`. Each fixture either registers a catalog or asserts a `@name` rejection when no catalog applies. See `tests/host_bindings.rs` for the harness.
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 cd fel-core && git add conformance/
@@ -397,7 +397,7 @@ git commit -m "docs(fel): index host-bindings conformance fixtures"
 **Files:**
 - Modify: `CHANGELOG.md`
 
-- [ ] **Step 1: Add entry**
+- [x] **Step 1: Add entry**
 
 Insert at the top of the unreleased section:
 
@@ -411,7 +411,7 @@ Insert at the top of the unreleased section:
 - Conformance fixtures under `conformance/host-bindings/` and integration test `tests/host_bindings.rs`.
 ```
 
-- [ ] **Step 2: Full sweep**
+- [x] **Step 2: Full sweep**
 
 ```bash
 cd fel-core && cargo nextest run --workspace && cargo clippy -- -D warnings
@@ -419,7 +419,7 @@ cd fel-core && cargo nextest run --workspace && cargo clippy -- -D warnings
 
 Expected: pass.
 
-- [ ] **Step 3: Commit + push (after parent submodule bump)**
+- [x] **Step 3: Commit + push (after parent submodule bump)**
 
 ```bash
 cd fel-core && git add CHANGELOG.md
