@@ -144,23 +144,82 @@ Adding a case is one row, not one function. Drift between cases (different asser
 
 ## Phase 2 — Mutation gate on critical seams
 
-Install `cargo-mutants` and run nightly (not per-PR) on the P0 seams:
+Install `cargo-mutants` (the only credible Rust mutation-testing tool in active development — `mutagen` last released 2019; no alternatives) and run **weekly** (not per-PR, not nightly — runtime budget makes nightly impractical) on the P0 seams.
 
-| File | LOC | Why P0 |
-|---|---:|---|
-| `src/parser.rs` | 1295 | Everything downstream is shadow |
-| `src/evaluator/core.rs` | 1831 | Null propagation, decimal, MIPs |
-| `src/dependencies.rs` | 524 | Engine reactivity graph |
-| `src/convert.rs` | 588 | Wire-format with TS + Python |
-| `src/error.rs` | 599 | Closed/append-only `DiagnosticKind` public API |
+### Success criterion (audit-defensible)
 
-Plus `src/evaluator/builtins/{money,dates}.rs` for operational arithmetic.
+For each P0 seam, every surviving mutant is **either**:
+- **(a) killed** by a new test referencing the spec section that motivates the behavior, **or**
+- **(b) annotated as equivalent** in `.cargo/mutants.toml` `skip_calls` / `examine_only` config (with a one-line justification per skip).
 
-Each surviving mutant ⇒ one shallow test. Stop at the first 5 unkilled mutants per file; that's the gap list.
+The committed `conformance/mutation-baseline.jsonl` artifact is the trend line and the audit evidence. Headline numbers ("85% kill rate") are not the criterion — the criterion is that every survivor has been *triaged* with a documented disposition.
+
+### CI integration
+
+- **Schedule**: weekly cron, separate from the existing `ratification-gate` (which runs per-push).
+- **Shape**: 4 parallel jobs via `--shard k/4`; each job mutation-tests a quarter of the configured files. Total wall-clock ≤ 4 hours per shard.
+- **Output**: `mutants.out/` directory as a CI artifact (ephemeral); `conformance/mutation-baseline.jsonl` committed and diff-checked.
+- **Failure mode**: annotate-only. Mutation findings open follow-up tickets via the existing flow; CI is not blocked by survivor counts.
+- **Determinism**: `PROPTEST_CASES=64` + fixed `PROPTEST_RNG_SEED` in the mutation env. Without seed pinning, proptest-driven kills are non-deterministic across reruns and the baseline artifact becomes noise.
+
+### Per-file test scoping
+
+Mandatory `.cargo/mutants.toml` with per-file `additional_cargo_test_args` mapping each mutated file to the tests that actually exercise it:
+
+| File | Scoped tests |
+|---|---|
+| `src/parser.rs` | `parser_*`, `lexer_tests`, `ast_proptest`, `parser_parse_proptest` |
+| `src/lexer.rs` | `lexer_tests`, `parser_parse_proptest`, `fel_chaos_proptest` |
+| `src/evaluator/core.rs` | `evaluator_tests`, `semantic_invariants`, `decimal_properties`, `evaluator_regression_guards`, `fuzz_regression_corpus` |
+| `src/evaluator/budget.rs` | `budget_tests`, `stress_tests` |
+| `src/dependencies.rs` | `environment_integration_tests`, `evaluator_tests` |
+| `src/convert.rs` | `evaluator_tests`, `fel_proptest`, `decimal_properties`, `schema_round_trip` |
+| `src/error.rs` | `evaluator_tests`, `snapshot_tests`, `builtin_catalog_consistency` |
+| `src/prepare_host.rs` | `host_bindings`, `evaluator_tests` |
+| `src/extensions/{registry,catalog}.rs` | `builtin_catalog_consistency`, `evaluator_tests`, `host_bindings`, `function_semantics_conformance` |
+| `src/evaluator/builtins/{money,dates}.rs` | `evaluator_tests`, `locale_fel_functions` |
+
+Without scoping, every mutant pays the full ~30-binary test suite cost, making runtime intractable (BLOCKER B1).
+
+### Updated seam list (P0)
+
+Per H1 finding — original 5+2 was incomplete:
+
+| File | Why P0 |
+|---|---|
+| `src/parser.rs` | Everything downstream is shadow |
+| `src/lexer.rs` | Token boundaries, string escapes, numeric literal recognition — direct seam, not parser-shadowed |
+| `src/evaluator/core.rs` | Null propagation, decimal arithmetic, MIPs |
+| `src/evaluator/budget.rs` | Budget exhaustion semantics — null + diagnostic vs panic vs silent |
+| `src/dependencies.rs` | Engine reactivity graph |
+| `src/convert.rs` | Wire-format with TS + Python |
+| `src/error.rs` | Closed/append-only `DiagnosticKind` public API |
+| `src/prepare_host.rs` | Host-prep AST transforms; closed-API contract |
+| `src/extensions/registry.rs` | `ExtensionRegistry` re-exported boundary |
+| `src/extensions/catalog.rs` | Closed-API catalog boundary; cross-runtime conformance source |
+| `src/evaluator/builtins/{money,dates}.rs` | Operational arithmetic correctness |
+
+Tier-2 (after P0 stabilizes): `src/interpolation.rs`, `src/iso_duration.rs` — both re-exported, both pure parsers with non-trivial edge logic.
+
+### Triage policy (per H2)
+
+Cap-by-N ("first 5 unkilled") is policy theater — equivalent mutants exist (e.g. `x + 0 ↔ x`, dead branches in debug-only code). Replace with a classification policy:
+
+1. **Every survivor** triaged into one of:
+   - `kill` — write a test (referencing the spec section that motivates the behavior)
+   - `equivalent` — annotate in `.cargo/mutants.toml` skip-pattern with one-line justification
+   - `accept` — low-value mutation in non-load-bearing code (rare; default is `kill` or `equivalent`)
+2. Track **kill rate per file** as the metric. Initial floor (subject to first-run calibration):
+   - `parser.rs` ≥ 85%
+   - `evaluator/core.rs` ≥ 85%
+   - `dependencies.rs` ≥ 80%
+   - `error.rs` ≥ 75% (lower bound — diagnostic-text mutations are often equivalent)
+   - Other files: TBD after baseline run
+3. Per-run regression below the floor opens a follow-up ticket via the existing flow; CI is not failed.
 
 ```sh
-cargo install cargo-mutants
-cargo mutants --file src/parser.rs --timeout 60
+cargo install cargo-mutants --version <pinned>  # see .cargo/mutants.toml head comment
+make mutants-p0  # runs the scoped P0 sweep using the toml config
 ```
 
 ## Phase 3 — Leverage policy in CI
@@ -211,15 +270,28 @@ Today, `extract_dependencies` and `prepare_host` lack proptests despite being P0
 - [x] `cargo test` green (131 evaluator-domain tests + ~700 elsewhere); `cargo fmt --check` clean; `cargo clippy --tests --all-features` clean
 
 **Phase 2 — Mutation gate** (per-file LOC counts omitted per stack decay-class rules):
-- [ ] Install `cargo-mutants`
-- [ ] Run on `src/parser.rs` — record surviving mutants
-- [ ] Run on `src/evaluator/core.rs`
-- [ ] Run on `src/dependencies.rs`
-- [ ] Run on `src/convert.rs`
-- [ ] Run on `src/error.rs`
-- [ ] Run on `src/evaluator/builtins/{money,dates}.rs`
-- [ ] Wire to CI as nightly (not per-PR) job
-- [ ] First 5 unkilled mutants per file → file follow-up issues (one per gap)
+- [ ] Pre-Phase-2 architecture review (`semi-formal-architecture-review`)
+- [ ] Install `cargo-mutants` (pinned version; see `.cargo/mutants.toml` / Makefile)
+- [ ] Create `.cargo/mutants.toml` with per-file test scoping (mandatory — full-suite-per-mutant is intractable)
+- [ ] Set `PROPTEST_CASES=64` + fixed `PROPTEST_RNG_SEED` in mutation env (deterministic across reruns)
+- [ ] Run on **P0 seams** (11 files, per H1 review finding):
+  - [ ] `src/parser.rs`
+  - [ ] `src/lexer.rs`
+  - [ ] `src/evaluator/core.rs`
+  - [ ] `src/evaluator/budget.rs`
+  - [ ] `src/dependencies.rs`
+  - [ ] `src/convert.rs`
+  - [ ] `src/error.rs`
+  - [ ] `src/prepare_host.rs`
+  - [ ] `src/extensions/registry.rs`
+  - [ ] `src/extensions/catalog.rs`
+  - [ ] `src/evaluator/builtins/{money,dates}.rs`
+- [ ] Tier-2 (after P0 stabilizes): `src/interpolation.rs`, `src/iso_duration.rs`
+- [ ] Triage every surviving mutant into `kill` / `equivalent` / `accept` (classification policy, not first-N cap — per H2)
+- [ ] Emit `conformance/mutation-baseline.jsonl` per file: `{file, total, killed, missed, timeout, unviable, kill_rate, sha}`. Commit it as the audit trend artifact.
+- [ ] Wire CI as **weekly** (not nightly) job in `.github/workflows/doc.yml` with `--shard k/4` across 4 jobs
+- [ ] Annotate-only failure mode (do NOT block CI on mutant survival)
+- [ ] Post-Phase-2 architecture review
 
 **Phase 3 — Leverage policy in CI**:
 - [ ] Proptest for `extract_dependencies` (P0 seam, currently uncovered)
@@ -256,6 +328,22 @@ This section is **append-only**. Any divergence from the plan above (skipped ste
 4. **User-flagged topology in `evaluator_edge_cases.rs`** (mid-execution): "shouldn't 'edge cases' just be part of the relevant tests? like money edge cases → with money tests?". Correct critique — the file was an audit-finding bolt-on, never reconciled with topic-canonical sections. Redistributed (sha 984c6b1): money tests → §Money in evaluator_tests.rs; date → §Date; equality → §Comparison; etc. LibFuzzer regression guards → `tests/evaluator_regression_guards.rs`; fuzz corpus → `tests/fuzz_regression_corpus.rs`. `evaluator_edge_cases.rs` DELETED. Five duplicates dropped along the way (length_of_null, length_of_array folded into test_string_functions, number_cast_invalid_string already exists, undefined_function_diagnostic subset of test_undefined_function, empty_edge_cases folded into test_empty_present).
 
 5. **Post-Phase-1 reviews (architecture + code, parallel)** — ACCEPT verdict overall. Architecture review: 0 BLOCKER/HIGH/MEDIUM, 2 NITs both justified-rejected (separate regression-guards and fuzz-corpus files is intentional; LOC overage vs original target buys reviewer-checkable structure). Final code review: 1 MEDIUM (`common::eval_result` added but not consumed by `evaluator_regression_guards.rs`/`regex_tests.rs` which retained local helpers) + 1 NIT (pre-existing typo `S3.4.1` → `§3.4.1` at evaluator_tests.rs §Decimal precision section header). Both remediated in sha c7d3f01. Zero open findings.
+
+6. **Cluster F (lexer consolidation) attempted, then abandoned.** Pre-execution audit caught 3 wrong `§7`-prefix spec citations in `tests/lexer_tests.rs` (same rot pattern as Cluster C). Began full consolidation — typed `Cite` enum, named const citations, failure-collection across a 50-row single-token table. Test count dropped 45→13 as planned, but **LOC went UP** (513 → 633 even after `#[rustfmt::skip]` compaction). Root cause: lexer_tests.rs was already partially tabulated (`all_keywords_recognized`, `all_punctuation_tokens` etc. as mini-tables), so structural overhead (17 named consts × 4 lines + 6 failure-collection harnesses × ~10 lines) exceeded the leverage extracted. Reverted the full consolidation; landed **only the 2 wrong citation corrections** (`§7 L381` → `§7 L506-508`; `§7 L376-377` → `§7 L501-503`) in sha 27ac25c. The original 45-test structure restored. Honest lesson: shallow-test ratio is not duplication ratio. Cluster F was a misjudgment of leverage; the citation fix was real value and survived as a 2-line commit.
+
+7. **Pre-Phase-2 architecture review (semi-formal-architecture-review against sha 27ac25c)** returned 1 BLOCKER + 2 HIGH + 5 MEDIUM + 3 NIT. All remediated in the plan doc above before any code/CI change:
+   - **B1** — `cargo mutants --file X` runs the full test suite per mutant; mandatory `.cargo/mutants.toml` with per-file test scoping. Encoded in plan §"Per-file test scoping" table.
+   - **H1** — Seam list expanded from 5+2 to 11 P0 files: added `lexer.rs`, `evaluator/budget.rs`, `extensions/registry.rs`, `extensions/catalog.rs`, `prepare_host.rs`. Tier-2 carve-out added for `interpolation.rs`, `iso_duration.rs`.
+   - **H2** — "First 5 unkilled" cap replaced with classification policy: every survivor → `kill` / `equivalent` / `accept` with documented disposition. Kill-rate floors per file with initial bounds.
+   - **M1** — CI posture clarified: weekly cron, annotate-only, `conformance/mutation-baseline.jsonl` committed as audit trend artifact.
+   - **M2** — Runtime budget: weekly (not nightly); 4-way `--shard` parallelism; `--minimum-test-timeout 30 --timeout-multiplier 3`.
+   - **M3** — Proptest determinism: `PROPTEST_CASES=64` + fixed `PROPTEST_RNG_SEED` in mutation env.
+   - **M4** — Tool choice documented: `cargo-mutants` is the only credible Rust mutation tool; no alternatives worth considering. Version pinned in CI.
+   - **M5** — Audit-defensible success criterion replaces headline kill-rate: every survivor either killed or annotated equivalent with one-line justification.
+   - **N1** — `mutants.out/` is ephemeral CI artifact; `conformance/mutation-baseline.jsonl` is committed.
+   - **N2** — Tool version pinned.
+   - **N3** — Phase 2 closeout architecture review hook added to Phase 2 checklist.
+   - **N4** — Workflow file rename (`doc.yml` → `ci.yml`) — deferred as separate hygiene fix outside Phase 2 scope.
 
 ## Phase 1 closure
 
