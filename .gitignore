@@ -16,3 +16,9 @@ Cargo.lock
 # Snapshot test temp output
 tests/.snapshot_tests.rs.pending-snap
 tests/*.pending-snap
+
+# cargo-mutants scratch output (Phase 2 mutation gate).
+# Large/ephemeral. Committed baseline lives at conformance/mutation-baseline.jsonl.
+/mutants.out
+/mutants.out.old
+**/mutants.out
