@@ -117,13 +117,23 @@ fn eval_with_fields_complex() {
 // message includes the original input expression.
 
 /// Expected outcome shape for a money-arithmetic case.
+///
+/// `Num(&str)` mirrors `MoneyBuiltinCase::Num` in `evaluator_tests.rs` and
+/// uses string-parsed Decimal so future fractional-ratio rows (e.g.
+/// `money(100, 'USD') / money(33, 'USD') ≈ 3.030303…`) are expressible
+/// without a type change.
+///
+/// `Null` carries an `intent` string so the failure message names which
+/// contract failed (currency-mismatch vs divide-by-zero vs empty-aggregate
+/// vs mixed-currency-aggregate). Promoting intent to a column applies the
+/// pre-Phase-1 H1 lesson ("columns get reviewed") uniformly across tables.
 enum MoneyCase {
     /// Result is `Value::Money(amount, currency)`.
     Money(&'static str, &'static str),
     /// Result is `Value::Number(_)` — e.g. `money / money` ratio.
-    Number(i64),
-    /// Result is `Value::Null` — currency mismatch, divide-by-zero, empty aggregate.
-    Null,
+    Num(&'static str),
+    /// Result is `Value::Null` with a named cause.
+    Null(&'static str),
 }
 
 #[test]
@@ -132,15 +142,24 @@ fn money_arithmetic_table() {
     let cases: &[(&str, MoneyCase)] = &[
         // operator: subtraction
         ("money(100, 'USD') - money(30, 'USD')", Money("70", "USD")),
-        ("money(100, 'USD') - money(30, 'EUR')", Null), // currency mismatch
+        (
+            "money(100, 'USD') - money(30, 'EUR')",
+            Null("subtraction currency mismatch"),
+        ),
         // operator: multiplication (commutative)
         ("money(25, 'EUR') * 4", Money("100", "EUR")),
         ("3 * money(10, 'GBP')", Money("30", "GBP")),
         // operator: division
         ("money(100, 'USD') / 4", Money("25", "USD")),
-        ("money(100, 'USD') / money(25, 'USD')", Number(4)),
-        ("money(100, 'USD') / money(25, 'EUR')", Null), // currency mismatch
-        ("money(100, 'USD') / 0", Null),                // divide by zero
+        ("money(100, 'USD') / money(25, 'USD')", Num("4")),
+        (
+            "money(100, 'USD') / money(25, 'EUR')",
+            Null("division currency mismatch"),
+        ),
+        ("money(100, 'USD') / 0", Null("division by zero")),
+        // operator: fractional amounts exercise decimal precision (no integer-overflow path)
+        ("money(0.1, 'USD') + money(0.2, 'USD')", Money("0.3", "USD")),
+        ("money(10, 'USD') * 0.5", Money("5.0", "USD")),
         // aggregate: moneySum
         (
             "moneySum([money(10, 'USD'), money(20, 'USD'), money(30, 'USD')])",
@@ -148,10 +167,13 @@ fn money_arithmetic_table() {
         ),
         (
             "moneySum([money(10, 'USD'), null, money(30, 'USD')])",
-            Money("40", "USD"),
-        ), // nulls skipped
-        ("moneySum([money(10, 'USD'), money(20, 'EUR')])", Null), // currency mismatch
-        ("moneySum([])", Null),                                   // empty aggregate
+            Money("40", "USD"), // nulls skipped
+        ),
+        (
+            "moneySum([money(10, 'USD'), money(20, 'EUR')])",
+            Null("aggregate mixed currencies"),
+        ),
+        ("moneySum([])", Null("aggregate empty array")),
     ];
 
     for (input, expected) in cases {
@@ -172,8 +194,16 @@ fn money_arithmetic_table() {
                 }
                 _ => panic!("input={input:?}: expected Money({amt}, {cur}), got {actual:?}"),
             },
-            MoneyCase::Number(n) => assert_eq!(actual, num(*n), "input={input:?}"),
-            MoneyCase::Null => assert_eq!(actual, Value::Null, "input={input:?}"),
+            MoneyCase::Num(n) => assert_eq!(
+                actual,
+                Value::Number(Decimal::from_str_exact(n).unwrap()),
+                "input={input:?}: number mismatch"
+            ),
+            MoneyCase::Null(intent) => assert_eq!(
+                actual,
+                Value::Null,
+                "input={input:?}: expected Null ({intent}), got {actual:?}"
+            ),
         }
     }
 }
@@ -187,10 +217,13 @@ fn money_arithmetic_table() {
 // `dateDiff(...)` returns a Number; `dateAdd(...)` returns a Date.
 
 /// Expected outcome for a date-arithmetic case.
+///
+/// Variant `Add` covers `dateAdd` (a Date result); `Diff` covers `dateDiff`
+/// (a Number result). Renamed from `Date` (which shadowed `fel_core::Date`
+/// after a glob `use DateOp::*` and required noisy `fel_core::Date::Date`
+/// qualification).
 enum DateOp {
-    /// `dateAdd` result: Date(year, month, day).
-    Date(i32, u32, u32),
-    /// `dateDiff` result: Number(value).
+    Add(i32, u32, u32),
     Diff(i64),
 }
 
@@ -199,31 +232,40 @@ fn date_arithmetic_table() {
     use DateOp::*;
     let cases: &[(&str, DateOp)] = &[
         // dateAdd: negative deltas
-        ("dateAdd(@2024-03-15, -1, 'months')", Date(2024, 2, 15)),
-        ("dateAdd(@2024-03-01, -1, 'days')", Date(2024, 2, 29)), // leap year
+        ("dateAdd(@2024-03-15, -1, 'months')", Add(2024, 2, 15)),
+        ("dateAdd(@2024-03-01, -1, 'days')", Add(2024, 2, 29)), // leap year
         // dateAdd: leap-year Feb 29 + years
-        ("dateAdd(@2024-02-29, 1, 'years')", Date(2025, 2, 28)), // clamp to non-leap Feb 28
-        ("dateAdd(@2024-02-29, 4, 'years')", Date(2028, 2, 29)), // next leap year keeps day
+        ("dateAdd(@2024-02-29, 1, 'years')", Add(2025, 2, 28)), // clamp non-leap Feb 28
+        ("dateAdd(@2024-02-29, 4, 'years')", Add(2028, 2, 29)), // next leap retains day
         // dateAdd: month wraps + day clamping
-        ("dateAdd(@2024-11-15, 3, 'months')", Date(2025, 2, 15)), // Nov + 3 months → Feb next year
-        ("dateAdd(@2024-01-31, 1, 'months')", Date(2024, 2, 29)), // Jan 31 + 1 month, leap year
-        ("dateAdd(@2023-01-31, 1, 'months')", Date(2023, 2, 28)), // Jan 31 + 1 month, non-leap
+        ("dateAdd(@2024-11-15, 3, 'months')", Add(2025, 2, 15)), // Nov + 3 → Feb next year
+        ("dateAdd(@2024-01-31, 1, 'months')", Add(2024, 2, 29)), // Jan 31 + 1, leap
+        ("dateAdd(@2023-01-31, 1, 'months')", Add(2023, 2, 28)), // Jan 31 + 1, non-leap
         // dateDiff: units + sign
         ("dateDiff(@2024-03-01, @2024-01-01, 'days')", Diff(60)),
         ("dateDiff(@2024-06-01, @2024-01-01, 'months')", Diff(5)),
         ("dateDiff(@2024-06-15, @2020-06-15, 'years')", Diff(4)),
-        ("dateDiff(@2024-01-01, @2024-03-01, 'days')", Diff(-60)), // negative result
+        ("dateDiff(@2024-01-01, @2024-03-01, 'days')", Diff(-60)),
     ];
 
     for (input, expected) in cases {
         let actual = eval(input);
         match expected {
-            DateOp::Date(y, m, d) => match &actual {
-                Value::Date(fel_core::Date::Date { year, month, day })
-                    if *year == *y && *month == *m && *day == *d => {}
-                _ => panic!("input={input:?}: expected Date({y}-{m:02}-{d:02}), got {actual:?}"),
+            DateOp::Add(y, m, d) => match &actual {
+                Value::Date(fel_core::Date::Date { year, month, day }) => {
+                    assert_eq!(
+                        (*year, *month, *day),
+                        (*y, *m, *d),
+                        "input={input:?}: date component mismatch (year, month, day)"
+                    );
+                }
+                _ => panic!("input={input:?}: expected Date({y:04}-{m:02}-{d:02}), got {actual:?}"),
             },
-            DateOp::Diff(n) => assert_eq!(actual, num(*n), "input={input:?}"),
+            DateOp::Diff(n) => assert_eq!(
+                actual,
+                num(*n),
+                "input={input:?}: dateDiff numeric mismatch"
+            ),
         }
     }
 }
@@ -237,22 +279,32 @@ fn date_arithmetic_table() {
 
 #[test]
 fn equality_table() {
-    let cases: &[(&str, bool)] = &[
+    // (input, expected, facet) — `facet` names what the row asserts so a
+    // failure points at the rule, not just the input.
+    let cases: &[(&str, bool, &str)] = &[
         // object equality
-        ("{a: 1, b: 2} = {a: 1, b: 2}", true), // same keys + values
-        ("{a: 1} = {a: 2}", false),            // different values
-        ("{a: 1} = {b: 1}", false),            // different keys
-        ("{a: 1} = {a: 1, b: 2}", false),      // different lengths
-        ("{a: {b: 1}} = {a: {b: 1}}", true),   // nested
+        (
+            "{a: 1, b: 2} = {a: 1, b: 2}",
+            true,
+            "object same keys + values",
+        ),
+        ("{a: 1} = {a: 2}", false, "object different values"),
+        ("{a: 1} = {b: 1}", false, "object different keys"),
+        ("{a: 1} = {a: 1, b: 2}", false, "object different lengths"),
+        ("{a: {b: 1}} = {a: {b: 1}}", true, "object nested"),
         // array equality
-        ("[1, 2, 3] = [1, 2, 3]", true),
-        ("[1, 2, 3] = [1, 2, 4]", false),
-        ("[1, 2] = [1, 2, 3]", false), // different lengths
-        ("[] = []", true),             // empty
+        ("[1, 2, 3] = [1, 2, 3]", true, "array same"),
+        ("[1, 2, 3] = [1, 2, 4]", false, "array different element"),
+        ("[1, 2] = [1, 2, 3]", false, "array different lengths"),
+        ("[] = []", true, "empty array equality"),
     ];
 
-    for (input, expected) in cases {
-        assert_eq!(eval(input), Value::Boolean(*expected), "input={input:?}");
+    for (input, expected, facet) in cases {
+        assert_eq!(
+            eval(input),
+            Value::Boolean(*expected),
+            "input={input:?}: {facet}"
+        );
     }
 }
 
