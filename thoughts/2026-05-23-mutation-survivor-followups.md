@@ -302,7 +302,7 @@ The 10-Haiku-reviewer swarm + 2 post-Phase-2 reviewers produced a finite finding
 | FUT-5 | HIGH | `extract_dependencies` proptest (mutation gate confirmed 56%) | Phase 3 |
 | FUT-6 | MEDIUM | Tier-2 mutation gate (interpolation.rs, iso_duration.rs) | Phase 2 leftover |
 | FUT-7 | HIGH | Catalog-declared arity isn't uniformly enforced in builtin dispatch (10 silent-on-too-few + 24 silent-on-too-many surfaced by survey) | Follow-up; surfaces via `catalog_arity_enforcement_uniformity_survey` test |
-| FUT-8 | HIGH | `differential_oracle` not in `make ci`/`ratify` chain → cross-runtime drift silent until next manual run | Follow-up; touches existing CI workflow |
+| ~~FUT-8~~ | ~~HIGH~~ | ~~`differential_oracle` not in `make ci`/`ratify` chain → cross-runtime drift silent until next manual run~~ | **Reclassified as ACCEPTED-WITH-RATIONALE.** The `external-conformance` CI job (`.github/workflows/ci.yml`) runs `make ratify-external` on the weekly schedule (`cron: 17 9 * * 1`) plus on `workflow_dispatch`. Running on every push would require cloning sibling repos (`formspec`, formspec-py, formspec-wasm) on every PR, which costs CI minutes + needs `FORMSPEC_REPO_TOKEN` propagation. Weekly + manual-trigger is the intentional design; documented in the workflow's `if:` guard. |
 | FUT-9 | MEDIUM | `env_integration_tests.rs` conflates MIP + repeat + JSON-helper into one file | Follow-up; cosmetic split |
 | FUT-10 | MEDIUM | Coercion tests in `decimal_properties.rs` are example-based, mixed with property tests | Follow-up; cosmetic split |
 | ~~FUT-11~~ | ~~MEDIUM~~ | ~~`host_bindings` missing fixture coverage for `@current`/`@index`/`@count` reserved-name catalog cases~~ | **Addressed sha `b8e7ae5`** (`@index` and `@count` symmetric tests added) |
