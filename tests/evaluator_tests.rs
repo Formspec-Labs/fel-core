@@ -1368,9 +1368,12 @@ fn has_error_diagnostics_discriminates_severity() {
     let err = Diagnostic::error("e");
     let warn = Diagnostic::warning("w");
 
-    assert!(has_error_diagnostics(&[err.clone()]), "single Error → true");
     assert!(
-        !has_error_diagnostics(&[warn.clone()]),
+        has_error_diagnostics(std::slice::from_ref(&err)),
+        "single Error → true"
+    );
+    assert!(
+        !has_error_diagnostics(std::slice::from_ref(&warn)),
         "single Warning → false"
     );
     assert!(
