@@ -196,19 +196,19 @@ Today, `extract_dependencies` and `prepare_host` lack proptests despite being P0
 
 **Phase 1 — Consolidation** (one fel-core commit per cluster):
 - [x] Pre-Phase-1 architecture review dispatched (`semi-formal-architecture-review`) — 1 HIGH + 4 MED + 3 NIT, all remediated in plan doc (see Deviations §1)
-- [ ] Cluster **A** (money operator arithmetic) — 12 → 1
-- [ ] Cluster **A′** (money builtin functions) — 4 → 1
-- [ ] Cluster **E** (object/array equality) — 9 → 1
-- [ ] Cluster **B** (date arithmetic) — 11 → 1 + delete `test_date_add` duplicate
-- [ ] Code review checkpoint (`semi-formal-code-review`, every 3–5 commits)
-- [ ] Cluster **C** (parser rejection) — 42 → 1 with structured per-row `(input, spec_ref, intent)` tuples
-- [ ] Cluster **D** (regex) — cross-file merge from `evaluator_tests.rs:1069-1145`; ~28 → 2–3 grouped by feature
-- [ ] Delete `evaluator_edge_cases.rs` if empty after migration; else narrow scope to "fuzz/regression guards"
-- [ ] `make test-differential` green (conformance corpus untouched)
+- [x] Cluster **A** (money operator arithmetic) — 12 → 1 (sha 98e77bb, −49 LOC, suite green)
+- [x] Cluster **A′** (money builtin functions) — 3 → 1 (sha 86ae369; diagnostic-message test stays standalone)
+- [x] Cluster **E** (object/array equality) — 9 → 1 (sha 3939df7, −31 LOC)
+- [x] Cluster **B** (date arithmetic) — 11 → 1 + deleted `test_date_add` duplicate (sha cae03c9, −100 LOC across two files)
+- [x] Code review checkpoint (`semi-formal-code-review`, every 3–5 commits) — 3 reviewer agents (formspec-scout, test-engineer, formspec-test) returned with HIGH H1 + MED + LOW; all remediated (shas 1cbac25, 043963e)
+- [x] Cluster **C** (parser rejection + valid-parse contrast) — 42 → 7 (sha 363cab9). Then redesigned per user feedback to typed `Cite` enum + named consts (sha 42f35b3).
+- [x] Cluster **D** (regex) — 47 tests across 2 files → 3 tests in `regex_tests.rs` with failure-collection (sha f6ecb3c)
+- [x] Redistribute `evaluator_edge_cases.rs` into topic-canonical sections (sha 984c6b1) — file deleted; LibFuzzer guards → `evaluator_regression_guards.rs`; fuzz corpus → `fuzz_regression_corpus.rs`; everything else merged into `evaluator_tests.rs` at topic sections.
+- [x] `make test-differential` green (conformance corpus untouched; differential_oracle gated behind `#[ignore]` per existing setup)
 - [ ] Post-Phase-1 architecture review (`semi-formal-architecture-review`)
-- [ ] Code review checkpoint
-- [ ] All review findings remediated (BLOCKER/HIGH → fix; warnings → fix or justified inline; nits → cleaned)
-- [ ] `cargo test` green; `cargo fmt`/`clippy` clean
+- [ ] Final code review pass
+- [x] All review findings remediated (BLOCKER/HIGH → fix; warnings → fix or justified inline; nits → cleaned) — three rounds: pre-Phase-1 (1H+4M+3N), mid-phase across 3 reviewers (1H+5M+3N), user-flagged hackiness in parser_rejection_tests.rs
+- [x] `cargo test` green (131 evaluator-domain tests + ~700 elsewhere); `cargo fmt --check` clean; `cargo clippy --tests --all-features` clean
 
 **Phase 2 — Mutation gate** (per-file LOC counts omitted per stack decay-class rules):
 - [ ] Install `cargo-mutants`
@@ -244,3 +244,13 @@ This section is **append-only**. Any divergence from the plan above (skipped ste
    - **N1** — "Delete edge_cases entirely" softened to "delete if empty after migration; else narrow."
    - **N2** — Phase 2 LOC counts removed (decay-class).
    - **N3** — `*.proptest-regressions` seeds noted as untouched.
+
+2. **Mid-phase code review (3 reviewer agents in parallel)** dispatched after clusters A/A′/E/B landed:
+   - **formspec-scout (semi-formal-code-review)**: CLEAN verdict. Found code-review M1 (`MoneyCase::Number(i64)` future-proofing) and N1 (`DateOp::Date` shadow). Remediated in 043963e.
+   - **test-engineer (drop-in review)**: MEDIUM #1 (date match-guard vs assert_eq! inconsistency), MEDIUM #2 (first-fail-hides-rest on 33-row parser table), LOW naming divergence, LOW Null-overload, LOW asymmetry, NIT pointer comments. Failure-collection pattern propagated to all big tables (sha f6ecb3c for regex; sha 42f35b3 for parser).
+   - **formspec-test (drop-in review)**: **HIGH H1 — Cluster C spec citations were demonstrably wrong** against actual `specs/fel/fel-grammar.md`. `§7 L385-386` was inside §6.3.1 host bindings (not pipe); `§7 L376-377/L374-375` was §6.3 host-binding prose (not rejection rule). Pre-existing rot survived the comment→column promotion because first review didn't re-check content. Remediated to actual rule positions (§7 L501-503 for rejection, §7 L510-512 for pipe) in sha 1cbac25. Plus NIT N2 (`spec.md` → `docs/SPEC.md`).
+   - **Cross-cutting lesson** (formspec-test): "The H1 column-vs-comment fix is necessary but not sufficient — reviewer attention must re-check citation content, not just the column structure." Logged.
+
+3. **User-flagged hackiness in `parser_rejection_tests.rs`** (mid-execution): the `type SpecRef = &'static str` and `type Intent = &'static str` aliases provided no type safety; the sentinel string `"non-spec (correctness)"` overloaded the citation column; rustfmt blew rows to 4-5 lines each. Redesigned (sha 42f35b3): typed `enum Cite { Grammar { section, lines }, Policy }`; named `const G_*` items deduplicate citations across rows (one edit fixes N rows pinning the same rule); plus failure-collection across 33 rows. Substantially cleaner; future spec-line drift hits one line, not eight.
+
+4. **User-flagged topology in `evaluator_edge_cases.rs`** (mid-execution): "shouldn't 'edge cases' just be part of the relevant tests? like money edge cases → with money tests?". Correct critique — the file was an audit-finding bolt-on, never reconciled with topic-canonical sections. Redistributed (sha 984c6b1): money tests → §Money in evaluator_tests.rs; date → §Date; equality → §Comparison; etc. LibFuzzer regression guards → `tests/evaluator_regression_guards.rs`; fuzz corpus → `tests/fuzz_regression_corpus.rs`. `evaluator_edge_cases.rs` DELETED. Five duplicates dropped along the way (length_of_null, length_of_array folded into test_string_functions, number_cast_invalid_string already exists, undefined_function_diagnostic subset of test_undefined_function, empty_edge_cases folded into test_empty_present).
