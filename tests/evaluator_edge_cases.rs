@@ -106,125 +106,76 @@ fn eval_with_fields_complex() {
 }
 
 // ── Money arithmetic edge cases ─────────────────────────────────
+//
+// Single table-driven test covering operator overloads (`-`, `*`, `/`) plus
+// the `moneySum` aggregate. Diagnostic-message-content tests for money (e.g.
+// `money(...) < n` ordering errors, `sum([money...])` rejection text) live in
+// `evaluator_tests.rs` and are intentionally NOT consolidated here — they pin
+// diagnostic message text, a stronger assertion than null-propagation.
+//
+// To add a case: append a row. To investigate a failure: the assertion
+// message includes the original input expression.
 
-/// Correctness: money subtraction via operator
+/// Expected outcome shape for a money-arithmetic case.
+enum MoneyCase {
+    /// Result is `Value::Money(amount, currency)`.
+    Money(&'static str, &'static str),
+    /// Result is `Value::Number(_)` — e.g. `money / money` ratio.
+    Number(i64),
+    /// Result is `Value::Null` — currency mismatch, divide-by-zero, empty aggregate.
+    Null,
+}
+
 #[test]
-fn money_subtraction() {
-    let result = eval("money(100, 'USD') - money(30, 'USD')");
-    match result {
-        Value::Money(m) => {
-            assert_eq!(m.amount, Decimal::from(70));
-            assert_eq!(m.currency.as_str(), "USD");
+fn money_arithmetic_table() {
+    use MoneyCase::*;
+    let cases: &[(&str, MoneyCase)] = &[
+        // operator: subtraction
+        ("money(100, 'USD') - money(30, 'USD')", Money("70", "USD")),
+        ("money(100, 'USD') - money(30, 'EUR')", Null), // currency mismatch
+        // operator: multiplication (commutative)
+        ("money(25, 'EUR') * 4", Money("100", "EUR")),
+        ("3 * money(10, 'GBP')", Money("30", "GBP")),
+        // operator: division
+        ("money(100, 'USD') / 4", Money("25", "USD")),
+        ("money(100, 'USD') / money(25, 'USD')", Number(4)),
+        ("money(100, 'USD') / money(25, 'EUR')", Null), // currency mismatch
+        ("money(100, 'USD') / 0", Null),                // divide by zero
+        // aggregate: moneySum
+        (
+            "moneySum([money(10, 'USD'), money(20, 'USD'), money(30, 'USD')])",
+            Money("60", "USD"),
+        ),
+        (
+            "moneySum([money(10, 'USD'), null, money(30, 'USD')])",
+            Money("40", "USD"),
+        ), // nulls skipped
+        ("moneySum([money(10, 'USD'), money(20, 'EUR')])", Null), // currency mismatch
+        ("moneySum([])", Null),                                   // empty aggregate
+    ];
+
+    for (input, expected) in cases {
+        let actual = eval(input);
+        match expected {
+            MoneyCase::Money(amt, cur) => match &actual {
+                Value::Money(m) => {
+                    assert_eq!(
+                        m.amount,
+                        Decimal::from_str_exact(amt).unwrap(),
+                        "input={input:?}: amount mismatch"
+                    );
+                    assert_eq!(
+                        m.currency.as_str(),
+                        *cur,
+                        "input={input:?}: currency mismatch"
+                    );
+                }
+                _ => panic!("input={input:?}: expected Money({amt}, {cur}), got {actual:?}"),
+            },
+            MoneyCase::Number(n) => assert_eq!(actual, num(*n), "input={input:?}"),
+            MoneyCase::Null => assert_eq!(actual, Value::Null, "input={input:?}"),
         }
-        _ => panic!("expected money, got {result:?}"),
     }
-}
-
-/// Correctness: money * scalar
-#[test]
-fn money_multiply_by_scalar() {
-    let result = eval("money(25, 'EUR') * 4");
-    match result {
-        Value::Money(m) => {
-            assert_eq!(m.amount, Decimal::from(100));
-            assert_eq!(m.currency.as_str(), "EUR");
-        }
-        _ => panic!("expected money, got {result:?}"),
-    }
-}
-
-/// Correctness: scalar * money (commutative)
-#[test]
-fn scalar_multiply_by_money() {
-    let result = eval("3 * money(10, 'GBP')");
-    match result {
-        Value::Money(m) => {
-            assert_eq!(m.amount, Decimal::from(30));
-            assert_eq!(m.currency.as_str(), "GBP");
-        }
-        _ => panic!("expected money, got {result:?}"),
-    }
-}
-
-/// Correctness: money / scalar
-#[test]
-fn money_divide_by_scalar() {
-    let result = eval("money(100, 'USD') / 4");
-    match result {
-        Value::Money(m) => {
-            assert_eq!(m.amount, Decimal::from(25));
-            assert_eq!(m.currency.as_str(), "USD");
-        }
-        _ => panic!("expected money, got {result:?}"),
-    }
-}
-
-/// Correctness: money / money = scalar ratio
-#[test]
-fn money_divide_by_money() {
-    let result = eval("money(100, 'USD') / money(25, 'USD')");
-    assert_eq!(result, num(4));
-}
-
-/// Correctness: money / money with currency mismatch
-#[test]
-fn money_divide_by_money_currency_mismatch() {
-    let result = eval("money(100, 'USD') / money(25, 'EUR')");
-    assert_eq!(result, Value::Null);
-}
-
-/// Correctness: money subtraction with currency mismatch
-#[test]
-fn money_subtraction_currency_mismatch() {
-    let result = eval("money(100, 'USD') - money(30, 'EUR')");
-    assert_eq!(result, Value::Null);
-}
-
-/// Correctness: money division by zero
-#[test]
-fn money_divide_by_zero() {
-    let result = eval("money(100, 'USD') / 0");
-    assert_eq!(result, Value::Null);
-}
-
-/// Correctness: moneySum across array
-#[test]
-fn money_sum_array() {
-    let result = eval("moneySum([money(10, 'USD'), money(20, 'USD'), money(30, 'USD')])");
-    match result {
-        Value::Money(m) => {
-            assert_eq!(m.amount, Decimal::from(60));
-            assert_eq!(m.currency.as_str(), "USD");
-        }
-        _ => panic!("expected money, got {result:?}"),
-    }
-}
-
-/// Correctness: moneySum with nulls (nulls skipped)
-#[test]
-fn money_sum_with_nulls() {
-    let result = eval("moneySum([money(10, 'USD'), null, money(30, 'USD')])");
-    match result {
-        Value::Money(m) => {
-            assert_eq!(m.amount, Decimal::from(40));
-            assert_eq!(m.currency.as_str(), "USD");
-        }
-        _ => panic!("expected money, got {result:?}"),
-    }
-}
-
-/// Correctness: moneySum with mixed currencies
-#[test]
-fn money_sum_mixed_currencies() {
-    let result = eval("moneySum([money(10, 'USD'), money(20, 'EUR')])");
-    assert_eq!(result, Value::Null);
-}
-
-/// Correctness: moneySum of empty array
-#[test]
-fn money_sum_empty_array() {
-    let result = eval("moneySum([])");
-    assert_eq!(result, Value::Null);
 }
 
 // ── Date arithmetic edge cases ──────────────────────────────────
