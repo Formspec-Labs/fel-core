@@ -39,6 +39,36 @@ proptest! {
         tokenize_parse_eval_do_not_panic(&src);
     }
 
+    /// Beyond robustness: the parser's `max_recursion_depth` is 32
+    /// internal recursion frames (`src/parser.rs:52`). Each paren pair
+    /// in nested literals adds ≥1 frame plus the expression-parser's own
+    /// frames (typically +1 per expression layer). Inputs with paren
+    /// depth ≥ 33 reliably exceed the cap and MUST be rejected with a
+    /// parse error — not just "not panic."
+    #[test]
+    fn nested_parens_above_cap_are_rejected(extra in 1usize..13) {
+        let depth = 33 + extra; // strictly above the per-paren cap
+        let src = nested_literal(depth);
+        prop_assert!(
+            parse(&src).is_err(),
+            "depth-{depth} parens (above 32-frame cap) must produce parse error"
+        );
+    }
+
+    /// Symmetric lower bound: shallow paren nesting MUST parse. Cap is
+    /// 16 here (well under the internal frame cap of 32) to leave room
+    /// for the expression-parser's own frame contribution per layer.
+    /// Discriminates the rejection-cap from a "rejects everything"
+    /// regression.
+    #[test]
+    fn nested_parens_well_below_cap_parse(depth in 0usize..=16) {
+        let src = nested_literal(depth);
+        prop_assert!(
+            parse(&src).is_ok(),
+            "depth-{depth} parens (well below 32-frame cap) must parse"
+        );
+    }
+
     #[test]
     fn whitespace_inflation_never_panic(
         pad in 0usize..512_usize,

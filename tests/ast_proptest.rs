@@ -16,6 +16,12 @@ proptest! {
     })]
 
     /// 1. `parse(print(ast)) == ast` for ASTs without known parse/print asymmetries.
+    ///
+    /// This is **structural** identity — proves print produces source
+    /// that round-trips losslessly through the parser. It does NOT
+    /// independently catch the case where print produces a *different*
+    /// valid AST that re-parses to the same source (see
+    /// `parse_print_eval_equivalence` below for the behavioral guard).
     #[test]
     fn parse_print_identity(
         expr in arb_expr(3, builtin_function_catalog())
@@ -23,6 +29,24 @@ proptest! {
         let printed = print_expr(&expr);
         let reparsed = parse(&printed).expect("printed form must reparse");
         prop_assert_eq!(expr, reparsed);
+    }
+
+    /// 1b. Behavioral round-trip: evaluating `expr` and evaluating
+    /// `parse(print(expr))` produce the same Value. Catches the class of
+    /// print bugs where the printed form re-parses to an AST that is
+    /// structurally identical (per #1) but evaluates differently — e.g. if
+    /// print mangles operator precedence in a way that round-trips
+    /// syntactically but changes evaluation order.
+    #[test]
+    fn parse_print_eval_equivalence(
+        expr in arb_expr(3, builtin_function_catalog())
+    ) {
+        let env = MapEnvironment::new();
+        let original_result = evaluate(&expr, &env).value;
+        let printed = print_expr(&expr);
+        let reparsed = parse(&printed).expect("printed form must reparse");
+        let reparsed_result = evaluate(&reparsed, &env).value;
+        prop_assert_eq!(original_result, reparsed_result);
     }
 
     /// 2. `eval(parse(s), env) == eval(parse(s), env)` — determinism across two evaluations.
