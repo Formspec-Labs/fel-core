@@ -205,9 +205,9 @@ Today, `extract_dependencies` and `prepare_host` lack proptests despite being P0
 - [x] Cluster **D** (regex) — 47 tests across 2 files → 3 tests in `regex_tests.rs` with failure-collection (sha f6ecb3c)
 - [x] Redistribute `evaluator_edge_cases.rs` into topic-canonical sections (sha 984c6b1) — file deleted; LibFuzzer guards → `evaluator_regression_guards.rs`; fuzz corpus → `fuzz_regression_corpus.rs`; everything else merged into `evaluator_tests.rs` at topic sections.
 - [x] `make test-differential` green (conformance corpus untouched; differential_oracle gated behind `#[ignore]` per existing setup)
-- [ ] Post-Phase-1 architecture review (`semi-formal-architecture-review`)
-- [ ] Final code review pass
-- [x] All review findings remediated (BLOCKER/HIGH → fix; warnings → fix or justified inline; nits → cleaned) — three rounds: pre-Phase-1 (1H+4M+3N), mid-phase across 3 reviewers (1H+5M+3N), user-flagged hackiness in parser_rejection_tests.rs
+- [x] Post-Phase-1 architecture review (`semi-formal-architecture-review`) — ACCEPT verdict, 0 BLOCKER/HIGH/MEDIUM, 2 NITs both justified-rejected
+- [x] Final code review pass — 1 MEDIUM (M1: helper deduplication) + 1 NIT (N1: §3.4.1 typo); both remediated (sha c7d3f01)
+- [x] All review findings remediated (BLOCKER/HIGH → fix; warnings → fix or justified inline; nits → cleaned) — four rounds: pre-Phase-1 (1H+4M+3N), mid-phase across 3 reviewers (1H+5M+3N), user-flagged hackiness, post-Phase-1 final (1M+1N)
 - [x] `cargo test` green (131 evaluator-domain tests + ~700 elsewhere); `cargo fmt --check` clean; `cargo clippy --tests --all-features` clean
 
 **Phase 2 — Mutation gate** (per-file LOC counts omitted per stack decay-class rules):
@@ -228,8 +228,8 @@ Today, `extract_dependencies` and `prepare_host` lack proptests despite being P0
 - [ ] Post-Phase-3 architecture review
 
 **Closeout**:
-- [ ] Parent-repo (`formspec-stack/`) submodule pointer bump prepared for owner approval
-- [ ] Final verification: `cargo test` + `cargo fmt --check` + `cargo clippy -- -D warnings`
+- [x] Parent-repo (`formspec-stack/`) submodule pointer bump prepared — HELD for owner-approved push (per directive). fel-core `main` at sha c7d3f01.
+- [x] Final verification: `cargo test` green (548 #[test] runner counts across 30 binaries, including the failure-collection tables that themselves cover 60+ matches rows, 33 parser rejections, etc.); `cargo fmt --check` clean; `cargo clippy --tests --all-features` clean.
 
 ## Deviations
 
@@ -254,3 +254,27 @@ This section is **append-only**. Any divergence from the plan above (skipped ste
 3. **User-flagged hackiness in `parser_rejection_tests.rs`** (mid-execution): the `type SpecRef = &'static str` and `type Intent = &'static str` aliases provided no type safety; the sentinel string `"non-spec (correctness)"` overloaded the citation column; rustfmt blew rows to 4-5 lines each. Redesigned (sha 42f35b3): typed `enum Cite { Grammar { section, lines }, Policy }`; named `const G_*` items deduplicate citations across rows (one edit fixes N rows pinning the same rule); plus failure-collection across 33 rows. Substantially cleaner; future spec-line drift hits one line, not eight.
 
 4. **User-flagged topology in `evaluator_edge_cases.rs`** (mid-execution): "shouldn't 'edge cases' just be part of the relevant tests? like money edge cases → with money tests?". Correct critique — the file was an audit-finding bolt-on, never reconciled with topic-canonical sections. Redistributed (sha 984c6b1): money tests → §Money in evaluator_tests.rs; date → §Date; equality → §Comparison; etc. LibFuzzer regression guards → `tests/evaluator_regression_guards.rs`; fuzz corpus → `tests/fuzz_regression_corpus.rs`. `evaluator_edge_cases.rs` DELETED. Five duplicates dropped along the way (length_of_null, length_of_array folded into test_string_functions, number_cast_invalid_string already exists, undefined_function_diagnostic subset of test_undefined_function, empty_edge_cases folded into test_empty_present).
+
+5. **Post-Phase-1 reviews (architecture + code, parallel)** — ACCEPT verdict overall. Architecture review: 0 BLOCKER/HIGH/MEDIUM, 2 NITs both justified-rejected (separate regression-guards and fuzz-corpus files is intentional; LOC overage vs original target buys reviewer-checkable structure). Final code review: 1 MEDIUM (`common::eval_result` added but not consumed by `evaluator_regression_guards.rs`/`regex_tests.rs` which retained local helpers) + 1 NIT (pre-existing typo `S3.4.1` → `§3.4.1` at evaluator_tests.rs §Decimal precision section header). Both remediated in sha c7d3f01. Zero open findings.
+
+## Phase 1 closure
+
+**Status**: Phase 1 complete. fel-core `main` at sha c7d3f01.
+
+**Net delta**:
+- Test functions: 497 → 381 (−116, −23%)
+- Test LOC: 6527 → 6027 (−500, −7.7%)
+- Files: `tests/evaluator_edge_cases.rs` deleted; `tests/evaluator_regression_guards.rs` + `tests/fuzz_regression_corpus.rs` added; 5 existing files restructured.
+- Conformance / proptest / differential-oracle: byte-identical (`git diff 3d45c95..HEAD --` empty for those paths).
+- Cluster-by-cluster receipts:
+  - A (money operator): 12 → 1 table (sha 98e77bb)
+  - A′ (money builtins): 3 → 1 table (sha 86ae369)
+  - B (date arithmetic): 11 → 1 table + duplicate deleted (sha cae03c9)
+  - C (parser rejection): 42 → 7 then redesigned with typed Cite enum (shas 363cab9, 42f35b3)
+  - D (regex): 47 across 2 files → 3 in regex_tests.rs (sha f6ecb3c)
+  - E (equality): 9 → 1 table (sha 3939df7)
+  - Remediation passes: 1cbac25 (HIGH H1 citation fix), 043963e (A/B/E pattern harmonization), 984c6b1 (edge_cases redistribution), c7d3f01 (final M1+N1)
+
+**Gates green**: `cargo test`, `cargo fmt --check`, `cargo clippy --tests --all-features` all clean.
+
+**Phase 2 (mutation gate) and Phase 3 (proptest gaps + CI policy) remain deferred**, both with explicit follow-up checklists above. They are infrastructure work (CI wiring, cargo-mutants install) deliberately scoped outside Phase 1's "consolidate without behavior loss" mandate.
