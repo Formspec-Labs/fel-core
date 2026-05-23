@@ -487,25 +487,8 @@ fn test_map_environment_clock_can_be_overridden() {
     );
 }
 
-#[test]
-fn test_date_diff() {
-    assert_eq!(eval("dateDiff(@2024-03-01, @2024-01-01, 'days')"), num(60));
-    assert_eq!(eval("dateDiff(@2024-06-01, @2024-01-01, 'months')"), num(5));
-}
-
-#[test]
-fn test_date_add() {
-    let result = eval("dateAdd(@2024-01-31, 1, 'months')");
-    // Jan 31 + 1 month → Feb 29 (2024 is leap year, day clamped)
-    assert!(matches!(
-        result,
-        Value::Date(Date::Date {
-            year: 2024,
-            month: 2,
-            day: 29
-        })
-    ));
-}
+// Note: dateAdd / dateDiff coverage lives in evaluator_edge_cases.rs's
+// `date_arithmetic_table` (consolidated under Cluster B of the test triage).
 
 // ── Time functions ──────────────────────────────────────────────
 

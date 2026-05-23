@@ -178,137 +178,54 @@ fn money_arithmetic_table() {
     }
 }
 
-// ── Date arithmetic edge cases ──────────────────────────────────
+// ── Date arithmetic ─────────────────────────────────────────────
+//
+// Consolidated coverage of `dateAdd` and `dateDiff`. Covers negative deltas,
+// year wraps, leap-year handling (Feb 29 clamping into non-leap years,
+// Jan 31 + month clamping), and dateDiff sign + unit semantics.
+//
+// `dateDiff(...)` returns a Number; `dateAdd(...)` returns a Date.
 
-/// Correctness: negative dateAdd (subtract months)
-#[test]
-fn date_add_negative_months() {
-    let result = eval("dateAdd(@2024-03-15, -1, 'months')");
-    assert!(
-        matches!(
-            result,
-            Value::Date(Date::Date {
-                year: 2024,
-                month: 2,
-                day: 15
-            })
-        ),
-        "got: {result:?}"
-    );
+/// Expected outcome for a date-arithmetic case.
+enum DateOp {
+    /// `dateAdd` result: Date(year, month, day).
+    Date(i32, u32, u32),
+    /// `dateDiff` result: Number(value).
+    Diff(i64),
 }
 
-/// Correctness: negative dateAdd (subtract days)
 #[test]
-fn date_add_negative_days() {
-    let result = eval("dateAdd(@2024-03-01, -1, 'days')");
-    assert!(
-        matches!(
-            result,
-            Value::Date(Date::Date {
-                year: 2024,
-                month: 2,
-                day: 29
-            })
-        ),
-        "Feb 29 (leap year), got: {result:?}"
-    );
-}
+fn date_arithmetic_table() {
+    use DateOp::*;
+    let cases: &[(&str, DateOp)] = &[
+        // dateAdd: negative deltas
+        ("dateAdd(@2024-03-15, -1, 'months')", Date(2024, 2, 15)),
+        ("dateAdd(@2024-03-01, -1, 'days')", Date(2024, 2, 29)), // leap year
+        // dateAdd: leap-year Feb 29 + years
+        ("dateAdd(@2024-02-29, 1, 'years')", Date(2025, 2, 28)), // clamp to non-leap Feb 28
+        ("dateAdd(@2024-02-29, 4, 'years')", Date(2028, 2, 29)), // next leap year keeps day
+        // dateAdd: month wraps + day clamping
+        ("dateAdd(@2024-11-15, 3, 'months')", Date(2025, 2, 15)), // Nov + 3 months → Feb next year
+        ("dateAdd(@2024-01-31, 1, 'months')", Date(2024, 2, 29)), // Jan 31 + 1 month, leap year
+        ("dateAdd(@2023-01-31, 1, 'months')", Date(2023, 2, 28)), // Jan 31 + 1 month, non-leap
+        // dateDiff: units + sign
+        ("dateDiff(@2024-03-01, @2024-01-01, 'days')", Diff(60)),
+        ("dateDiff(@2024-06-01, @2024-01-01, 'months')", Diff(5)),
+        ("dateDiff(@2024-06-15, @2020-06-15, 'years')", Diff(4)),
+        ("dateDiff(@2024-01-01, @2024-03-01, 'days')", Diff(-60)), // negative result
+    ];
 
-/// Correctness: leap year Feb 29 + 1 year = Feb 28 (clamped)
-#[test]
-fn date_add_leap_year_feb29_plus_one_year() {
-    let result = eval("dateAdd(@2024-02-29, 1, 'years')");
-    assert!(
-        matches!(
-            result,
-            Value::Date(Date::Date {
-                year: 2025,
-                month: 2,
-                day: 28
-            })
-        ),
-        "should clamp to Feb 28 in non-leap year, got: {result:?}"
-    );
-}
-
-/// Correctness: leap year Feb 29 + 4 years stays Feb 29
-#[test]
-fn date_add_leap_year_feb29_plus_four_years() {
-    let result = eval("dateAdd(@2024-02-29, 4, 'years')");
-    assert!(
-        matches!(
-            result,
-            Value::Date(Date::Date {
-                year: 2028,
-                month: 2,
-                day: 29
-            })
-        ),
-        "2028 is a leap year, got: {result:?}"
-    );
-}
-
-/// Correctness: dateDiff with 'years' unit
-#[test]
-fn date_diff_years() {
-    assert_eq!(eval("dateDiff(@2024-06-15, @2020-06-15, 'years')"), num(4));
-}
-
-/// Correctness: dateDiff negative result
-#[test]
-fn date_diff_negative() {
-    assert_eq!(eval("dateDiff(@2024-01-01, @2024-03-01, 'days')"), num(-60));
-}
-
-/// Correctness: dateAdd large months (wraps year)
-#[test]
-fn date_add_wraps_year() {
-    let result = eval("dateAdd(@2024-11-15, 3, 'months')");
-    assert!(
-        matches!(
-            result,
-            Value::Date(Date::Date {
-                year: 2025,
-                month: 2,
-                day: 15
-            })
-        ),
-        "Nov + 3 months = Feb next year, got: {result:?}"
-    );
-}
-
-/// Correctness: dateAdd day clamping (Jan 31 + 1 month = Feb 29 in leap year)
-#[test]
-fn date_add_month_day_clamping() {
-    let result = eval("dateAdd(@2024-01-31, 1, 'months')");
-    assert!(
-        matches!(
-            result,
-            Value::Date(Date::Date {
-                year: 2024,
-                month: 2,
-                day: 29
-            })
-        ),
-        "got: {result:?}"
-    );
-}
-
-/// Correctness: dateAdd to non-leap year Feb clamps to 28
-#[test]
-fn date_add_month_to_non_leap_feb() {
-    let result = eval("dateAdd(@2023-01-31, 1, 'months')");
-    assert!(
-        matches!(
-            result,
-            Value::Date(Date::Date {
-                year: 2023,
-                month: 2,
-                day: 28
-            })
-        ),
-        "got: {result:?}"
-    );
+    for (input, expected) in cases {
+        let actual = eval(input);
+        match expected {
+            DateOp::Date(y, m, d) => match &actual {
+                Value::Date(fel_core::Date::Date { year, month, day })
+                    if *year == *y && *month == *m && *day == *d => {}
+                _ => panic!("input={input:?}: expected Date({y}-{m:02}-{d:02}), got {actual:?}"),
+            },
+            DateOp::Diff(n) => assert_eq!(actual, num(*n), "input={input:?}"),
+        }
+    }
 }
 
 // ── Object and array equality ───────────────────────────────────
