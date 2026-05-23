@@ -575,14 +575,67 @@ fn test_casting() {
 }
 
 // ── Money functions ─────────────────────────────────────────────
+//
+// Table-driven coverage of the money-builtin contract:
+//   - `money(amount, currency)`  constructor
+//   - `moneyAmount(m)` / `moneyCurrency(m)`  accessors
+//   - `moneyAdd(a, b)` aggregate (with currency-mismatch null-prop)
+//
+// Diagnostic-message-content tests (test_money_*_diagnostic below) stay
+// standalone because they pin message text — a stronger assertion than
+// null-propagation that would be diluted in a value-only table.
+
+/// Expected outcome shape for a money-builtin case.
+enum MoneyBuiltinCase {
+    Money(&'static str, &'static str),
+    Num(&'static str),
+    Str(&'static str),
+    Null,
+}
 
 #[test]
-fn test_money() {
-    let result = eval("money(100.50, 'USD')");
-    assert!(matches!(result, Value::Money(Money { .. })));
+fn test_money_builtins_table() {
+    use MoneyBuiltinCase::*;
+    let cases: &[(&str, MoneyBuiltinCase)] = &[
+        // constructor
+        ("money(100.50, 'USD')", Money("100.50", "USD")),
+        // accessors
+        ("moneyAmount(money(100.50, 'USD'))", Num("100.50")),
+        ("moneyCurrency(money(100.50, 'USD'))", Str("USD")),
+        // builtin add
+        (
+            "moneyAdd(money(100, 'USD'), money(50, 'USD'))",
+            Money("150", "USD"),
+        ),
+        // builtin add — currency mismatch
+        ("moneyAdd(money(100, 'USD'), money(50, 'EUR'))", Null),
+    ];
 
-    assert_eq!(eval("moneyAmount(money(100.50, 'USD'))"), dec("100.50"));
-    assert_eq!(eval("moneyCurrency(money(100.50, 'USD'))"), s("USD"));
+    for (input, expected) in cases {
+        let actual = eval(input);
+        match expected {
+            MoneyBuiltinCase::Money(amt, cur) => match &actual {
+                Value::Money(m) => {
+                    assert_eq!(
+                        m.amount,
+                        Decimal::from_str_exact(amt).unwrap(),
+                        "input={input:?}: amount mismatch"
+                    );
+                    assert_eq!(
+                        m.currency.as_str(),
+                        *cur,
+                        "input={input:?}: currency mismatch"
+                    );
+                }
+                _ => panic!("input={input:?}: expected Money({amt}, {cur}), got {actual:?}"),
+            },
+            MoneyBuiltinCase::Num(d) => {
+                assert_eq!(actual, dec(d), "input={input:?}")
+            }
+            MoneyBuiltinCase::Str(v) => assert_eq!(actual, s(v), "input={input:?}"),
+            MoneyBuiltinCase::Null => assert_eq!(actual, Value::Null, "input={input:?}"),
+        }
+    }
 }
 
 #[test]
@@ -612,26 +665,6 @@ fn test_money_amount_currency_type_mismatch_emits_diagnostic() {
         }),
         "{:?}",
         out.diagnostics
-    );
-}
-
-#[test]
-fn test_money_add() {
-    let result = eval("moneyAdd(money(100, 'USD'), money(50, 'USD'))");
-    match result {
-        Value::Money(m) => {
-            assert_eq!(m.amount, Decimal::from(150));
-            assert_eq!(m.currency.as_str(), "USD");
-        }
-        _ => panic!("expected money"),
-    }
-}
-
-#[test]
-fn test_money_currency_mismatch() {
-    assert_eq!(
-        eval("moneyAdd(money(100, 'USD'), money(50, 'EUR'))"),
-        Value::Null
     );
 }
 
