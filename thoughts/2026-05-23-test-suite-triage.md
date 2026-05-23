@@ -286,12 +286,12 @@ Today, `extract_dependencies` and `prepare_host` lack proptests despite being P0
 - [x] Emit `conformance/mutation-baseline.jsonl` per file — 21 rows committed (audit trend artifact)
 - [x] Wire CI as **weekly** (not nightly) job in `.github/workflows/mutants.yml` with `--shard k/4` across 4 jobs
 - [x] Annotate-only failure mode — `continue-on-error: true` on shard matrix
-- [ ] Post-Phase-2 architecture review (dispatched at sha `898a23e`)
-- [ ] Post-Phase-2 code review (dispatched at sha `898a23e`)
+- [x] Post-Phase-2 architecture review (sha `898a23e`): **APPROVE WITH NITS** — 1 HIGH (H1 split classified vs pending) + 2 MED (M1 ticket ID, M2 eprintln→println) + 1 MED-obs (M3 timeout verification). Remediated: H1 + M2 in shas `ef1ab02`, `f26b2d9`; M1 + M3 documented as FUT-4/5 and FUT-3 tickets.
+- [x] Post-Phase-2 code review (sha `898a23e`): **APPROVE WITH MINOR FIXES** — 2 MED in `mutation_baseline.py` (idempotence + malformed-JSON guard). Both remediated in sha `ef1ab02`. Five NITs: helper-dedup, Money proptest, config pivot accepted as KEEP. Kill tests verified as real (not theater).
 
 **Phase 3 — Leverage policy in CI**:
-- [ ] Proptest for `extract_dependencies` (P0 seam, currently uncovered)
-- [ ] Proptest for `prepare` / `prepare_for_host` (P0 seam, currently uncovered)
+- [ ] Proptest for `extract_dependencies` (P0 seam, currently uncovered) — **FUT-5** (Phase 2 mutation gate confirmed at 56% kill rate)
+- [ ] Proptest for `prepare` / `prepare_for_host` (P0 seam, currently uncovered) — **FUT-4** (Phase 2 mutation gate confirmed at 69% kill rate)
 - [ ] CI gate: each public `lib.rs` re-export requires ≥1 proptest before example tests count
 - [ ] Post-Phase-3 architecture review
 
