@@ -11,15 +11,12 @@
 //!     guard): a 200-frame deep left-associated binary tree must hit the
 //!     depth cap and return null + diagnostic, not blow the stack.
 
+mod common;
+
+use common::eval_result;
 use fel_core::ast::{BinaryOp as AstBinaryOp, Expr};
 use fel_core::*;
 use rust_decimal::Decimal;
-
-fn eval_result(input: &str) -> EvalResult {
-    let expr = parse(input).unwrap();
-    let env = MapEnvironment::new();
-    evaluate(&expr, &env)
-}
 
 /// LibFuzzer regression: decimal-multiplication overflow yields
 /// `Value::Null` + diagnostic, never panic.

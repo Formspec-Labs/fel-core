@@ -19,13 +19,10 @@
 //! split between this file and `evaluator_tests.rs:1085-1188` were
 //! consolidated here.
 
-use fel_core::*;
+mod common;
 
-fn eval(input: &str) -> Value {
-    let expr = parse(input).unwrap();
-    let env = MapEnvironment::new();
-    evaluate(&expr, &env).value
-}
+use common::eval;
+use fel_core::*;
 
 #[test]
 fn matches_table() {

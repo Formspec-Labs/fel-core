@@ -1476,7 +1476,7 @@ fn boolean_cast_edge_cases() {
     assert_eq!(r.value, Value::Null);
 }
 
-// ── Decimal precision (spec S3.4.1) ─────────────────────────────
+// ── Decimal precision (spec §3.4.1) ─────────────────────────────
 
 #[test]
 fn test_decimal_precision_18_digits() {
