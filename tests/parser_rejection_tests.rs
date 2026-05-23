@@ -1,201 +1,215 @@
-//! Parser rejection tests — verifying invalid inputs are rejected.
+//! Parser rejection tests — table-driven coverage of inputs the parser
+//! MUST reject, paired with positive contrast cases.
 //!
-//! Addresses audit finding: "Zero parser rejection tests".
+//! Three test surfaces:
 //!
-//! Two table-driven tests + four span-correctness tests:
+//!   - `parser_rejection_table` — inputs that MUST fail to parse. Each
+//!     row carries a typed [`Cite`] (grammar section + lines, or
+//!     `Policy` for non-spec rejection) and an `intent` string.
+//!     Citations are deduped into named [`Cite`] consts so a single
+//!     spec-line correction updates every row that pins the same rule.
+//!     Failures are collected and reported in one panic so a regression
+//!     affecting multiple rows surfaces the full blast radius.
 //!
-//!   - `parser_rejection_table` — each row carries `(input, spec_ref,
-//!     intent)`. Spec citations are structured per row (not freeform
-//!     comments) so they survive review and don't drift.
+//!   - `valid_parse_table` — positive contrast cases. Documents what
+//!     the rejection rules push against (`if(...)` is valid per §4.1
+//!     even though other reserved words are not; trailing comma in
+//!     object is valid per parser policy even though it's not in a
+//!     function call).
 //!
-//!   - `valid_parse_table` — positive contrast cases: inputs that look like
-//!     they might be rejected but are explicitly valid per spec. Documents
-//!     the boundary the rejection table pushes against.
-//!
-//!   - `parse_error_span_*` / `lexer_error_*` — kept as standalone tests:
-//!     they assert on span byte-ranges, a different shape from "input is
-//!     rejected".
+//!   - `parse_error_span_*` / `lexer_error_*` — bespoke standalone
+//!     tests. They pin span byte-ranges on rejection, not the rejection
+//!     itself. Different contract from the table; keeping them
+//!     separate.
 
 use fel_core::{Error, parse};
 
-/// Spec section / rationale for a parser-rejection case.
+/// Provenance of a rejection or acceptance contract.
 ///
-/// Concrete strings keep grep-discoverability ("§3.3 L83-84") while making
-/// the citation a structured column rather than a freeform comment.
-type SpecRef = &'static str;
+/// `Grammar { section, lines }` cites `specs/fel/fel-grammar.md`. `Policy`
+/// covers non-spec parser policy or robustness guards (chained-comparison
+/// rejection, depth limits, trailing-comma policy in function calls).
+#[derive(Clone, Copy)]
+enum Cite {
+    Grammar {
+        section: &'static str,
+        lines: &'static str,
+    },
+    Policy,
+}
 
-/// Short prose describing what contract the rejection pins.
-type Intent = &'static str;
-
-#[test]
-fn parser_rejection_table() {
-    let cases: &[(&str, SpecRef, Intent)] = &[
-        // ── Duplicate object keys ──
-        (
-            "{a: 1, a: 2}",
-            "fel-grammar.md §4.2 L272-273",
-            "duplicate keys in object literal",
-        ),
-        // ── Pipe operator (reserved for future use) ──
-        (
-            "1 |> 2",
-            "fel-grammar.md §7 L510-512",
-            "pipe operator in middle",
-        ),
-        (
-            "|> 2",
-            "fel-grammar.md §7 L510-512",
-            "pipe operator at start",
-        ),
-        // ── Reserved words as function names ──
-        //
-        // §3.3: reserved words MUST NOT be used as function names. `if(` is
-        // explicitly special-cased and tested as VALID in `valid_parse_table`.
-        (
-            "true()",
-            "fel-grammar.md §3.3 L83-84",
-            "reserved word `true` as fn",
-        ),
-        (
-            "false()",
-            "fel-grammar.md §3.3 L83-84",
-            "reserved word `false` as fn",
-        ),
-        (
-            "null()",
-            "fel-grammar.md §3.3 L83-84",
-            "reserved word `null` as fn",
-        ),
-        (
-            "and()",
-            "fel-grammar.md §3.3 L83-84",
-            "reserved word `and` as fn",
-        ),
-        (
-            "or()",
-            "fel-grammar.md §3.3 L83-84",
-            "reserved word `or` as fn",
-        ),
-        (
-            "not()",
-            "fel-grammar.md §3.3 L83-84",
-            "`not` is unary operator, empty parens fail",
-        ),
-        // ── Leading/trailing dot numbers ──
-        (".5", "fel-grammar.md §3.5 L132", "leading dot number"),
-        ("5.", "fel-grammar.md §3.5 L133", "trailing dot number"),
-        // ── Unterminated grouping ──
-        (
-            "(1 + 2",
-            "fel-grammar.md §7 L501-503",
-            "unterminated parenthesis",
-        ),
-        (
-            "[1, 2",
-            "fel-grammar.md §7 L501-503",
-            "unterminated bracket",
-        ),
-        ("{a: 1", "fel-grammar.md §7 L501-503", "unterminated brace"),
-        (
-            "(1 + 2]",
-            "fel-grammar.md §7 L501-503",
-            "mismatched delimiters",
-        ),
-        // ── Empty / whitespace-only input ──
-        ("", "fel-grammar.md §7 L501-503", "empty input"),
-        ("   ", "non-spec (correctness)", "whitespace-only input"),
-        // ── Trailing tokens ──
-        (
-            "1 2",
-            "fel-grammar.md §7 L501-503",
-            "two atoms without operator",
-        ),
-        (
-            "(1 + 2))",
-            "non-spec (correctness)",
-            "extra closing parenthesis",
-        ),
-        // ── Chained comparisons (non-associative) ──
-        (
-            "1 < 2 < 3",
-            "non-spec (correctness)",
-            "chained `<` comparison",
-        ),
-        (
-            "1 <= 2 <= 3",
-            "non-spec (correctness)",
-            "chained `<=` comparison",
-        ),
-        (
-            "$a = $b = $c",
-            "non-spec (correctness)",
-            "chained `=` equality",
-        ),
-        (
-            "1 == 2 == 3",
-            "non-spec (correctness)",
-            "chained `==` equality",
-        ),
-        (
-            "$a != $b != $c",
-            "non-spec (correctness)",
-            "chained `!=` inequality",
-        ),
-        // ── Invalid operator / control-flow shapes ──
-        ("+", "non-spec (correctness)", "bare operator, no operands"),
-        ("1 + + 2", "non-spec (correctness)", "consecutive operators"),
-        (
-            "if true else false",
-            "non-spec (correctness)",
-            "if-then-else missing `then`",
-        ),
-        (
-            "if true then 1",
-            "non-spec (correctness)",
-            "if-then-else missing `else`",
-        ),
-        (
-            "let x = 5",
-            "non-spec (correctness)",
-            "let binding missing `in`",
-        ),
-        (
-            "{a 1}",
-            "non-spec (correctness)",
-            "object literal missing colon",
-        ),
-        (
-            "{a:}",
-            "non-spec (correctness)",
-            "object literal missing value",
-        ),
-        (
-            "sum(1, 2",
-            "non-spec (correctness)",
-            "function call missing close paren",
-        ),
-        (
-            "sum(1,)",
-            "non-spec (correctness)",
-            "trailing comma in function call (no arg)",
-        ),
-    ];
-
-    for (input, spec_ref, intent) in cases {
-        match parse(input) {
-            Err(_) => {} // expected
-            Ok(ast) => panic!(
-                "expected parse error for {input:?} ({intent}, {spec_ref}); got AST: {ast:?}"
-            ),
+impl Cite {
+    fn render(&self) -> String {
+        match self {
+            Cite::Grammar { section, lines } => format!("fel-grammar.md {section} {lines}"),
+            Cite::Policy => "parser policy".to_string(),
         }
     }
 }
 
+// Named citations — single source of truth per spec rule. Citing the same
+// rule from N rows here means N rows update on one edit.
+const G_RESERVED_WORDS: Cite = Cite::Grammar {
+    section: "§3.3",
+    lines: "L83-84",
+};
+const G_LEADING_DOT: Cite = Cite::Grammar {
+    section: "§3.5",
+    lines: "L132",
+};
+const G_TRAILING_DOT: Cite = Cite::Grammar {
+    section: "§3.5",
+    lines: "L133",
+};
+const G_OBJECT_DUP_KEYS: Cite = Cite::Grammar {
+    section: "§4.2",
+    lines: "L272-273",
+};
+const G_IF_FN_CALL: Cite = Cite::Grammar {
+    section: "§4.1",
+    lines: "L256-261",
+};
+const G_CONFORMANCE_REJECT: Cite = Cite::Grammar {
+    section: "§7",
+    lines: "L501-503", // "MUST reject all input strings that do not match the Expression production"
+};
+const G_CONFORMANCE_PIPE: Cite = Cite::Grammar {
+    section: "§7",
+    lines: "L510-512", // "MUST parse `|>` as a syntax error in v1.0"
+};
+const POLICY: Cite = Cite::Policy;
+
+#[test]
+fn parser_rejection_table() {
+    let cases: &[(&str, Cite, &str)] = &[
+        // ── Duplicate object keys ──
+        (
+            "{a: 1, a: 2}",
+            G_OBJECT_DUP_KEYS,
+            "duplicate keys in object literal",
+        ),
+        // ── Pipe operator (reserved for v2) ──
+        ("1 |> 2", G_CONFORMANCE_PIPE, "pipe operator (middle)"),
+        ("|> 2", G_CONFORMANCE_PIPE, "pipe operator (start)"),
+        // ── Reserved words as function names ── (`if(` is special-cased VALID below)
+        ("true()", G_RESERVED_WORDS, "reserved word `true` as fn"),
+        ("false()", G_RESERVED_WORDS, "reserved word `false` as fn"),
+        ("null()", G_RESERVED_WORDS, "reserved word `null` as fn"),
+        ("and()", G_RESERVED_WORDS, "reserved word `and` as fn"),
+        ("or()", G_RESERVED_WORDS, "reserved word `or` as fn"),
+        (
+            "not()",
+            G_RESERVED_WORDS,
+            "`not` is unary op, empty parens fail",
+        ),
+        // ── Leading/trailing dot numbers ──
+        (".5", G_LEADING_DOT, "leading dot number"),
+        ("5.", G_TRAILING_DOT, "trailing dot number"),
+        // ── Unterminated / mismatched grouping ──
+        ("(1 + 2", G_CONFORMANCE_REJECT, "unterminated parenthesis"),
+        ("[1, 2", G_CONFORMANCE_REJECT, "unterminated bracket"),
+        ("{a: 1", G_CONFORMANCE_REJECT, "unterminated brace"),
+        ("(1 + 2]", G_CONFORMANCE_REJECT, "mismatched delimiters"),
+        // ── Empty / whitespace-only input ──
+        ("", G_CONFORMANCE_REJECT, "empty input"),
+        ("   ", POLICY, "whitespace-only input"),
+        // ── Trailing tokens / extra delimiters ──
+        ("1 2", G_CONFORMANCE_REJECT, "two atoms without operator"),
+        ("(1 + 2))", POLICY, "extra closing parenthesis"),
+        // ── Chained comparisons (non-associative) ──
+        ("1 < 2 < 3", POLICY, "chained `<` comparison"),
+        ("1 <= 2 <= 3", POLICY, "chained `<=` comparison"),
+        ("$a = $b = $c", POLICY, "chained `=` equality"),
+        ("1 == 2 == 3", POLICY, "chained `==` equality"),
+        ("$a != $b != $c", POLICY, "chained `!=` inequality"),
+        // ── Invalid operator / control-flow shapes ──
+        ("+", POLICY, "bare operator, no operands"),
+        ("1 + + 2", POLICY, "consecutive operators"),
+        ("if true else false", POLICY, "if-then-else missing `then`"),
+        ("if true then 1", POLICY, "if-then-else missing `else`"),
+        ("let x = 5", POLICY, "let binding missing `in`"),
+        ("{a 1}", POLICY, "object literal missing colon"),
+        ("{a:}", POLICY, "object literal missing value"),
+        ("sum(1, 2", POLICY, "function call missing close paren"),
+        (
+            "sum(1,)",
+            POLICY,
+            "trailing comma in function call (no arg)",
+        ),
+    ];
+
+    // Failure-collection: with 33 rows a parser regression can flip
+    // several at once. First-fail panic would mask the blast radius.
+    let mut failures: Vec<String> = Vec::new();
+    for (input, cite, intent) in cases {
+        if let Ok(ast) = parse(input) {
+            failures.push(format!(
+                "  parse({input:?}) should fail [{intent}; {}]; got AST: {ast:?}",
+                cite.render()
+            ));
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} of {} rejection rows parsed successfully (should have failed):\n{}",
+        failures.len(),
+        cases.len(),
+        failures.join("\n")
+    );
+}
+
+#[test]
+fn valid_parse_table() {
+    // Positive contrast: inputs that look like they might be rejected but
+    // are explicitly valid per spec or parser policy. The `cite` column
+    // names the contract that protects each case from rejection.
+    let cases: &[(&str, Cite, &str)] = &[
+        (
+            "if(true, 1, 2)",
+            G_IF_FN_CALL,
+            "`if(...)` dispatched to FunctionCall",
+        ),
+        (
+            "0 <= $age and $age <= 120",
+            POLICY,
+            "explicit range via `and` is valid (chained comparison is the bug, not this)",
+        ),
+        (
+            "$a = $b",
+            POLICY,
+            "single equality parses (only chained is rejected)",
+        ),
+        ("[]", POLICY, "empty array literal is valid"),
+        ("{}", POLICY, "empty object literal is valid"),
+        (
+            "{a: 1, b: 2,}",
+            POLICY,
+            "trailing comma in OBJECT is valid (vs `sum(1,)` rejected in fn call)",
+        ),
+    ];
+
+    let mut failures: Vec<String> = Vec::new();
+    for (input, cite, intent) in cases {
+        if let Err(e) = parse(input) {
+            failures.push(format!(
+                "  parse({input:?}) should succeed [{intent}; {}]; got error: {e:?}",
+                cite.render()
+            ));
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} of {} valid-parse rows failed (should have parsed):\n{}",
+        failures.len(),
+        cases.len(),
+        failures.join("\n")
+    );
+}
+
 #[test]
 fn parser_rejection_overly_deep_nesting() {
-    // Robustness: excessively deep nesting is rejected before stack
-    // exhaustion. Bespoke setup (depth-100 paren pair) makes a table row
-    // awkward — kept as its own #[test].
+    // Bespoke setup (depth-100 paren pair) — awkward as a row; kept here.
+    // The parser MUST reject before stack exhaustion. Robustness guard.
     let depth = 100usize;
     let mut input = "(".repeat(depth);
     input.push('1');
@@ -206,43 +220,10 @@ fn parser_rejection_overly_deep_nesting() {
     );
 }
 
-#[test]
-fn valid_parse_table() {
-    // Positive contrast cases for `parser_rejection_table` — inputs that
-    // look near-rejected but are explicitly valid per spec / parser policy.
-    let cases: &[(&str, &str)] = &[
-        (
-            "if(true, 1, 2)",
-            "fel-grammar.md §4.1 L256-261: `if(...)` dispatched to FunctionCall",
-        ),
-        (
-            "0 <= $age and $age <= 120",
-            "explicit range expression with `and` is valid",
-        ),
-        (
-            "$a = $b",
-            "single equality parses (only chained equality rejected)",
-        ),
-        ("[]", "empty array literal is valid"),
-        ("{}", "empty object literal is valid"),
-        (
-            "{a: 1, b: 2,}",
-            "trailing comma in object literal is valid (parser policy)",
-        ),
-    ];
-
-    for (input, intent) in cases {
-        assert!(
-            parse(input).is_ok(),
-            "expected parse OK for {input:?} ({intent})"
-        );
-    }
-}
-
 // ── Parse-error span correctness ────────────────────────────────
 //
-// These pin span byte-ranges on rejection, not just "was rejected". A
-// different contract from `parser_rejection_table`, kept as bespoke tests.
+// These pin span byte-ranges on rejection, not just "input is rejected".
+// Different contract from `parser_rejection_table`; kept as bespoke tests.
 
 #[test]
 fn parse_error_span_points_at_trailing_token() {
