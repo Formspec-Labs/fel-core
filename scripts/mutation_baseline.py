@@ -46,8 +46,24 @@ def main() -> int:
         print(f"error: {outcomes_path} not found — run `make mutants-*` first", file=sys.stderr)
         return 1
 
-    with outcomes_path.open() as f:
-        data = json.load(f)
+    try:
+        with outcomes_path.open() as f:
+            data = json.load(f)
+    except json.JSONDecodeError as e:
+        print(f"error: {outcomes_path} is malformed JSON: {e}", file=sys.stderr)
+        return 1
+
+    # cargo-mutants writes outcomes.json incrementally; a CI cancellation
+    # or kill mid-run can leave it without the `outcomes` key. Guard against
+    # that explicitly rather than KeyError-panicking on the audit script.
+    outcomes_list = data.get("outcomes")
+    if not isinstance(outcomes_list, list):
+        print(
+            f"error: {outcomes_path} has no `outcomes` array (partial / "
+            f"cancelled run?). Re-run cargo-mutants to completion.",
+            file=sys.stderr,
+        )
+        return 1
 
     sha = subprocess.run(
         ["git", "rev-parse", "--short", "HEAD"],
@@ -61,7 +77,7 @@ def main() -> int:
         lambda: {"total": 0, "killed": 0, "missed": 0, "timeout": 0, "unviable": 0}
     )
 
-    for outcome in data["outcomes"]:
+    for outcome in outcomes_list:
         scenario = outcome.get("scenario")
         if not isinstance(scenario, dict) or "Mutant" not in scenario:
             continue  # Skip baseline + non-mutant entries
@@ -104,10 +120,36 @@ def main() -> int:
     if args.append:
         baseline_path = Path("conformance/mutation-baseline.jsonl")
         baseline_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Idempotence: skip any row whose (file, sha) pair is already
+        # present in the baseline. Re-running on the same outcomes.json
+        # (e.g. CI rerun at the same sha) MUST NOT duplicate rows — the
+        # baseline.jsonl is an audit trend artifact, not an event log.
+        existing_pairs: set[tuple[str, str]] = set()
+        if baseline_path.exists():
+            with baseline_path.open() as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        prior = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue  # tolerate corrupt lines
+                    pair = (prior.get("file"), prior.get("sha"))
+                    if pair[0] and pair[1]:
+                        existing_pairs.add(pair)  # type: ignore[arg-type]
+
+        new_rows = [r for r in rows if (r["file"], r["sha"]) not in existing_pairs]
+        skipped = len(rows) - len(new_rows)
+
         with baseline_path.open("a") as f:
-            for row in rows:
+            for row in new_rows:
                 f.write(json.dumps(row) + "\n")
-        print(f"appended {len(rows)} row(s) to {baseline_path}", file=sys.stderr)
+        msg = f"appended {len(new_rows)} row(s) to {baseline_path}"
+        if skipped:
+            msg += f" (skipped {skipped} duplicate (file, sha) row(s) already present)"
+        print(msg, file=sys.stderr)
     else:
         for row in rows:
             print(json.dumps(row))

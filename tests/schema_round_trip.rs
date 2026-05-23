@@ -25,10 +25,14 @@ fn canonical_schema_path() -> Option<PathBuf> {
 #[test]
 fn emitted_schema_matches_canonical() {
     let Some(path) = canonical_schema_path() else {
-        eprintln!(
-            "schema_round_trip: skipped — canonical schema not found at \
+        // `println!` (not `eprintln!`) so `cargo test -- --nocapture`
+        // surfaces this skip — silent passes mask the case where the
+        // sibling has moved, been deinitialized, or has a renamed path.
+        println!(
+            "schema_round_trip: SKIPPED — canonical schema not found at \
              ../formspec/schemas/fel-functions.schema.json. \
-             Set FEL_CORE_CANONICAL_SCHEMA to override."
+             Set FEL_CORE_CANONICAL_SCHEMA to override. (This test \
+             requires the sibling formspec/ submodule.)"
         );
         return;
     };

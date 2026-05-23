@@ -41,10 +41,14 @@ fn fixture_path() -> Option<PathBuf> {
 #[test]
 fn fel_function_semantics_fixture_matches_runtime() {
     let Some(path) = fixture_path() else {
-        eprintln!(
-            "function_semantics_conformance: skipped — sibling fixture not \
+        // `println!` (not `eprintln!`) so `cargo test -- --nocapture`
+        // surfaces this skip — silent passes mask the case where the
+        // sibling has moved, been deinitialized, or has a renamed path.
+        println!(
+            "function_semantics_conformance: SKIPPED — sibling fixture not \
              found at ../formspec/tests/conformance/fel-function-semantics.json. \
-             Set FEL_CORE_FUNCTION_SEMANTICS_FIXTURE to override."
+             Set FEL_CORE_FUNCTION_SEMANTICS_FIXTURE to override. (This test \
+             requires the sibling formspec/ submodule.)"
         );
         return;
     };
