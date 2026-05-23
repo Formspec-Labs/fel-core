@@ -46,17 +46,28 @@
 
 ## Phase 1 — Consolidation clusters (high leverage, low risk)
 
-Five clusters of identical-shape repetition. Estimated ~700 LOC removed, 90+ test fns → ~10 table-driven tests, behavior preserved.
+Five clusters of identical-shape repetition. **Hard contract: consolidate only same-shape, same-contract tests. Diagnostic-message-content tests stay standalone; span-assertion tests stay standalone; fuzz/regression-corpus tests stay standalone.**
 
-| Cluster | Files | Tests → Table | LOC Δ |
-|---|---|---:|---:|
-| **A. Money arithmetic** | `evaluator_edge_cases.rs:111-232` + `evaluator_tests.rs` (scattered, 14) | 26 → 1 | −190 |
-| **B. Date arithmetic** | `evaluator_edge_cases.rs:233-365` + `evaluator_tests.rs:491-497` | 11 → 1 | −110 |
-| **C. Parser rejection** | `parser_rejection_tests.rs` (entirely) — preserve spec citations as row comments | 42 → 1 | −240 |
-| **D. Regex** | `regex_tests.rs` (97% single-assert) — group by feature | 36 → 2–3 | −180 |
-| **E. Object/array equality** | `evaluator_edge_cases.rs:367-457` | 8 → 1 | −65 |
+| Cluster | Files | Tests → Table | Notes |
+|---|---|---:|---|
+| **A. Money — operator arithmetic** | `evaluator_edge_cases.rs:111-228` | 12 → 1 | `money op money/scalar`, currency-mismatch null-prop. KEEP separate: 6 diagnostic-content tests in `evaluator_tests.rs` (`test_money_*_diagnostic`, `test_sum_rejects_*`) — they pin message text, not just `Value::Null`. |
+| **A′. Money — builtin functions** | `evaluator_tests.rs:577-636` | 4 → 1 | `money()`, `moneyAdd()`, `moneyCurrency_mismatch`. Constructor/accessor + builtin dispatch contract. Distinct from A (operator overload). |
+| **B. Date arithmetic** | `evaluator_edge_cases.rs:233-365` + `evaluator_tests.rs:491-497` | 11 → 1 | `test_date_add` (evaluator_tests.rs:497) is a literal duplicate of `date_add_month_day_clamping` (edge_cases:331) — delete the duplicate, consolidate the rest. |
+| **C. Parser rejection** | `parser_rejection_tests.rs:1-285` only | 42 → 1 | Per-row tuple **must** carry `(input, spec_section, rejection_intent)` — structured column, not freeform comment (review H1). |
+| **C′. Parse-error span correctness** | `parser_rejection_tests.rs:286-321` | 3 → keep as-is | Span-byte-range assertions — different shape from rejection. EXCLUDE from C table. |
+| **D. Regex — homogeneous shapes** | `regex_tests.rs` + `evaluator_tests.rs:1069-1145` (cross-file merge) | ~28 → 2–3 | Anchors / quantifiers / character-classes consolidate. EXCLUDE: locale-sensitive, back-reference rejection, diagnostic-shape tests — they stay standalone. Pull regex tests out of `evaluator_tests.rs` so the contract surface lives in one file. |
+| **E. Object/array equality** | `evaluator_edge_cases.rs:367-457` | 9 → 1 | 5 object + 4 array equality cases. Uniform `assert_eq!(eval, Boolean(_))` shape. |
 
-After Phase 1, **delete `evaluator_edge_cases.rs` entirely** if its consolidated tables migrate into `evaluator_tests.rs` next to related material — the "edge cases" framing is its own smell (an audit response that never got reconciled).
+### Cluster contract requirements (per review)
+
+- **Tables must surface intent per row, not per table.** When a cluster mixes contracts (operator vs builtin in A, anchors vs quantifiers in D), add a `kind`/`contract` column to the tuple, or split into two tables.
+- **Diagnostic-asserting tests are out of scope for Phase 1 consolidation.** They pin specific message text (`"use moneySum()"`, `"moneyAmount("`, etc.); merging weakens those assertions.
+- **Spec citations are structured per-row.** Cluster C row tuple: `(input, spec_ref, intent)`. Row comments drift; columns get reviewed.
+- **Fuzz/regression-corpus tests are out of scope.** `fuzz_regression_corpus` (FEL-SMELL-C-001) at `evaluator_edge_cases.rs:672-708`, `decimal_multiplication_overflow_is_null_not_panic`, and `evaluation_depth_limit_returns_null_with_diagnostic` (the LibFuzzer guards at `evaluator_edge_cases.rs:22-56`) stay as bespoke tests — they pin specific historical panics with bespoke setup (manual deep-AST construction, `std::mem::forget`).
+
+After Phase 1, **delete `evaluator_edge_cases.rs` only if empty** after migration. Expected residue: the LibFuzzer guards + `fuzz_regression_corpus`. If those remain, narrow the file's scope to "fuzzer regression guards + corpus" via the module doc-comment.
+
+**`*.proptest-regressions` seed files (3 of them) are untouched** by consolidation — they're persistent proptest failure seeds, not test bodies.
 
 No new dependency needed. Plain Rust array iteration in a single `#[test]` fn is sufficient and idiomatic.
 
@@ -184,26 +195,28 @@ Today, `extract_dependencies` and `prepare_host` lack proptests despite being P0
 - [x] On `main`
 
 **Phase 1 — Consolidation** (one fel-core commit per cluster):
-- [ ] Pre-Phase-1 architecture review dispatched (`semi-formal-architecture-review`)
-- [ ] Cluster **A** (money arithmetic) — 26 → 1 table-driven test
-- [ ] Cluster **E** (object/array equality) — 8 → 1 (validates template generalizes)
-- [ ] Cluster **B** (date arithmetic) — 11 → 1
+- [x] Pre-Phase-1 architecture review dispatched (`semi-formal-architecture-review`) — 1 HIGH + 4 MED + 3 NIT, all remediated in plan doc (see Deviations §1)
+- [ ] Cluster **A** (money operator arithmetic) — 12 → 1
+- [ ] Cluster **A′** (money builtin functions) — 4 → 1
+- [ ] Cluster **E** (object/array equality) — 9 → 1
+- [ ] Cluster **B** (date arithmetic) — 11 → 1 + delete `test_date_add` duplicate
 - [ ] Code review checkpoint (`semi-formal-code-review`, every 3–5 commits)
-- [ ] Cluster **C** (parser rejection) — 42 → 1
-- [ ] Cluster **D** (regex) — investigate grouping; 36 → 2–3
-- [ ] Delete `evaluator_edge_cases.rs` if migration empties it
+- [ ] Cluster **C** (parser rejection) — 42 → 1 with structured per-row `(input, spec_ref, intent)` tuples
+- [ ] Cluster **D** (regex) — cross-file merge from `evaluator_tests.rs:1069-1145`; ~28 → 2–3 grouped by feature
+- [ ] Delete `evaluator_edge_cases.rs` if empty after migration; else narrow scope to "fuzz/regression guards"
+- [ ] `make test-differential` green (conformance corpus untouched)
 - [ ] Post-Phase-1 architecture review (`semi-formal-architecture-review`)
 - [ ] Code review checkpoint
 - [ ] All review findings remediated (BLOCKER/HIGH → fix; warnings → fix or justified inline; nits → cleaned)
 - [ ] `cargo test` green; `cargo fmt`/`clippy` clean
 
-**Phase 2 — Mutation gate**:
+**Phase 2 — Mutation gate** (per-file LOC counts omitted per stack decay-class rules):
 - [ ] Install `cargo-mutants`
-- [ ] Run on `src/parser.rs` (1295) — record surviving mutants
-- [ ] Run on `src/evaluator/core.rs` (1831)
-- [ ] Run on `src/dependencies.rs` (524)
-- [ ] Run on `src/convert.rs` (588)
-- [ ] Run on `src/error.rs` (599)
+- [ ] Run on `src/parser.rs` — record surviving mutants
+- [ ] Run on `src/evaluator/core.rs`
+- [ ] Run on `src/dependencies.rs`
+- [ ] Run on `src/convert.rs`
+- [ ] Run on `src/error.rs`
 - [ ] Run on `src/evaluator/builtins/{money,dates}.rs`
 - [ ] Wire to CI as nightly (not per-PR) job
 - [ ] First 5 unkilled mutants per file → file follow-up issues (one per gap)
@@ -220,4 +233,14 @@ Today, `extract_dependencies` and `prepare_host` lack proptests despite being P0
 
 ## Deviations
 
-This section is **append-only**. Any divergence from the plan above (skipped step, added step, ad-hoc steering, scope change) gets a short numbered entry here so audit can reconstruct the actual path. Empty at start of execution.
+This section is **append-only**. Any divergence from the plan above (skipped step, added step, ad-hoc steering, scope change) gets a short numbered entry here so audit can reconstruct the actual path.
+
+1. **Pre-Phase-1 architecture review (semi-formal-architecture-review against sha 3d45c95) returned 1 HIGH + 4 MEDIUM + 3 NIT.** All remediated in the plan doc *before* any code change:
+   - **H1** — Cluster C requires structured per-row `(input, spec_ref, intent)` tuples, not freeform comments. Encoded in §"Cluster contract requirements".
+   - **M1** — Cluster A split: money-operator-arithmetic (A) and money-builtin-functions (A′) are distinct contracts; diagnostic-message-content tests stay standalone.
+   - **M2** — `parser_rejection_tests.rs:286-321` span-assertion tests excluded from Cluster C, broken out as C′ (kept as-is).
+   - **M3** — `fuzz_regression_corpus` + LibFuzzer guards explicitly out of scope; `make test-differential` added to closeout.
+   - **M4** — Cluster D includes cross-file pull from `evaluator_tests.rs:1069-1145`.
+   - **N1** — "Delete edge_cases entirely" softened to "delete if empty after migration; else narrow."
+   - **N2** — Phase 2 LOC counts removed (decay-class).
+   - **N3** — `*.proptest-regressions` seeds noted as untouched.
