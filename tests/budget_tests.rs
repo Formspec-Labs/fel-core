@@ -6,7 +6,8 @@
 #![allow(clippy::missing_docs_in_private_items)]
 
 use fel_core::{
-    EvalBudget, EvaluatorOptions, ExtensionRegistry, MapEnvironment, Value, evaluate_with, parse,
+    BudgetExceededKind, EvalBudget, EvaluatorOptions, ExtensionRegistry, MapEnvironment, Value,
+    evaluate_with, parse,
 };
 use std::time::Instant;
 
@@ -311,4 +312,59 @@ fn extension_small_result_within_alloc_budget() {
     let result = eval_budget_with_extensions("smallResult()", &budget, Some(&registry));
     assert!(result.diagnostics.is_empty());
     assert_eq!(result.value, Value::String("ok".to_string()));
+}
+
+// ── Boundary semantics on `EvalBudget::check` ───────────────────
+//
+// `check()` uses strict `>` (not `>=`) — equality with the limit is
+// allowed. These tests pin the boundary, killing the four mutation-
+// gate survivors at `src/evaluator/budget.rs:77,80` (`> with ==` and
+// `> with >=` for both `max_steps` and `max_alloc_bytes`).
+//
+// Plan: thoughts/2026-05-23-mutation-survivor-followups.md §budget.rs.
+
+#[test]
+fn budget_check_steps_at_limit_is_ok() {
+    // steps == max_steps → Ok (strict `>`, equality allowed).
+    // Distinguishes `>` from both `==` (would Err here) and `>=` (would Err here).
+    let budget = EvalBudget {
+        max_steps: 100,
+        max_alloc_bytes: u64::MAX,
+        deadline: None,
+    };
+    assert_eq!(budget.check(100, 0), Ok(()));
+}
+
+#[test]
+fn budget_check_steps_one_past_limit_is_err() {
+    // steps == max_steps + 1 → Err(Steps).
+    // Distinguishes `>` from `==` (would Ok at non-equal) and `<` (would Ok).
+    let budget = EvalBudget {
+        max_steps: 100,
+        max_alloc_bytes: u64::MAX,
+        deadline: None,
+    };
+    assert_eq!(budget.check(101, 0), Err(BudgetExceededKind::Steps));
+}
+
+#[test]
+fn budget_check_alloc_at_limit_is_ok() {
+    // alloc_bytes == max_alloc_bytes → Ok.
+    let budget = EvalBudget {
+        max_steps: u64::MAX,
+        max_alloc_bytes: 1024,
+        deadline: None,
+    };
+    assert_eq!(budget.check(0, 1024), Ok(()));
+}
+
+#[test]
+fn budget_check_alloc_one_past_limit_is_err() {
+    // alloc_bytes == max_alloc_bytes + 1 → Err(Alloc).
+    let budget = EvalBudget {
+        max_steps: u64::MAX,
+        max_alloc_bytes: 1024,
+        deadline: None,
+    };
+    assert_eq!(budget.check(0, 1025), Err(BudgetExceededKind::Alloc));
 }

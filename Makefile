@@ -104,16 +104,24 @@ conformance:
 ## gate on critical seams" and `.cargo/mutants.toml`.
 ##
 ## Tool pinned: cargo-mutants 25.3.1. Install with `make mutants-install`.
-## Per-file targets scope test execution to the relevant test binaries —
-## running cargo-mutants with no scoping incurs the full ~30-binary suite
-## per mutant (intractable).
+##
+## Design: every mutant runs the FULL test suite. Cross-cutting suites
+## (differential_oracle, public_conformance_corpus, semantic_invariants,
+## fel_proptest) catch parser/evaluator/convert mutations that the
+## per-binary scoping originally tried in this Makefile would have missed
+## as false-positive survivors. Time is irrelevant; we don't run mutation
+## frequently — correctness over speed.
+##
+## Parallelism: cargo-mutants runs `MUTANTS_JOBS` mutants concurrently,
+## each in its own scratch tree. Override with `make MUTANTS_JOBS=12 ...`.
 ##
 ## Determinism: PROPTEST_CASES is lowered and a fixed RNG seed is pinned
 ## so the mutation baseline is reproducible across reruns.
 
 CARGO_MUTANTS_VERSION = 25.3.1
+MUTANTS_JOBS ?= 8
 MUTANTS_ENV = PROPTEST_CASES=64 PROPTEST_RNG_SEED=fel-core-mutants-v1
-MUTANTS_COMMON_ARGS = --all-features --in-place --no-shuffle --baseline=run
+MUTANTS_COMMON_ARGS = --all-features --no-shuffle --baseline=run --jobs $(MUTANTS_JOBS)
 
 mutants-install:
 	@if cargo mutants --version 2>/dev/null | grep -q "$(CARGO_MUTANTS_VERSION)"; then \
@@ -122,59 +130,89 @@ mutants-install:
 	  $(CARGO) install cargo-mutants --version $(CARGO_MUTANTS_VERSION) --locked; \
 	fi
 
-# Per-file mutation targets. Each scopes test execution to the binaries that
-# actually exercise the mutated file. Add files here as new P0 seams emerge.
+# Per-file mutation targets. Each runs the full test suite — cross-cutting
+# suites are intentionally included for correctness.
 mutants-parser:
-	$(MUTANTS_ENV) cargo mutants $(MUTANTS_COMMON_ARGS) --file 'src/parser.rs' \
-	  -- --lib --test parser_rejection_tests --test parser_parse_proptest --test ast_proptest --test lexer_tests
+	$(MUTANTS_ENV) cargo mutants $(MUTANTS_COMMON_ARGS) --file 'src/parser.rs'
 
 mutants-lexer:
-	$(MUTANTS_ENV) cargo mutants $(MUTANTS_COMMON_ARGS) --file 'src/lexer.rs' \
-	  -- --lib --test lexer_tests --test parser_parse_proptest --test fel_chaos_proptest
+	$(MUTANTS_ENV) cargo mutants $(MUTANTS_COMMON_ARGS) --file 'src/lexer.rs'
 
 mutants-evaluator:
-	$(MUTANTS_ENV) cargo mutants $(MUTANTS_COMMON_ARGS) --file 'src/evaluator/core.rs' \
-	  -- --lib --test evaluator_tests --test semantic_invariants --test decimal_properties \
-	     --test evaluator_regression_guards --test fuzz_regression_corpus
+	$(MUTANTS_ENV) cargo mutants $(MUTANTS_COMMON_ARGS) --file 'src/evaluator/core.rs'
 
 mutants-budget:
-	$(MUTANTS_ENV) cargo mutants $(MUTANTS_COMMON_ARGS) --file 'src/evaluator/budget.rs' \
-	  -- --lib --test budget_tests --test stress_tests
+	$(MUTANTS_ENV) cargo mutants $(MUTANTS_COMMON_ARGS) --file 'src/evaluator/budget.rs'
 
 mutants-deps:
-	$(MUTANTS_ENV) cargo mutants $(MUTANTS_COMMON_ARGS) --file 'src/dependencies.rs' \
-	  -- --lib --test environment_integration_tests --test evaluator_tests
+	$(MUTANTS_ENV) cargo mutants $(MUTANTS_COMMON_ARGS) --file 'src/dependencies.rs'
 
 mutants-convert:
-	$(MUTANTS_ENV) cargo mutants $(MUTANTS_COMMON_ARGS) --file 'src/convert.rs' \
-	  -- --lib --test evaluator_tests --test fel_proptest --test decimal_properties --test schema_round_trip
+	$(MUTANTS_ENV) cargo mutants $(MUTANTS_COMMON_ARGS) --file 'src/convert.rs'
 
 mutants-error:
-	$(MUTANTS_ENV) cargo mutants $(MUTANTS_COMMON_ARGS) --file 'src/error.rs' \
-	  -- --lib --test evaluator_tests --test snapshot_tests --test builtin_catalog_consistency
+	$(MUTANTS_ENV) cargo mutants $(MUTANTS_COMMON_ARGS) --file 'src/error.rs'
 
 mutants-prepare-host:
-	$(MUTANTS_ENV) cargo mutants $(MUTANTS_COMMON_ARGS) --file 'src/prepare_host.rs' \
-	  -- --lib --test host_bindings --test evaluator_tests
+	$(MUTANTS_ENV) cargo mutants $(MUTANTS_COMMON_ARGS) --file 'src/prepare_host.rs'
 
 mutants-extensions:
-	$(MUTANTS_ENV) cargo mutants $(MUTANTS_COMMON_ARGS) --file 'src/extensions/registry.rs' --file 'src/extensions/catalog.rs' \
-	  -- --lib --test builtin_catalog_consistency --test evaluator_tests --test host_bindings --test function_semantics_conformance
+	$(MUTANTS_ENV) cargo mutants $(MUTANTS_COMMON_ARGS) --file 'src/extensions/registry.rs' --file 'src/extensions/catalog.rs'
 
 mutants-money-dates:
-	$(MUTANTS_ENV) cargo mutants $(MUTANTS_COMMON_ARGS) --file 'src/evaluator/builtins/money.rs' --file 'src/evaluator/builtins/dates.rs' \
-	  -- --lib --test evaluator_tests --test locale_fel_functions
+	$(MUTANTS_ENV) cargo mutants $(MUTANTS_COMMON_ARGS) --file 'src/evaluator/builtins/money.rs' --file 'src/evaluator/builtins/dates.rs'
 
-# Run all P0 seams sequentially. Slow (~6 hours total); use mutants-shard-* in CI.
-mutants-p0: mutants-parser mutants-lexer mutants-evaluator mutants-budget mutants-deps \
-            mutants-convert mutants-error mutants-prepare-host mutants-extensions mutants-money-dates
+# Run all P0 seams in one invocation. cargo-mutants handles parallelism
+# internally via --jobs; this is the canonical "run the baseline" entry.
+mutants-p0:
+	$(MUTANTS_ENV) cargo mutants $(MUTANTS_COMMON_ARGS) \
+	  --file 'src/parser.rs' \
+	  --file 'src/lexer.rs' \
+	  --file 'src/evaluator/core.rs' \
+	  --file 'src/evaluator/budget.rs' \
+	  --file 'src/dependencies.rs' \
+	  --file 'src/convert.rs' \
+	  --file 'src/error.rs' \
+	  --file 'src/prepare_host.rs' \
+	  --file 'src/extensions/registry.rs' \
+	  --file 'src/extensions/catalog.rs' \
+	  --file 'src/evaluator/builtins/money.rs' \
+	  --file 'src/evaluator/builtins/dates.rs'
 
-# Sharded entry points for CI (4-way parallelism). Shard membership is
-# tuned by mutant count: each shard ≈ 250-280 mutants.
-mutants-shard-1: mutants-evaluator
-mutants-shard-2: mutants-prepare-host mutants-lexer
-mutants-shard-3: mutants-parser mutants-money-dates
-mutants-shard-4: mutants-budget mutants-deps mutants-convert mutants-error mutants-extensions
+# Sharded entry points for CI matrix. cargo-mutants `--shard k/N` splits
+# the mutant list into N disjoint slices; each shard still runs all tests
+# per mutant in parallel via --jobs.
+mutants-shard-1:
+	$(MUTANTS_ENV) cargo mutants $(MUTANTS_COMMON_ARGS) --shard 0/4 \
+	  --file 'src/parser.rs' --file 'src/lexer.rs' --file 'src/evaluator/core.rs' \
+	  --file 'src/evaluator/budget.rs' --file 'src/dependencies.rs' --file 'src/convert.rs' \
+	  --file 'src/error.rs' --file 'src/prepare_host.rs' \
+	  --file 'src/extensions/registry.rs' --file 'src/extensions/catalog.rs' \
+	  --file 'src/evaluator/builtins/money.rs' --file 'src/evaluator/builtins/dates.rs'
+
+mutants-shard-2:
+	$(MUTANTS_ENV) cargo mutants $(MUTANTS_COMMON_ARGS) --shard 1/4 \
+	  --file 'src/parser.rs' --file 'src/lexer.rs' --file 'src/evaluator/core.rs' \
+	  --file 'src/evaluator/budget.rs' --file 'src/dependencies.rs' --file 'src/convert.rs' \
+	  --file 'src/error.rs' --file 'src/prepare_host.rs' \
+	  --file 'src/extensions/registry.rs' --file 'src/extensions/catalog.rs' \
+	  --file 'src/evaluator/builtins/money.rs' --file 'src/evaluator/builtins/dates.rs'
+
+mutants-shard-3:
+	$(MUTANTS_ENV) cargo mutants $(MUTANTS_COMMON_ARGS) --shard 2/4 \
+	  --file 'src/parser.rs' --file 'src/lexer.rs' --file 'src/evaluator/core.rs' \
+	  --file 'src/evaluator/budget.rs' --file 'src/dependencies.rs' --file 'src/convert.rs' \
+	  --file 'src/error.rs' --file 'src/prepare_host.rs' \
+	  --file 'src/extensions/registry.rs' --file 'src/extensions/catalog.rs' \
+	  --file 'src/evaluator/builtins/money.rs' --file 'src/evaluator/builtins/dates.rs'
+
+mutants-shard-4:
+	$(MUTANTS_ENV) cargo mutants $(MUTANTS_COMMON_ARGS) --shard 3/4 \
+	  --file 'src/parser.rs' --file 'src/lexer.rs' --file 'src/evaluator/core.rs' \
+	  --file 'src/evaluator/budget.rs' --file 'src/dependencies.rs' --file 'src/convert.rs' \
+	  --file 'src/error.rs' --file 'src/prepare_host.rs' \
+	  --file 'src/extensions/registry.rs' --file 'src/extensions/catalog.rs' \
+	  --file 'src/evaluator/builtins/money.rs' --file 'src/evaluator/builtins/dates.rs'
 
 fuzz-extract:
 	$(PYTHON) scripts/fuzz_to_regression.py

@@ -6,11 +6,14 @@
 # Tool version pinned: cargo-mutants 25.3.1 (see Makefile `mutants-install`).
 # Install with: `cargo install cargo-mutants --version 25.3.1 --locked`.
 #
-# Per-file test scoping is mandatory (BLOCKER B1 from review). The Makefile
-# `mutants-*` targets invoke cargo-mutants once per file with the scoped
-# subset of test binaries that actually exercise that file. Running
-# `cargo mutants` with no args runs the FULL ~30-binary test suite per
-# mutant; intractable runtime.
+# Every mutant runs the FULL test suite (no per-binary scoping). Cross-
+# cutting suites (`differential_oracle`, `public_conformance_corpus`,
+# `semantic_invariants`, `fel_proptest`) catch parser/evaluator/convert
+# mutations that scoped runs would have missed as false-positive survivors.
+#
+# Tractability via parallelism: `--jobs N` in the Makefile runs N mutants
+# concurrently, each in its own scratch tree. Mutation runs infrequently
+# (weekly CI / manual baseline); time-cost is acceptable for correctness.
 
 # Use nextest if available; falls back to cargo test otherwise.
 # Nextest is materially faster on this suite.

@@ -162,24 +162,19 @@ The committed `conformance/mutation-baseline.jsonl` artifact is the trend line a
 - **Failure mode**: annotate-only. Mutation findings open follow-up tickets via the existing flow; CI is not blocked by survivor counts.
 - **Determinism**: `PROPTEST_CASES=64` + fixed `PROPTEST_RNG_SEED` in the mutation env. Without seed pinning, proptest-driven kills are non-deterministic across reruns and the baseline artifact becomes noise.
 
-### Per-file test scoping
+### Full-suite execution (NOT per-binary scoped)
 
-Mandatory `.cargo/mutants.toml` with per-file `additional_cargo_test_args` mapping each mutated file to the tests that actually exercise it:
+Every mutant runs the **full** test suite. Initially this section called for per-binary scoping (one mutated file → one curated subset of test binaries) to keep runtime down. That was rejected on **correctness** grounds during execution: scoped runs report false-positive survivors when a test in an excluded binary would have killed the mutant. Concretely:
 
-| File | Scoped tests |
-|---|---|
-| `src/parser.rs` | `parser_*`, `lexer_tests`, `ast_proptest`, `parser_parse_proptest` |
-| `src/lexer.rs` | `lexer_tests`, `parser_parse_proptest`, `fel_chaos_proptest` |
-| `src/evaluator/core.rs` | `evaluator_tests`, `semantic_invariants`, `decimal_properties`, `evaluator_regression_guards`, `fuzz_regression_corpus` |
-| `src/evaluator/budget.rs` | `budget_tests`, `stress_tests` |
-| `src/dependencies.rs` | `environment_integration_tests`, `evaluator_tests` |
-| `src/convert.rs` | `evaluator_tests`, `fel_proptest`, `decimal_properties`, `schema_round_trip` |
-| `src/error.rs` | `evaluator_tests`, `snapshot_tests`, `builtin_catalog_consistency` |
-| `src/prepare_host.rs` | `host_bindings`, `evaluator_tests` |
-| `src/extensions/{registry,catalog}.rs` | `builtin_catalog_consistency`, `evaluator_tests`, `host_bindings`, `function_semantics_conformance` |
-| `src/evaluator/builtins/{money,dates}.rs` | `evaluator_tests`, `locale_fel_functions` |
+- Parser mutations are killed by `semantic_invariants` (algebraic laws), `fel_proptest` (parse/print round-trip), `differential_oracle` (cross-runtime parity), `public_conformance_corpus`.
+- Evaluator mutations are killed by `differential_oracle` and `public_conformance_corpus`.
+- Convert mutations are killed by `differential_oracle`, `fel_proptest`, `schema_round_trip`.
 
-Without scoping, every mutant pays the full ~30-binary test suite cost, making runtime intractable (BLOCKER B1).
+A scoped run that omits any of these for the file being mutated produces a baseline with inflated "missed" counts — the mutation is killable, just not by the subset we chose. That's worse than a slow run; it's a *wrong* run.
+
+Tractability is recovered via parallelism (`--jobs N`, default 8). Each mutant runs in its own scratch tree. Mutation runs are infrequent (weekly CI / manual baseline); time cost is acceptable for correctness.
+
+Original BLOCKER B1 framing was overcorrected. The honest framing: scoping is a *developer-iteration* convenience (fast feedback on one file during triage), not a baseline-correctness mechanism.
 
 ### Updated seam list (P0)
 
@@ -344,6 +339,8 @@ This section is **append-only**. Any divergence from the plan above (skipped ste
    - **N2** — Tool version pinned.
    - **N3** — Phase 2 closeout architecture review hook added to Phase 2 checklist.
    - **N4** — Workflow file rename (`doc.yml` → `ci.yml`) — deferred as separate hygiene fix outside Phase 2 scope.
+
+8. **Per-binary test scoping rejected mid-execution** (user-flagged): "we won't run mutation frequently, time is irrelevant. could we parallelize it?" — correct push-back. The original B1 remediation (per-file `-- --test foo` scoping in Makefile targets) traded correctness for speed: a mutation killable by `differential_oracle` or `semantic_invariants` looked like a survivor when those binaries weren't in the file's curated subset. Switched to full-suite execution per mutant with `--jobs 8` parallelism (no `--in-place`; each mutant gets a scratch tree). Plan §"Full-suite execution" rewritten. Initial 8-file baselines (sha `e39f8dd`) will be re-run with the corrected config; previous kill-rate numbers were under-counts.
 
 ## Phase 1 closure
 
