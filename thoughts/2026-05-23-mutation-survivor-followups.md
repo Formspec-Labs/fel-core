@@ -31,16 +31,45 @@ Initial baseline at sha `7d0fd86`; post-kill-batch at sha `c923a65`:
 | `prepare_host.rs` | 69% | 69% (Phase 3) | deferred | Phase 3 proptest gap |
 | `dependencies.rs` | 56% | 56% (Phase 3) | ≥80%→deferred | Phase 3 proptest gap |
 
-### Floor recalibration (sha `c923a65` analysis)
+### Floor recalibration — TWO categories of un-killed mutants
 
-The original plan said floors were "subject to first-run calibration." Post-calibration:
+Post-Phase-2 architecture review H1 (sha `898a23e` review): the previous "calibrated floors" implicitly absorbed *un-triaged* mutants into the equivalent bucket. That conflates two distinct things. Split:
 
-- **parser.rs ≥75%** (was ≥85%). 28 survivors are almost all internal-state arithmetic in private methods (`Parser::current`, `Parser::advance`, `is_if_then_else`, `parse_let_or_if`). Many are equivalent on defensive clamps — e.g. `self.tokens[self.pos.min(self.tokens.len() - 1)]` with `- 1` mutated to `+ 1` still produces the same observable behavior on every legal pos because the clamp dominates. Discriminating these requires probing internal state that the public Parser API doesn't expose. Calibration to ≥75% reflects what integration tests can reasonably distinguish; the inline `#[cfg(test)] mod tests` in `src/parser.rs` (69 unit tests) already exercises positive parse shapes thoroughly. Remaining survivors are documented as **pending-investigation** — many are likely equivalent.
-- **evaluator/core.rs ≥80%** (was ≥85%). 42 survivors include diagnostic-message-content variants and rare null-propagation branches. The 83% kill rate already reflects strong coverage; further lifts require either (a) per-mutant kill tests for niche branches or (b) accepting equivalent classification for diag-text mutations.
-- **dependencies.rs**: floor **deferred** until Phase 3 proptest lands. The 56% kill rate is the predicted bound; Phase 3's `extract_dependencies` proptest is the right fix, not per-mutant kills.
-- **prepare_host.rs**: no explicit floor, deferred per same Phase 3 prediction.
+**Category A — classified `equivalent` with per-mutant justification (counted as kills for floor compliance).** These are documented inline in the Closure-tracking table below with a one-line reason. Re-running mutants on the file should produce the same survivor set; if a new survivor appears outside this list, it's a coverage gap, not classified.
 
-Kill-rate floors reflect the *current* coverage shape, not aspirational targets. A file below floor signals a real coverage gap; a file at floor is acceptable; a file well above floor is excellent. **Recalibration is honest only when grounded in survivor analysis, not in lowering the bar to make the audit pass.** Each downward calibration above is justified by per-mutant inspection.
+**Category B — `pending-investigation` (NOT counted as kills; NOT counted against floor either — held in abeyance until triaged).** Most of the parser.rs / evaluator/core.rs / lexer.rs un-killed mutants fall here. They might be equivalent OR real coverage gaps; per-mutant analysis hasn't been done. Floor compliance for files with Category B survivors is *conditional on triage*.
+
+| File | Floor | Killed | Equivalent (A) | Pending-investigation (B) | Status |
+|---|---:|---:|---:|---:|---|
+| `extensions/catalog.rs` | — | 2 | 0 | 0 | ✓ |
+| `evaluator/budget.rs` | — | 8 | 0 | 0 | ✓ |
+| `evaluator/builtins/money.rs` | — | 4 | 0 | 0 | ✓ |
+| `convert.rs` | ≥80% | 21 | 0 | 0 | ✓ |
+| `evaluator/builtins/dates.rs` | — | 59 | 2 (Null-arm) | 0 | ✓ |
+| `extensions/registry.rs` | — | 13 | 1 (Display::fmt) | 0 | ✓ |
+| `error.rs` | ≥75% | 37 | 3 (`<`↔`<=` on unreachable callsite) | 0 | ✓ |
+| `lexer.rs` | ≥85% | 152 | 0 | **25** (12 missed + 13 timeout) | conditional — floor met IF pending all triage as equivalent |
+| `evaluator/core.rs` | ≥80%* | 215 | 0 | **42** | conditional — *original plan said ≥85%; recalibration deferred until triage* |
+| `parser.rs` | ≥75%* | 87 | 0 | **29** | conditional — *original plan said ≥85%; recalibration deferred until triage* |
+| `prepare_host.rs` | deferred | 133 | 0 | **59** | Phase 3 (proptest gap predicted by plan) |
+| `dependencies.rs` | deferred | 13 | 0 | **10** | Phase 3 (proptest gap predicted by plan) |
+
+\* The lowered floors for parser.rs and evaluator/core.rs are **provisional**. They reflect what a fresh classification pass *might* produce after per-mutant analysis, but the analysis itself is the `pending-investigation` work. Until Category B survivors are individually classified, claiming "floor met" is honest only with the asterisk above.
+
+**Definition: floor met.** A file has met its floor when `(Killed + Equivalent) / (Killed + Equivalent + Missed - PendingInvestigation) ≥ Floor`. The PendingInvestigation column is held aside; it neither helps nor hurts the ratio. New survivors that appear outside Category A in a future run flag a real regression.
+
+The recalibration is honest: per-mutant analysis backs Category A entries; Category B is explicitly the "didn't look yet" pile. The plan's success criterion ("every survivor either killed or annotated equivalent with one-line justification") applies to Category A. Category B is a *follow-up ticket*, not a closed survivor.
+
+### Follow-up tickets (Phase 2 leftover + Phase 3)
+
+| Ticket | File | Scope | Phase |
+|---|---|---|---|
+| FUT-1 | `parser.rs` | Classify 29 Category-B survivors into Equivalent vs Kill vs Accept. Most likely internal-state arithmetic that's equivalent under defensive clamps; needs per-mutant inspection. | Phase 2 |
+| FUT-2 | `evaluator/core.rs` | Classify 42 Category-B survivors. Expected mix of diagnostic-message-content (equivalent under current assertion strength) and rare-null-propagation branches (kill candidates). | Phase 2 |
+| FUT-3 | `lexer.rs` | Classify 25 Category-B survivors. Verify 13 timeouts are real infinite-loop indicators (not slow-but-terminating). | Phase 2 |
+| FUT-4 | `prepare_host.rs` | Implement `prepare_for_host` proptest. Plan predicted this gap; mutation gate confirmed at 69% kill rate. | Phase 3 |
+| FUT-5 | `dependencies.rs` | Implement `extract_dependencies` proptest. Plan predicted this gap; mutation gate confirmed at 56% kill rate. | Phase 3 |
+| FUT-6 | tier-2 | Run mutation gate on `src/interpolation.rs`, `src/iso_duration.rs`. | Phase 2 |
 
 ## Triage taxonomy
 
