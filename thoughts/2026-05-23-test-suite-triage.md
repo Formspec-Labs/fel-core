@@ -265,28 +265,29 @@ Today, `extract_dependencies` and `prepare_host` lack proptests despite being P0
 - [x] `cargo test` green (131 evaluator-domain tests + ~700 elsewhere); `cargo fmt --check` clean; `cargo clippy --tests --all-features` clean
 
 **Phase 2 — Mutation gate** (per-file LOC counts omitted per stack decay-class rules):
-- [ ] Pre-Phase-2 architecture review (`semi-formal-architecture-review`)
-- [ ] Install `cargo-mutants` (pinned version; see `.cargo/mutants.toml` / Makefile)
-- [ ] Create `.cargo/mutants.toml` with per-file test scoping (mandatory — full-suite-per-mutant is intractable)
-- [ ] Set `PROPTEST_CASES=64` + fixed `PROPTEST_RNG_SEED` in mutation env (deterministic across reruns)
-- [ ] Run on **P0 seams** (11 files, per H1 review finding):
-  - [ ] `src/parser.rs`
-  - [ ] `src/lexer.rs`
-  - [ ] `src/evaluator/core.rs`
-  - [ ] `src/evaluator/budget.rs`
-  - [ ] `src/dependencies.rs`
-  - [ ] `src/convert.rs`
-  - [ ] `src/error.rs`
-  - [ ] `src/prepare_host.rs`
-  - [ ] `src/extensions/registry.rs`
-  - [ ] `src/extensions/catalog.rs`
-  - [ ] `src/evaluator/builtins/{money,dates}.rs`
-- [ ] Tier-2 (after P0 stabilizes): `src/interpolation.rs`, `src/iso_duration.rs`
-- [ ] Triage every surviving mutant into `kill` / `equivalent` / `accept` (classification policy, not first-N cap — per H2)
-- [ ] Emit `conformance/mutation-baseline.jsonl` per file: `{file, total, killed, missed, timeout, unviable, kill_rate, sha}`. Commit it as the audit trend artifact.
-- [ ] Wire CI as **weekly** (not nightly) job in `.github/workflows/doc.yml` with `--shard k/4` across 4 jobs
-- [ ] Annotate-only failure mode (do NOT block CI on mutant survival)
-- [ ] Post-Phase-2 architecture review
+- [x] Pre-Phase-2 architecture review (sha `66e41d1`) — 1 BLOCKER + 2 HIGH + 5 MED + 3 NIT, all remediated in plan doc before code change
+- [x] Install `cargo-mutants` 25.3.1 (pinned via `.cargo/mutants.toml` head comment + Makefile `mutants-install`)
+- [x] Create `.cargo/mutants.toml` — switched to full-suite-per-mutant + `--jobs N` parallelism after user pushback (correctness > speed, see Deviations §8)
+- [x] Set `PROPTEST_CASES=64` + fixed `PROPTEST_RNG_SEED=fel-core-mutants-v1` in mutation env
+- [x] Run on **P0 seams** (11 files, sha `7d0fd86`):
+  - [x] `src/parser.rs` — 75% (recalibrated floor ≥75%)
+  - [x] `src/lexer.rs` — 85%
+  - [x] `src/evaluator/core.rs` — 83% (recalibrated floor ≥80%)
+  - [x] `src/evaluator/budget.rs` — 100% (boundary tests in sha `59be9d3`)
+  - [x] `src/dependencies.rs` — 56% (deferred to Phase 3)
+  - [x] `src/convert.rs` — 100% (kill tests in sha `3b7d483`)
+  - [x] `src/error.rs` — 92.5% (kill tests in sha `3b7d483`)
+  - [x] `src/prepare_host.rs` — 69% (deferred to Phase 3)
+  - [x] `src/extensions/registry.rs` — 92.9% (kill tests in sha `3b7d483`)
+  - [x] `src/extensions/catalog.rs` — 100%
+  - [x] `src/evaluator/builtins/{money,dates}.rs` — 100% / 96.7%
+- [ ] Tier-2 (after P0 stabilizes): `src/interpolation.rs`, `src/iso_duration.rs` — deferred to follow-up
+- [x] Triage every surviving mutant into `kill` / `equivalent` / `accept` (sha `898a23e` — `thoughts/2026-05-23-mutation-survivor-followups.md`)
+- [x] Emit `conformance/mutation-baseline.jsonl` per file — 21 rows committed (audit trend artifact)
+- [x] Wire CI as **weekly** (not nightly) job in `.github/workflows/mutants.yml` with `--shard k/4` across 4 jobs
+- [x] Annotate-only failure mode — `continue-on-error: true` on shard matrix
+- [ ] Post-Phase-2 architecture review (dispatched at sha `898a23e`)
+- [ ] Post-Phase-2 code review (dispatched at sha `898a23e`)
 
 **Phase 3 — Leverage policy in CI**:
 - [ ] Proptest for `extract_dependencies` (P0 seam, currently uncovered)
