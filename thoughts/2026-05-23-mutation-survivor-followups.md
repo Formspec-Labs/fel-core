@@ -298,9 +298,9 @@ The 10-Haiku-reviewer swarm + 2 post-Phase-2 reviewers produced a finite finding
 | FUT-1 | HIGH | parser.rs 29 Category-B mutation survivors classification | Phase 2 leftover |
 | FUT-2 | HIGH | evaluator/core.rs 42 Category-B survivors classification | Phase 2 leftover |
 | FUT-3 | HIGH | lexer.rs 25 Category-B survivors (12 missed + 13 timeout) classification + timeout verification | Phase 2 leftover |
-| FUT-4 | HIGH | `prepare_for_host` proptest (mutation gate confirmed 69%) | Phase 3 |
-| FUT-5 | HIGH | `extract_dependencies` proptest (mutation gate confirmed 56%) | Phase 3 |
-| FUT-6 | MEDIUM | Tier-2 mutation gate (interpolation.rs, iso_duration.rs) | Phase 2 leftover |
+| ~~FUT-4~~ | ~~HIGH~~ | ~~`prepare_for_host` proptest (mutation gate confirmed 69%)~~ | **Addressed sha `f628348`** (`tests/prepare_host_proptest.rs` — 5 property tests including idempotence + termination + parseability) |
+| ~~FUT-5~~ | ~~HIGH~~ | ~~`extract_dependencies` proptest (mutation gate confirmed 56%)~~ | **Addressed sha `f628348`** (`tests/dependencies_proptest.rs` — 3 proptests + 7 spec-anchored example tests) |
+| ~~FUT-6~~ | ~~MEDIUM~~ | ~~Tier-2 mutation gate (interpolation.rs, iso_duration.rs)~~ | **Addressed sha `f628348`** (Makefile targets `mutants-interpolation`, `mutants-iso-duration`, `mutants-tier2`) |
 | FUT-7 | HIGH | Catalog-declared arity isn't uniformly enforced in builtin dispatch (10 silent-on-too-few + 24 silent-on-too-many surfaced by survey) | Follow-up; surfaces via `catalog_arity_enforcement_uniformity_survey` test |
 | ~~FUT-8~~ | ~~HIGH~~ | ~~`differential_oracle` not in `make ci`/`ratify` chain → cross-runtime drift silent until next manual run~~ | **Reclassified as ACCEPTED-WITH-RATIONALE.** The `external-conformance` CI job (`.github/workflows/ci.yml`) runs `make ratify-external` on the weekly schedule (`cron: 17 9 * * 1`) plus on `workflow_dispatch`. Running on every push would require cloning sibling repos (`formspec`, formspec-py, formspec-wasm) on every PR, which costs CI minutes + needs `FORMSPEC_REPO_TOKEN` propagation. Weekly + manual-trigger is the intentional design; documented in the workflow's `if:` guard. |
 | FUT-9 | MEDIUM | `env_integration_tests.rs` conflates MIP + repeat + JSON-helper into one file | Follow-up; cosmetic split |
