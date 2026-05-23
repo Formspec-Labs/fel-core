@@ -1,0 +1,116 @@
+name: mutants
+
+# Phase 2 mutation gate (see thoughts/2026-05-23-test-suite-triage.md).
+#
+# Annotate-only: survivors do NOT fail CI. The committed baseline at
+# conformance/mutation-baseline.jsonl is the audit trend artifact;
+# regressions below the per-file kill-rate floor open follow-up tickets
+# via the existing flow.
+#
+# Schedule: weekly (Saturday 04:17 UTC). Nightly is impractical — see
+# runtime budget discussion in the plan (M2). Sharded 4-way across
+# parallel jobs; each shard ≈ 250-280 mutants, ≤ ~2h wall-clock.
+
+on:
+  schedule:
+    - cron: "17 4 * * 6"
+  workflow_dispatch:
+    inputs:
+      shard:
+        description: "Run a specific shard (1-4) or 'all'"
+        required: false
+        default: "all"
+
+# Permissions: read-only. Baseline.jsonl updates land via maintainer PR,
+# not automatic commit, to keep the audit trail explicit.
+permissions:
+  contents: read
+
+jobs:
+  shard:
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && (inputs.shard == 'all' || inputs.shard != ''))
+    runs-on: ubuntu-latest
+    timeout-minutes: 180  # 3h cap per shard (typical is ~1-2h)
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    continue-on-error: true
+    env:
+      PROPTEST_CASES: "64"
+      PROPTEST_RNG_SEED: "fel-core-mutants-v1"
+    steps:
+      - name: Skip non-matching shard
+        if: github.event_name == 'workflow_dispatch' && inputs.shard != 'all' && inputs.shard != matrix.shard
+        run: exit 0
+
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          # Mutation runs benefit from a wider cache (incremental builds
+          # across hundreds of mutants).
+          shared-key: mutants-shard-${{ matrix.shard }}
+
+      - name: Install cargo-mutants (pinned)
+        run: cargo install cargo-mutants --version 25.3.1 --locked
+
+      - name: Run shard ${{ matrix.shard }}
+        # `make mutants-shard-N` invokes the per-file targets that scope
+        # test execution to the binaries relevant to each mutated file.
+        # Exit non-zero (survivors / timeouts) is expected — annotate-only.
+        run: make mutants-shard-${{ matrix.shard }} || true
+
+      - name: Emit baseline rows for this shard
+        if: always()
+        run: |
+          python3 scripts/mutation_baseline.py > shard-${{ matrix.shard }}-baseline.jsonl || true
+
+      - name: Upload mutants.out artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutants-out-shard-${{ matrix.shard }}
+          path: |
+            mutants.out/
+            shard-${{ matrix.shard }}-baseline.jsonl
+          retention-days: 30
+
+  summary:
+    needs: shard
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all shard artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: mutants-out-shard-*
+          path: shards/
+
+      - name: Aggregate baseline + diff against committed baseline
+        run: |
+          # Combine shard baselines.
+          cat shards/*/shard-*-baseline.jsonl 2>/dev/null | sort -u > aggregated-baseline.jsonl || true
+          echo "::group::Aggregated baseline"
+          cat aggregated-baseline.jsonl || echo "(no baseline rows produced)"
+          echo "::endgroup::"
+
+          if [ -f conformance/mutation-baseline.jsonl ]; then
+            echo "::group::Committed baseline (for comparison)"
+            cat conformance/mutation-baseline.jsonl
+            echo "::endgroup::"
+            echo "::notice::Compare aggregated-baseline.jsonl against conformance/mutation-baseline.jsonl. Maintainer commits an update when kill rates improve or new files are added."
+          else
+            echo "::notice::No committed baseline yet. After first stable run, maintainer copies aggregated-baseline.jsonl to conformance/mutation-baseline.jsonl."
+          fi
+
+      - name: Upload aggregated baseline
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-baseline-aggregated
+          path: aggregated-baseline.jsonl
+          retention-days: 90
