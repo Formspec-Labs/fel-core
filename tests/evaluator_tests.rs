@@ -1,7 +1,7 @@
 /// Comprehensive FEL evaluator tests.
 mod common;
 
-use common::{arr, dec, eval, eval_fields, eval_fields_result, num, obj, s};
+use common::{arr, dec, eval, eval_fields, eval_fields_result, eval_result, num, obj, s};
 use fel_core::*;
 use rust_decimal::Decimal;
 use serde_json::json;
@@ -64,6 +64,56 @@ fn test_datetime_literal() {
     ));
 }
 
+// ── eval_with_fields convenience API ────────────────────────────
+//
+// `eval_with_fields(input, HashMap)` is the main public entry point for
+// callers that don't construct an `Environment` directly. These pin the
+// convenience-function contract (Result return, missing-field
+// null-propagation, parse-error propagation).
+
+#[test]
+fn eval_with_fields_basic() {
+    let mut fields = HashMap::new();
+    fields.insert("x".to_string(), num(10));
+    fields.insert("y".to_string(), num(20));
+
+    let result = eval_with_fields("$x + $y", fields).unwrap();
+    assert_eq!(result.value, num(30));
+}
+
+#[test]
+fn eval_with_fields_strings() {
+    let mut fields = HashMap::new();
+    fields.insert("name".to_string(), s("Alice"));
+
+    let result = eval_with_fields("$name", fields).unwrap();
+    assert_eq!(result.value, s("Alice"));
+}
+
+#[test]
+fn eval_with_fields_parse_error() {
+    let fields = HashMap::new();
+    let result = eval_with_fields("", fields);
+    assert!(result.is_err());
+}
+
+#[test]
+fn eval_with_fields_missing_field() {
+    let fields = HashMap::new();
+    let result = eval_with_fields("$missing", fields).unwrap();
+    assert_eq!(result.value, Value::Null);
+}
+
+#[test]
+fn eval_with_fields_complex() {
+    let mut fields = HashMap::new();
+    fields.insert("price".to_string(), dec("19.99"));
+    fields.insert("qty".to_string(), num(3));
+
+    let result = eval_with_fields("$price * $qty", fields).unwrap();
+    assert_eq!(result.value, dec("59.97"));
+}
+
 // ── Arithmetic ──────────────────────────────────────────────────
 
 #[test]
@@ -121,6 +171,58 @@ fn test_ordering() {
     assert_eq!(eval("'a' < 'b'"), Value::Boolean(true));
 }
 
+/// Object and array equality, per `docs/SPEC.md` L1073 — "Any two values
+/// of the same type may be compared for equality."
+///
+/// Cross-type comparisons (e.g. `1 = 'one'`) live in
+/// `cross_type_equality_returns_null_with_diagnostic` below — they pin
+/// diagnostic emission, not just the Boolean result.
+#[test]
+fn equality_table() {
+    let cases: &[(&str, bool, &str)] = &[
+        // object equality
+        (
+            "{a: 1, b: 2} = {a: 1, b: 2}",
+            true,
+            "object same keys + values",
+        ),
+        ("{a: 1} = {a: 2}", false, "object different values"),
+        ("{a: 1} = {b: 1}", false, "object different keys"),
+        ("{a: 1} = {a: 1, b: 2}", false, "object different lengths"),
+        ("{a: {b: 1}} = {a: {b: 1}}", true, "object nested"),
+        // array equality
+        ("[1, 2, 3] = [1, 2, 3]", true, "array same"),
+        ("[1, 2, 3] = [1, 2, 4]", false, "array different element"),
+        ("[1, 2] = [1, 2, 3]", false, "array different lengths"),
+        ("[] = []", true, "empty array equality"),
+    ];
+
+    for (input, expected, facet) in cases {
+        assert_eq!(
+            eval(input),
+            Value::Boolean(*expected),
+            "input={input:?}: {facet}"
+        );
+    }
+}
+
+/// Cross-type equality (`1 = 'one'`) is not a Boolean — it produces
+/// `Value::Null` with a diagnostic. Distinct shape from
+/// `equality_table` because it pins diagnostic emission.
+#[test]
+fn cross_type_equality_returns_null_with_diagnostic() {
+    let r = eval_result("1 = 'one'");
+    assert_eq!(r.value, Value::Null);
+    assert!(!r.diagnostics.is_empty());
+}
+
+/// Cross-type comparison (`1 < 'abc'`) produces null + diagnostic.
+#[test]
+fn cross_type_comparison_returns_null() {
+    let r = eval_result("1 < 'abc'");
+    assert_eq!(r.value, Value::Null);
+}
+
 // ── Logical ─────────────────────────────────────────────────────
 
 #[test]
@@ -170,6 +272,13 @@ fn test_string_concat() {
     assert_eq!(eval("'hello' & ' ' & 'world'"), s("hello world"));
 }
 
+/// `&` propagates null on either operand.
+#[test]
+fn concat_with_null_propagates() {
+    assert_eq!(eval("'hello' & null"), Value::Null);
+    assert_eq!(eval("null & 'world'"), Value::Null);
+}
+
 // ── Null coalesce ───────────────────────────────────────────────
 
 #[test]
@@ -177,6 +286,14 @@ fn test_null_coalesce() {
     assert_eq!(eval("null ?? 42"), num(42));
     assert_eq!(eval("5 ?? 42"), num(5));
     assert_eq!(eval("null ?? null ?? 3"), num(3));
+}
+
+/// Chained null-coalesce evaluates left-to-right, short-circuits at the
+/// first non-null operand.
+#[test]
+fn chained_null_coalesce() {
+    assert_eq!(eval("null ?? null ?? null ?? 5"), num(5));
+    assert_eq!(eval("null ?? 1 ?? 2"), num(1));
 }
 
 // ── Membership ──────────────────────────────────────────────────
@@ -208,6 +325,12 @@ fn test_if_function() {
     assert_eq!(eval("if(false, 'yes', 'no')"), s("no"));
 }
 
+/// Deeply nested ternary preserves precedence; inner result is selected.
+#[test]
+fn deeply_nested_ternary() {
+    assert_eq!(eval("true ? (false ? 1 : (true ? 42 : 3)) : 0"), num(42));
+}
+
 // ── Let binding ─────────────────────────────────────────────────
 
 #[test]
@@ -225,6 +348,18 @@ fn test_let_binding_property_access_on_bound_object() {
 fn test_let_binding_multi_level_property_access() {
     assert_eq!(eval("let x = {a: {b: 2}} in x.a.b"), num(2));
     assert_eq!(eval("let x = {a: {b: {c: 3}}} in x.a.b.c"), num(3));
+}
+
+/// Let binding combined with ternary on the binding value.
+#[test]
+fn let_binding_with_ternary() {
+    assert_eq!(eval("let x = (true ? 10 : 20) in x + 1"), num(11));
+}
+
+/// Inner let shadows outer; outer binding restored after inner body.
+#[test]
+fn let_binding_shadowing() {
+    assert_eq!(eval("let x = 1 in let x = 2 in x"), num(2));
 }
 
 // ── Field references ────────────────────────────────────────────
@@ -303,6 +438,16 @@ fn test_index_out_of_bounds_is_null_with_diagnostic() {
         "expected OOB diagnostic, got {:?}",
         result.diagnostics
     );
+}
+
+/// Postfix `.field` access works on the result of a function call /
+/// arbitrary expression, not just bare field references.
+#[test]
+fn postfix_access_on_expression() {
+    let mut fields = std::collections::HashMap::new();
+    fields.insert("data".to_string(), obj(vec![("x".to_string(), num(42))]));
+    let result = eval_with_fields("$data.x", fields).unwrap();
+    assert_eq!(result.value, num(42));
 }
 
 // ── Array broadcasting ──────────────────────────────────────────
@@ -396,6 +541,8 @@ fn test_string_functions() {
     assert_eq!(eval("replace('hello', 'l', 'r')"), s("herro"));
     assert_eq!(eval("substring('hello', 2, 3)"), s("ell"));
     assert_eq!(eval("length(null)"), num(0));
+    // `length()` also operates on arrays (collection-length surface).
+    assert_eq!(eval("length([1, 2, 3])"), num(3));
 }
 
 // ── Numeric functions ───────────────────────────────────────────
@@ -487,8 +634,128 @@ fn test_map_environment_clock_can_be_overridden() {
     );
 }
 
-// Note: dateAdd / dateDiff coverage lives in evaluator_edge_cases.rs's
-// `date_arithmetic_table` (consolidated under Cluster B of the test triage).
+/// Expected outcome for a date-arithmetic case.
+///
+/// `Add(y, m, d)` covers `dateAdd` (Date result); `Diff(n)` covers
+/// `dateDiff` (Number result). Named `Add` rather than `Date` to avoid
+/// shadowing `fel_core::Date` under `use DateOp::*`.
+enum DateOp {
+    Add(i32, u32, u32),
+    Diff(i64),
+}
+
+#[test]
+fn date_arithmetic_table() {
+    use DateOp::*;
+    let cases: &[(&str, DateOp)] = &[
+        // dateAdd: negative deltas
+        ("dateAdd(@2024-03-15, -1, 'months')", Add(2024, 2, 15)),
+        ("dateAdd(@2024-03-01, -1, 'days')", Add(2024, 2, 29)), // leap year
+        // dateAdd: leap-year Feb 29 + years
+        ("dateAdd(@2024-02-29, 1, 'years')", Add(2025, 2, 28)), // clamp non-leap Feb 28
+        ("dateAdd(@2024-02-29, 4, 'years')", Add(2028, 2, 29)), // next leap retains day
+        // dateAdd: month wraps + day clamping
+        ("dateAdd(@2024-11-15, 3, 'months')", Add(2025, 2, 15)), // Nov + 3 → Feb next year
+        ("dateAdd(@2024-01-31, 1, 'months')", Add(2024, 2, 29)), // Jan 31 + 1, leap
+        ("dateAdd(@2023-01-31, 1, 'months')", Add(2023, 2, 28)), // Jan 31 + 1, non-leap
+        // dateDiff: units + sign
+        ("dateDiff(@2024-03-01, @2024-01-01, 'days')", Diff(60)),
+        ("dateDiff(@2024-06-01, @2024-01-01, 'months')", Diff(5)),
+        ("dateDiff(@2024-06-15, @2020-06-15, 'years')", Diff(4)),
+        ("dateDiff(@2024-01-01, @2024-03-01, 'days')", Diff(-60)),
+    ];
+
+    for (input, expected) in cases {
+        let actual = eval(input);
+        match expected {
+            DateOp::Add(y, m, d) => match &actual {
+                Value::Date(Date::Date { year, month, day }) => {
+                    assert_eq!(
+                        (*year, *month, *day),
+                        (*y, *m, *d),
+                        "input={input:?}: date component mismatch (year, month, day)"
+                    );
+                }
+                _ => panic!("input={input:?}: expected Date({y:04}-{m:02}-{d:02}), got {actual:?}"),
+            },
+            DateOp::Diff(n) => assert_eq!(
+                actual,
+                num(*n),
+                "input={input:?}: dateDiff numeric mismatch"
+            ),
+        }
+    }
+}
+
+/// `today()` returns a Date value.
+#[test]
+fn today_returns_date() {
+    let result = eval("today()");
+    assert!(
+        matches!(result, Value::Date(Date::Date { .. })),
+        "today() should return a Date, got: {result:?}"
+    );
+}
+
+/// `now()` returns a DateTime value.
+#[test]
+fn now_returns_datetime() {
+    let result = eval("now()");
+    assert!(
+        matches!(result, Value::Date(Date::DateTime { .. })),
+        "now() should return a DateTime, got: {result:?}"
+    );
+}
+
+/// `today()` can be passed through date arithmetic.
+#[test]
+fn today_in_date_arithmetic() {
+    let result = eval("dateAdd(today(), 1, 'days')");
+    assert!(
+        matches!(result, Value::Date(Date::Date { .. })),
+        "dateAdd on today() should return a Date, got: {result:?}"
+    );
+}
+
+/// Year/month/day extractors operate on `today()`.
+#[test]
+fn today_date_parts() {
+    let result = eval("year(today())");
+    assert!(matches!(result, Value::Number(_)));
+}
+
+/// Date comparison: `<`, `>`, `=`.
+#[test]
+fn date_comparison() {
+    assert_eq!(eval("@2024-01-15 < @2024-06-15"), Value::Boolean(true));
+    assert_eq!(eval("@2024-06-15 > @2024-01-15"), Value::Boolean(true));
+    assert_eq!(eval("@2024-01-15 = @2024-01-15"), Value::Boolean(true));
+}
+
+/// `date('YYYY-MM-DD')` parses a string into a Date.
+#[test]
+fn date_cast_from_string() {
+    let result = eval("date('2024-06-15')");
+    assert!(
+        matches!(
+            result,
+            Value::Date(Date::Date {
+                year: 2024,
+                month: 6,
+                day: 15
+            })
+        ),
+        "got: {result:?}"
+    );
+}
+
+/// `isDate` type check: true for Date values, false otherwise.
+#[test]
+fn is_date_check() {
+    assert_eq!(eval("isDate(@2024-01-15)"), Value::Boolean(true));
+    assert_eq!(eval("isDate('not a date')"), Value::Boolean(false));
+    assert_eq!(eval("isDate(42)"), Value::Boolean(false));
+}
 
 // ── Time functions ──────────────────────────────────────────────
 
@@ -515,6 +782,10 @@ fn test_empty_present() {
     assert_eq!(eval("empty('')"), Value::Boolean(true));
     assert_eq!(eval("empty([])"), Value::Boolean(true));
     assert_eq!(eval("empty('x')"), Value::Boolean(false));
+    // Non-empty primitives (`0`, `false`) are NOT "empty" — empty() pins
+    // missing/absent, not falsy.
+    assert_eq!(eval("empty(0)"), Value::Boolean(false));
+    assert_eq!(eval("empty(false)"), Value::Boolean(false));
     assert_eq!(eval("present('hello')"), Value::Boolean(true));
     assert_eq!(eval("present(null)"), Value::Boolean(false));
 }
@@ -559,14 +830,133 @@ fn test_casting() {
 
 // ── Money functions ─────────────────────────────────────────────
 //
-// Table-driven coverage of the money-builtin contract:
-//   - `money(amount, currency)`  constructor
-//   - `moneyAmount(m)` / `moneyCurrency(m)`  accessors
-//   - `moneyAdd(a, b)` aggregate (with currency-mismatch null-prop)
+// Three test surfaces:
 //
-// Diagnostic-message-content tests (test_money_*_diagnostic below) stay
-// standalone because they pin message text — a stronger assertion than
-// null-propagation that would be diluted in a value-only table.
+//   - `money_arithmetic_table` — operator overloads (`-`, `*`, `/`) plus
+//     `moneySum` aggregate; currency-mismatch and divide-by-zero null
+//     propagation; fractional-amount decimal precision.
+//
+//   - `test_money_builtins_table` — builtin functions: `money(...)`
+//     constructor, `moneyAmount`/`moneyCurrency` accessors, `moneyAdd`
+//     aggregate (with currency-mismatch null-prop).
+//
+//   - `test_money_amount_currency_type_mismatch_emits_diagnostic` and
+//     `test_money_*_comparison_*_diagnostic` (later in this file) stay
+//     standalone — they pin diagnostic message text, a stronger
+//     assertion than null-propagation that would be diluted in a
+//     value-only table.
+
+/// Expected outcome for a money-arithmetic (operator) case.
+///
+/// `Num(&str)` mirrors `MoneyBuiltinCase::Num`; string-parsed Decimal so
+/// future fractional-ratio rows are expressible without a type change.
+/// `Null(&str)` carries the failure-contract name so a future regression
+/// that breaks one Null path doesn't silently mask another.
+enum MoneyArithCase {
+    Money(&'static str, &'static str),
+    Num(&'static str),
+    Null(&'static str),
+}
+
+#[test]
+fn money_arithmetic_table() {
+    use MoneyArithCase::*;
+    let cases: &[(&str, MoneyArithCase)] = &[
+        // operator: subtraction
+        ("money(100, 'USD') - money(30, 'USD')", Money("70", "USD")),
+        (
+            "money(100, 'USD') - money(30, 'EUR')",
+            Null("subtraction currency mismatch"),
+        ),
+        // operator: multiplication (commutative)
+        ("money(25, 'EUR') * 4", Money("100", "EUR")),
+        ("3 * money(10, 'GBP')", Money("30", "GBP")),
+        // operator: division
+        ("money(100, 'USD') / 4", Money("25", "USD")),
+        ("money(100, 'USD') / money(25, 'USD')", Num("4")),
+        (
+            "money(100, 'USD') / money(25, 'EUR')",
+            Null("division currency mismatch"),
+        ),
+        ("money(100, 'USD') / 0", Null("division by zero")),
+        // operator: fractional amounts exercise decimal precision
+        ("money(0.1, 'USD') + money(0.2, 'USD')", Money("0.3", "USD")),
+        ("money(10, 'USD') * 0.5", Money("5.0", "USD")),
+        // aggregate: moneySum
+        (
+            "moneySum([money(10, 'USD'), money(20, 'USD'), money(30, 'USD')])",
+            Money("60", "USD"),
+        ),
+        (
+            "moneySum([money(10, 'USD'), null, money(30, 'USD')])",
+            Money("40", "USD"), // nulls skipped
+        ),
+        (
+            "moneySum([money(10, 'USD'), money(20, 'EUR')])",
+            Null("aggregate mixed currencies"),
+        ),
+        ("moneySum([])", Null("aggregate empty array")),
+    ];
+
+    for (input, expected) in cases {
+        let actual = eval(input);
+        match expected {
+            MoneyArithCase::Money(amt, cur) => match &actual {
+                Value::Money(m) => {
+                    assert_eq!(
+                        m.amount,
+                        Decimal::from_str_exact(amt).unwrap(),
+                        "input={input:?}: amount mismatch"
+                    );
+                    assert_eq!(
+                        m.currency.as_str(),
+                        *cur,
+                        "input={input:?}: currency mismatch"
+                    );
+                }
+                _ => panic!("input={input:?}: expected Money({amt}, {cur}), got {actual:?}"),
+            },
+            MoneyArithCase::Num(n) => assert_eq!(
+                actual,
+                Value::Number(Decimal::from_str_exact(n).unwrap()),
+                "input={input:?}: number mismatch"
+            ),
+            MoneyArithCase::Null(intent) => assert_eq!(
+                actual,
+                Value::Null,
+                "input={input:?}: expected Null ({intent}), got {actual:?}"
+            ),
+        }
+    }
+}
+
+#[test]
+fn money_equality() {
+    let cases: &[(&str, bool, &str)] = &[
+        (
+            "money(100, 'USD') = money(100, 'USD')",
+            true,
+            "same amount + currency",
+        ),
+        (
+            "money(100, 'USD') = money(100, 'EUR')",
+            false,
+            "different currency",
+        ),
+        (
+            "money(100, 'USD') = money(50, 'USD')",
+            false,
+            "different amount",
+        ),
+    ];
+    for (input, expected, facet) in cases {
+        assert_eq!(
+            eval(input),
+            Value::Boolean(*expected),
+            "input={input:?}: {facet}"
+        );
+    }
+}
 
 /// Expected outcome shape for a money-builtin case.
 enum MoneyBuiltinCase {
@@ -678,6 +1068,32 @@ fn test_format() {
         eval("format('{0} is {1}', 'sky', 'blue')"),
         s("sky is blue")
     );
+}
+
+/// Multiple `{n}` placeholders interpolate positional args.
+#[test]
+fn format_multiple_placeholders() {
+    assert_eq!(
+        eval("format('{0} has {1} items at ${2} each', 'Cart', 3, 9.99)"),
+        s("Cart has 3 items at $9.99 each")
+    );
+}
+
+/// `{n}` placeholders resolve before remaining `%s` substitutions consume
+/// positional args sequentially.
+#[test]
+fn format_percent_s_after_brace_placeholder() {
+    assert_eq!(
+        eval("format('%s then {1}', 'first', 'second')"),
+        s("first then second")
+    );
+}
+
+/// Missing placeholder args leave the placeholder literal in the output
+/// rather than panicking.
+#[test]
+fn format_missing_args() {
+    assert_eq!(eval("format('{0} and {1}', 'hello')"), s("hello and {1}"));
 }
 
 // ── Nested/complex expressions ──────────────────────────────────
@@ -1049,6 +1465,15 @@ fn test_date_cast_invalid_string() {
         !result.diagnostics.is_empty(),
         "date('not-a-date') must produce a diagnostic"
     );
+}
+
+/// `boolean()` cast edge cases: null coerces to false; unrecognized
+/// string yields null + diagnostic (NOT a Boolean).
+#[test]
+fn boolean_cast_edge_cases() {
+    assert_eq!(eval("boolean(null)"), Value::Boolean(false));
+    let r = eval_result("boolean('maybe')");
+    assert_eq!(r.value, Value::Null);
 }
 
 // ── Decimal precision (spec S3.4.1) ─────────────────────────────

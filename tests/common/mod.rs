@@ -11,6 +11,14 @@ pub fn eval(input: &str) -> Value {
     evaluate(&expr, &env).value
 }
 
+/// Like [`eval`], but returns the full `EvalResult` so the caller can
+/// assert on diagnostics in addition to the value.
+pub fn eval_result(input: &str) -> EvalResult {
+    let expr = parse(input).unwrap();
+    let env = MapEnvironment::new();
+    evaluate(&expr, &env)
+}
+
 pub fn eval_fields(input: &str, fields: Vec<(&str, Value)>) -> Value {
     eval_fields_result(input, fields).value
 }
