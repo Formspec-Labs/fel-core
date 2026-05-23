@@ -241,7 +241,78 @@ Phase 2 closure is achievable by completing items 1-7. Phase 3 covers 8.
 | `prepare_host.rs` | deferred to Phase 3 | 39 missed + 20 timeout — `prepare_for_host` proptest gap |
 | `dependencies.rs` | deferred to Phase 3 | 10 missed — `extract_dependencies` proptest gap |
 
-**Phase 2 closure summary**:
+## Swarm-review findings disposition
+
+The 10-Haiku-reviewer swarm + 2 post-Phase-2 reviewers produced a finite finding list. Per the "address every finding" directive, this appendix records each with status: **addressed** (sha), **accepted-with-rationale** (one-line justification), or **deferred** (follow-up ticket).
+
+### Addressed
+
+| # | Severity | Finding | sha |
+|---:|---|---|---|
+| 1 | BLOCKER | `fel_proptest::value_to_expr` Money → Null silently | `1eee8b4` |
+| 2 | BLOCKER | `FEL-CONTEXT-BINDING-NOT-CALLABLE` untested | `1eee8b4` |
+| 3 | HIGH | `semantic_invariants` And/Or null-prop generator gap | `effab1a` |
+| 4 | HIGH | Decimal associativity hedge undocumented | `effab1a` |
+| 5 | HIGH | `parse_print_identity` tautological — added eval-equivalence | `effab1a` |
+| 6 | HIGH | Depth-limit test only checked panic — added rejection assertion | `effab1a` |
+| 7 | HIGH | `builtin_catalog_consistency` existence-only — added arity survey | `effab1a` |
+| 8 | HIGH | Three §7 parser-rejection citations wrong | `1cbac25` (Phase 1) |
+| 9 | HIGH | Conformance graceful-skip uses `eprintln!` (invisible) | `ef1ab02` |
+| 10 | HIGH | Helper dedup in env_integration/locale_fel_functions/host_bindings | `1eee8b4` |
+| 11 | HIGH | Citation accuracy in `lexer_tests.rs` §7 mutations | `27ac25c` (Phase 1.5) |
+| 12 | HIGH | `intl_pluralrules` CLDR version unpinned | this batch (Cargo.toml `~7.0`) |
+| 13 | HIGH | `host_bindings/` fixture format undocumented | this batch (SCHEMA.md) |
+| 14 | HIGH | Stress TERMS=48 stack-depth bound empirical, undocumented | this batch (comment expanded) |
+| 15 | MEDIUM | Mutation-baseline.py not idempotent on rerun | `ef1ab02` |
+| 16 | MEDIUM | Mutation-baseline.py panics on malformed outcomes.json | `ef1ab02` |
+| 17 | MEDIUM | Regex quote-injection footgun on future rows | `1eee8b4` (assertion guard) |
+| 18 | MEDIUM | Concurrency tests verified sequential, not overlapping | this batch |
+| 19 | MEDIUM | `power()` edge cases (0^0, negative+fractional, large-base overflow) | this batch |
+| 20 | MEDIUM | DiagnosticKind not exhaustiveness-guarded | `effab1a` |
+| 21 | MEDIUM | Arch H1: floor recalibration mixed classified vs pending | `f26b2d9` (split into Category A/B) |
+| 22 | NIT | MUTANTS_JOBS default too high for small hosts | this batch (auto-detect cores) |
+| 23 | NIT | `cloned_ref_to_slice_refs` clippy warning | `c923a65` |
+| 24 | NIT | Doc-list-indentation clippy warning | `effab1a` |
+| 25 | NIT | Phase 3 deferral lacked explicit ticket IDs | `f26b2d9` (FUT-4/5 enumerated) |
+| 26 | NIT | `S3.4.1` typo (should be `§3.4.1`) | `c7d3f01` (Phase 1) |
+
+### Accepted with rationale
+
+| Severity | Finding | Rationale |
+|---|---|---|
+| HIGH (evaluator_tests reviewer) | `.message.contains(...)` substring matching is brittle | Guidance/suggestion text (e.g. `"use moneySum()"`, `"moneyAmount("`) is intentional contract — not covered by `DiagnosticKind` variants. Substring assertion is the only way to pin the suggestion content; brittleness is a deliberate trade for assertion strength. The structured `DiagnosticKind` matches are used where applicable (`test_undefined_function`, the new arity tests, etc.). |
+| MEDIUM (eval reviewer) | `test_*` prefix vs unprefixed table-test inconsistency | Pre-Phase-1 plan deliberately chose unprefixed names for table tests (`equality_table`, `money_arithmetic_table`) since they describe a *surface*, not "a test of X." The `test_*` prefix is preserved on legacy tests for git-blame readability. Documented in evaluator_tests.rs `// ─ ─ <section> ─ ─` headers. |
+| MEDIUM (eval reviewer) | `MoneyArithCase` vs `MoneyBuiltinCase` enum naming asymmetry | Each integration-test file is its own crate (Rust's test discipline); shared enum would require either a `tests/common/mod.rs` addition or a `pub` in production code. Cost > benefit for a 2-enum naming difference. |
+| MEDIUM (regression-guard reviewer) | Corpus schema not formalized as JSON Schema | `tests/corpus/README.md` documents the format. Adding a JSON Schema file would over-engineer a 5-line struct; review the README as the source of truth. |
+| MEDIUM (regression-guard reviewer) | `displayOracle` drift has no diff-friendly signal | The fail message names the line, id, and expression; `make fuzz-regression-refresh` is the documented refresh path. No additional tooling justified at current corpus size. |
+| MEDIUM (locale reviewer) | Locale tests 65% shallow-assert ratio | Locale tests are intrinsically heterogeneous (different scripts, plural categories). Tabulation would lose readability without coverage gain. |
+| MEDIUM (algebraic reviewer) | Cross-file duplication between `semantic_invariants::eq_does_not_propagate_null` and `fel_proptest::equality_no_null_propagation` | The two tests cover different generator spaces (`-500i64..500` integer values vs `arb_value`). Different signal; not a true duplicate. |
+| LOW (env/host reviewer) | `host_bindings::TestCatalog` uses `HashMap` not `IndexMap` | Catalog iteration is never serialized; non-deterministic iteration is invisible. Defensive change with no observable impact. |
+| NIT (regression-guard) | `FEL-SMELL-C-001` label undefined elsewhere | Internal smell-tracking label; module comment already explains. Adding a glossary would be over-engineering. |
+| NIT (operational) | `concurrency_smoke` serial baseline uses fresh env per iteration | Documented choice; comment added. Reusing Arc-shared env across iterations would not change semantics for the deterministic test inputs. |
+
+### Deferred to follow-up
+
+| # | Severity | Finding | Follow-up |
+|---:|---|---|---|
+| FUT-1 | HIGH | parser.rs 29 Category-B mutation survivors classification | Phase 2 leftover |
+| FUT-2 | HIGH | evaluator/core.rs 42 Category-B survivors classification | Phase 2 leftover |
+| FUT-3 | HIGH | lexer.rs 25 Category-B survivors (12 missed + 13 timeout) classification + timeout verification | Phase 2 leftover |
+| FUT-4 | HIGH | `prepare_for_host` proptest (mutation gate confirmed 69%) | Phase 3 |
+| FUT-5 | HIGH | `extract_dependencies` proptest (mutation gate confirmed 56%) | Phase 3 |
+| FUT-6 | MEDIUM | Tier-2 mutation gate (interpolation.rs, iso_duration.rs) | Phase 2 leftover |
+| FUT-7 | HIGH | Catalog-declared arity isn't uniformly enforced in builtin dispatch (10 silent-on-too-few + 24 silent-on-too-many surfaced by survey) | Follow-up; surfaces via `catalog_arity_enforcement_uniformity_survey` test |
+| FUT-8 | HIGH | `differential_oracle` not in `make ci`/`ratify` chain → cross-runtime drift silent until next manual run | Follow-up; touches existing CI workflow |
+| FUT-9 | MEDIUM | `env_integration_tests.rs` conflates MIP + repeat + JSON-helper into one file | Follow-up; cosmetic split |
+| FUT-10 | MEDIUM | Coercion tests in `decimal_properties.rs` are example-based, mixed with property tests | Follow-up; cosmetic split |
+| FUT-11 | MEDIUM | `host_bindings` missing fixture coverage for `@current`/`@index`/`@count` reserved-name catalog cases | Follow-up; fixture additions |
+| FUT-12 | NIT | Workflow file `doc.yml` named `ci` — rename to `ci.yml` | Follow-up; cosmetic |
+| FUT-13 | NIT | Snapshot refresh workflow undocumented for `insta` inline snapshots | Follow-up; CONTRIBUTING.md addition |
+| FUT-14 | NIT | `mem::forget` rationale in `evaluator_regression_guards` could expand | Follow-up; doc-comment polish |
+
+**Net**: 26 findings **addressed** (with sha); 10 **accepted with rationale**; 14 **deferred** to enumerated follow-ups. Zero open without disposition.
+
+## Phase 2 closure summary
 - 8 of 12 P0 files at or above their (calibrated) floor.
 - 4 files have follow-up investigation queued: lexer, evaluator/core, parser (within Phase 2 scope) + prepare_host, dependencies (Phase 3 scope).
 - 18 of 186 survivors killed in this session (10% reduction).
