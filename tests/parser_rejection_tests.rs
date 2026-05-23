@@ -1,287 +1,248 @@
-/// Parser rejection tests — verifying invalid inputs are rejected.
-///
-/// Addresses audit finding: "Zero parser rejection tests"
+//! Parser rejection tests — verifying invalid inputs are rejected.
+//!
+//! Addresses audit finding: "Zero parser rejection tests".
+//!
+//! Two table-driven tests + four span-correctness tests:
+//!
+//!   - `parser_rejection_table` — each row carries `(input, spec_ref,
+//!     intent)`. Spec citations are structured per row (not freeform
+//!     comments) so they survive review and don't drift.
+//!
+//!   - `valid_parse_table` — positive contrast cases: inputs that look like
+//!     they might be rejected but are explicitly valid per spec. Documents
+//!     the boundary the rejection table pushes against.
+//!
+//!   - `parse_error_span_*` / `lexer_error_*` — kept as standalone tests:
+//!     they assert on span byte-ranges, a different shape from "input is
+//!     rejected".
+
 use fel_core::{Error, parse};
 
-/// Assert that parsing the given input produces an error.
-fn assert_rejects(input: &str) {
-    match parse(input) {
-        Err(_) => {} // expected
-        Ok(ast) => panic!("expected parse error for {input:?}, got AST: {ast:?}"),
+/// Spec section / rationale for a parser-rejection case.
+///
+/// Concrete strings keep grep-discoverability ("§3.3 L83-84") while making
+/// the citation a structured column rather than a freeform comment.
+type SpecRef = &'static str;
+
+/// Short prose describing what contract the rejection pins.
+type Intent = &'static str;
+
+#[test]
+fn parser_rejection_table() {
+    let cases: &[(&str, SpecRef, Intent)] = &[
+        // ── Duplicate object keys ──
+        (
+            "{a: 1, a: 2}",
+            "fel-grammar.md §4.2 L272-273",
+            "duplicate keys in object literal",
+        ),
+        // ── Pipe operator (reserved for future use) ──
+        (
+            "1 |> 2",
+            "fel-grammar.md §7 L385-386",
+            "pipe operator in middle",
+        ),
+        (
+            "|> 2",
+            "fel-grammar.md §7 L385-386",
+            "pipe operator at start",
+        ),
+        // ── Reserved words as function names ──
+        //
+        // §3.3: reserved words MUST NOT be used as function names. `if(` is
+        // explicitly special-cased and tested as VALID in `valid_parse_table`.
+        (
+            "true()",
+            "fel-grammar.md §3.3 L83-84",
+            "reserved word `true` as fn",
+        ),
+        (
+            "false()",
+            "fel-grammar.md §3.3 L83-84",
+            "reserved word `false` as fn",
+        ),
+        (
+            "null()",
+            "fel-grammar.md §3.3 L83-84",
+            "reserved word `null` as fn",
+        ),
+        (
+            "and()",
+            "fel-grammar.md §3.3 L83-84",
+            "reserved word `and` as fn",
+        ),
+        (
+            "or()",
+            "fel-grammar.md §3.3 L83-84",
+            "reserved word `or` as fn",
+        ),
+        (
+            "not()",
+            "fel-grammar.md §3.3 L83-84",
+            "`not` is unary operator, empty parens fail",
+        ),
+        // ── Leading/trailing dot numbers ──
+        (".5", "fel-grammar.md §3.5 L132", "leading dot number"),
+        ("5.", "fel-grammar.md §3.5 L133", "trailing dot number"),
+        // ── Unterminated grouping ──
+        (
+            "(1 + 2",
+            "fel-grammar.md §7 L376-377",
+            "unterminated parenthesis",
+        ),
+        (
+            "[1, 2",
+            "fel-grammar.md §7 L376-377",
+            "unterminated bracket",
+        ),
+        ("{a: 1", "fel-grammar.md §7 L376-377", "unterminated brace"),
+        (
+            "(1 + 2]",
+            "fel-grammar.md §7 L376-377",
+            "mismatched delimiters",
+        ),
+        // ── Empty / whitespace-only input ──
+        ("", "fel-grammar.md §7 L376-377", "empty input"),
+        ("   ", "non-spec (correctness)", "whitespace-only input"),
+        // ── Trailing tokens ──
+        (
+            "1 2",
+            "fel-grammar.md §7 L374-375",
+            "two atoms without operator",
+        ),
+        (
+            "(1 + 2))",
+            "non-spec (correctness)",
+            "extra closing parenthesis",
+        ),
+        // ── Chained comparisons (non-associative) ──
+        (
+            "1 < 2 < 3",
+            "non-spec (correctness)",
+            "chained `<` comparison",
+        ),
+        (
+            "1 <= 2 <= 3",
+            "non-spec (correctness)",
+            "chained `<=` comparison",
+        ),
+        (
+            "$a = $b = $c",
+            "non-spec (correctness)",
+            "chained `=` equality",
+        ),
+        (
+            "1 == 2 == 3",
+            "non-spec (correctness)",
+            "chained `==` equality",
+        ),
+        (
+            "$a != $b != $c",
+            "non-spec (correctness)",
+            "chained `!=` inequality",
+        ),
+        // ── Invalid operator / control-flow shapes ──
+        ("+", "non-spec (correctness)", "bare operator, no operands"),
+        ("1 + + 2", "non-spec (correctness)", "consecutive operators"),
+        (
+            "if true else false",
+            "non-spec (correctness)",
+            "if-then-else missing `then`",
+        ),
+        (
+            "if true then 1",
+            "non-spec (correctness)",
+            "if-then-else missing `else`",
+        ),
+        (
+            "let x = 5",
+            "non-spec (correctness)",
+            "let binding missing `in`",
+        ),
+        (
+            "{a 1}",
+            "non-spec (correctness)",
+            "object literal missing colon",
+        ),
+        (
+            "{a:}",
+            "non-spec (correctness)",
+            "object literal missing value",
+        ),
+        (
+            "sum(1, 2",
+            "non-spec (correctness)",
+            "function call missing close paren",
+        ),
+        (
+            "sum(1,)",
+            "non-spec (correctness)",
+            "trailing comma in function call (no arg)",
+        ),
+    ];
+
+    for (input, spec_ref, intent) in cases {
+        match parse(input) {
+            Err(_) => {} // expected
+            Ok(ast) => panic!(
+                "expected parse error for {input:?} ({intent}, {spec_ref}); got AST: {ast:?}"
+            ),
+        }
     }
 }
 
-// ── Duplicate object keys ───────────────────────────────────────
-
-/// Spec: fel-grammar.md §4.2 L272-273 — "Duplicate keys within a single object
-/// literal are a syntax error."
 #[test]
-fn duplicate_object_keys_rejected() {
-    assert_rejects("{a: 1, a: 2}");
-}
-
-// ── Pipe operator ───────────────────────────────────────────────
-
-/// Spec: fel-grammar.md §7 L385-386 — "MUST parse the |> (pipe) character
-/// sequence as a syntax error in v1.0. This token is reserved for future use."
-#[test]
-fn pipe_operator_rejected() {
-    assert_rejects("1 |> 2");
-}
-
-/// Spec: fel-grammar.md §7 L385-386 — pipe at start of expression
-#[test]
-fn pipe_operator_at_start_rejected() {
-    assert_rejects("|> 2");
-}
-
-// ── Reserved words as function names ────────────────────────────
-
-/// Spec: fel-grammar.md §3.3 L83-84 — "They MUST NOT be used as function names"
-/// Note: `if(...)` is special-cased and IS allowed. Other reserved words are not
-/// parsed as function calls because the parser treats them as keywords first.
-#[test]
-fn reserved_word_true_not_function() {
-    // "true()" should fail because `true` is parsed as a boolean literal,
-    // then `(` is unexpected trailing input
-    assert_rejects("true()");
-}
-
-/// Spec: fel-grammar.md §3.3 L83-84 — reserved word as function name
-#[test]
-fn reserved_word_false_not_function() {
-    assert_rejects("false()");
-}
-
-/// Spec: fel-grammar.md §3.3 L83-84 — reserved word as function name
-#[test]
-fn reserved_word_null_not_function() {
-    assert_rejects("null()");
-}
-
-/// Spec: fel-grammar.md §3.3 L83-84 — reserved word as function name
-#[test]
-fn reserved_word_and_not_function() {
-    assert_rejects("and()");
-}
-
-/// Spec: fel-grammar.md §3.3 L83-84 — reserved word as function name
-#[test]
-fn reserved_word_or_not_function() {
-    assert_rejects("or()");
-}
-
-/// Spec: fel-grammar.md §3.3 L83-84 — reserved word as function name
-#[test]
-fn reserved_word_not_as_function() {
-    // "not()" — `not` is a unary operator, so "not ( )" will try to parse
-    // the inside of the parens as an expression — empty parens should fail
-    assert_rejects("not()");
-}
-
-/// Spec: fel-grammar.md §4.1 L256-261 — "if is a reserved word... it cannot
-/// match the Identifier production... if( is dispatched to FunctionCall"
-#[test]
-fn if_function_is_allowed() {
-    // if(...) is explicitly special-cased
-    let result = parse("if(true, 1, 2)");
-    assert!(result.is_ok(), "if() function should be allowed");
-}
-
-// ── Leading/trailing dot numbers ────────────────────────────────
-
-/// Spec: fel-grammar.md §3.5 L132 — "A leading dot is not permitted: .5 is invalid"
-#[test]
-fn leading_dot_number_rejected() {
-    assert_rejects(".5");
-}
-
-/// Spec: fel-grammar.md §3.5 L133 — "A trailing dot is not permitted: 5. is invalid"
-#[test]
-fn trailing_dot_number_rejected() {
-    // "5." should parse as number 5 followed by unexpected dot, or
-    // the dot should cause the number to fail.
-    // Current behavior: "5" is a number, "." is Dot, then Eof.
-    // The parser sees "5" then ".field_name" but "." followed by Eof is an error
-    // in the parser because it expects an identifier after Dot in postfix position.
-    assert_rejects("5.");
-}
-
-// ── Unterminated grouping ───────────────────────────────────────
-
-/// Spec: fel-grammar.md §7 L376-377 — "MUST reject all input strings that do not match"
-#[test]
-fn unterminated_parenthesis() {
-    assert_rejects("(1 + 2");
-}
-
-/// Spec: fel-grammar.md §7 L376-377 — unterminated brackets
-#[test]
-fn unterminated_bracket() {
-    assert_rejects("[1, 2");
-}
-
-/// Spec: fel-grammar.md §7 L376-377 — unterminated braces
-#[test]
-fn unterminated_brace() {
-    assert_rejects("{a: 1");
-}
-
-/// Spec: fel-grammar.md §7 L376-377 — mismatched delimiters
-#[test]
-fn mismatched_delimiters() {
-    assert_rejects("(1 + 2]");
-}
-
-// ── Empty expressions ───────────────────────────────────────────
-
-/// Spec: fel-grammar.md §7 L376-377 — empty input is not a valid expression
-#[test]
-fn empty_expression_rejected() {
-    assert_rejects("");
-}
-
-/// Correctness: whitespace-only is also invalid
-#[test]
-fn whitespace_only_rejected() {
-    assert_rejects("   ");
-}
-
-/// Robustness: excessively deep nesting is rejected before stack exhaustion.
-#[test]
-fn overly_deep_nesting_rejected() {
+fn parser_rejection_overly_deep_nesting() {
+    // Robustness: excessively deep nesting is rejected before stack
+    // exhaustion. Bespoke setup (depth-100 paren pair) makes a table row
+    // awkward — kept as its own #[test].
     let depth = 100usize;
     let mut input = "(".repeat(depth);
     input.push('1');
     input.push_str(&")".repeat(depth));
-    assert_rejects(&input);
-}
-
-// ── Trailing tokens ─────────────────────────────────────────────
-
-/// Spec: fel-grammar.md §7 L374-375 — must consume entire input
-#[test]
-fn trailing_tokens_rejected() {
-    assert_rejects("1 2");
-}
-
-/// Correctness: chained comparisons are rejected with clear syntax failure.
-#[test]
-fn chained_comparisons_rejected() {
-    assert_rejects("1 < 2 < 3");
-    assert_rejects("1 <= 2 <= 3");
-}
-
-/// Correctness: chained equality / inequality are rejected (non-associative).
-#[test]
-fn chained_equality_rejected() {
-    assert_rejects("$a = $b = $c");
-    assert_rejects("1 == 2 == 3");
-}
-
-#[test]
-fn chained_inequality_rejected() {
-    assert_rejects("$a != $b != $c");
-}
-
-/// Explicit range checks without chaining remain valid.
-#[test]
-fn explicit_range_with_and_is_valid() {
-    assert!(parse("0 <= $age and $age <= 120").is_ok());
-}
-
-#[test]
-fn single_equality_still_parses() {
-    assert!(parse("$a = $b").is_ok());
-}
-
-/// Correctness: extra closing delimiter
-#[test]
-fn extra_closing_paren_rejected() {
-    assert_rejects("(1 + 2))");
-}
-
-// ── Invalid syntax patterns ─────────────────────────────────────
-
-/// Correctness: bare operator with no operands
-#[test]
-fn bare_plus_rejected() {
-    assert_rejects("+");
-}
-
-/// Correctness: consecutive operators
-#[test]
-fn consecutive_operators_rejected() {
-    assert_rejects("1 + + 2");
-}
-
-/// Correctness: missing then in if-then-else
-#[test]
-fn if_without_then_rejected() {
-    assert_rejects("if true else false");
-}
-
-/// Correctness: missing else in if-then-else
-#[test]
-fn if_then_without_else_rejected() {
-    assert_rejects("if true then 1");
-}
-
-/// Correctness: missing in keyword in let-binding
-#[test]
-fn let_without_in_rejected() {
-    assert_rejects("let x = 5");
-}
-
-/// Correctness: object literal missing colon
-#[test]
-fn object_missing_colon_rejected() {
-    assert_rejects("{a 1}");
-}
-
-/// Correctness: object literal missing value
-#[test]
-fn object_missing_value_rejected() {
-    assert_rejects("{a:}");
-}
-
-/// Correctness: function call missing closing paren
-#[test]
-fn function_missing_close_paren_rejected() {
-    assert_rejects("sum(1, 2");
-}
-
-/// Correctness: dangling comma in array
-#[test]
-fn trailing_comma_in_function_rejected() {
-    // Trailing comma in function call is actually fine depending on parser.
-    // Let's check: "sum(1,)" — empty arg after comma
-    assert_rejects("sum(1,)");
-}
-
-/// Correctness: empty array is valid
-#[test]
-fn empty_array_is_valid() {
-    let result = parse("[]");
-    assert!(result.is_ok(), "empty array should be valid");
-}
-
-/// Correctness: empty object is valid
-#[test]
-fn empty_object_is_valid() {
-    let result = parse("{}");
-    assert!(result.is_ok(), "empty object should be valid");
-}
-
-/// Correctness: trailing comma in object is valid (per parser implementation)
-#[test]
-fn trailing_comma_in_object_is_valid() {
-    let result = parse("{a: 1, b: 2,}");
     assert!(
-        result.is_ok(),
-        "trailing comma in object should be accepted"
+        parse(&input).is_err(),
+        "depth-{depth} paren nesting should be rejected"
     );
 }
+
+#[test]
+fn valid_parse_table() {
+    // Positive contrast cases for `parser_rejection_table` — inputs that
+    // look near-rejected but are explicitly valid per spec / parser policy.
+    let cases: &[(&str, &str)] = &[
+        (
+            "if(true, 1, 2)",
+            "fel-grammar.md §4.1 L256-261: `if(...)` dispatched to FunctionCall",
+        ),
+        (
+            "0 <= $age and $age <= 120",
+            "explicit range expression with `and` is valid",
+        ),
+        (
+            "$a = $b",
+            "single equality parses (only chained equality rejected)",
+        ),
+        ("[]", "empty array literal is valid"),
+        ("{}", "empty object literal is valid"),
+        (
+            "{a: 1, b: 2,}",
+            "trailing comma in object literal is valid (parser policy)",
+        ),
+    ];
+
+    for (input, intent) in cases {
+        assert!(
+            parse(input).is_ok(),
+            "expected parse OK for {input:?} ({intent})"
+        );
+    }
+}
+
+// ── Parse-error span correctness ────────────────────────────────
+//
+// These pin span byte-ranges on rejection, not just "was rejected". A
+// different contract from `parser_rejection_table`, kept as bespoke tests.
 
 #[test]
 fn parse_error_span_points_at_trailing_token() {
