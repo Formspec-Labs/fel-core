@@ -358,14 +358,14 @@ fn keyword_prefixes_are_identifiers() {
 
 // ── Error cases ─────────────────────────────────────────────────
 
-/// Spec: fel-grammar.md §7 L381 — "An unrecognised escape sequence MUST be rejected as a syntax error"
+/// Spec: fel-grammar.md §7 L506-508 — "An unrecognised escape sequence MUST be rejected as a syntax error" (conformance rule 4)
 #[test]
 fn unterminated_string_rejected() {
     let err = lex("\"hello").unwrap_err();
     assert!(err.contains("unterminated"), "got: {err}");
 }
 
-/// Spec: fel-grammar.md §7 L376-377 — "MUST reject all input strings that do not match"
+/// Spec: fel-grammar.md §7 L501-503 — "MUST reject all input strings that do not match" (conformance rule 2)
 #[test]
 fn unexpected_character_rejected() {
     let err = lex("~").unwrap_err();
