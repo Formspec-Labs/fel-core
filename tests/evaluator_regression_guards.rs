@@ -53,7 +53,14 @@ fn evaluation_depth_limit_returns_null_with_diagnostic() {
         "{:?}",
         out.diagnostics
     );
-    // Avoid recursive drop on a deep Expr tree (would overflow the test
-    // thread stack).
+    // `Expr::BinaryOp` holds `Box<Expr>` children, and `Box` Drop is
+    // recursive — dropping a 200-frame left-associated tree drops frame
+    // by frame, each pushing a stack frame for the Drop impl. With a 2MB
+    // default thread stack and ~1KB per Drop frame, the recursive drop
+    // would itself stack-overflow the test thread *after* this test
+    // succeeds. `std::mem::forget(e)` skips Drop entirely and leaks the
+    // tree; safe because the test process exits immediately afterward
+    // and the OS reclaims everything. This is a test-only ergonomic; do
+    // NOT replicate the pattern in production code.
     std::mem::forget(e);
 }
