@@ -1,3 +1,12 @@
+//! Conformance harness against the sibling formspec runtime's
+//! `fel-function-semantics.json` fixture.
+//!
+//! Like `schema_round_trip`, this test relies on a sibling submodule
+//! (`../formspec/`). Outside the stack-root checkout (e.g. cargo-mutants'
+//! scratch tree), the fixture is absent — the test skips gracefully with
+//! a notice. In the normal stack-root checkout, the fixture resolves and
+//! every row runs.
+
 use std::fs;
 use std::path::PathBuf;
 
@@ -15,20 +24,35 @@ struct Case {
     expected_diagnostic_codes: Vec<String>,
 }
 
-fn load_cases() -> Vec<Case> {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+fn fixture_path() -> Option<PathBuf> {
+    if let Some(p) = std::env::var_os("FEL_CORE_FUNCTION_SEMANTICS_FIXTURE") {
+        return PathBuf::from(p).canonicalize().ok();
+    }
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("..")
         .join("formspec")
         .join("tests")
         .join("conformance")
-        .join("fel-function-semantics.json");
-    let raw = fs::read_to_string(root).expect("read fel-function-semantics fixture");
-    serde_json::from_str(&raw).expect("parse fel-function-semantics fixture")
+        .join("fel-function-semantics.json")
+        .canonicalize()
+        .ok()
 }
 
 #[test]
 fn fel_function_semantics_fixture_matches_runtime() {
-    for case in load_cases() {
+    let Some(path) = fixture_path() else {
+        eprintln!(
+            "function_semantics_conformance: skipped — sibling fixture not \
+             found at ../formspec/tests/conformance/fel-function-semantics.json. \
+             Set FEL_CORE_FUNCTION_SEMANTICS_FIXTURE to override."
+        );
+        return;
+    };
+    let raw = fs::read_to_string(&path).expect("read fel-function-semantics fixture");
+    let cases: Vec<Case> =
+        serde_json::from_str(&raw).expect("parse fel-function-semantics fixture");
+
+    for case in cases {
         let expr = parse(&case.expr).unwrap_or_else(|e| panic!("{}: parse failed: {e}", case.id));
         let fields = fel_core::json_object_to_field_map(&case.data);
         let env = MapEnvironment::with_fields(fields);
