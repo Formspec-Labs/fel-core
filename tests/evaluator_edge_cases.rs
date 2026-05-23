@@ -311,37 +311,32 @@ fn date_add_month_to_non_leap_feb() {
     );
 }
 
-// ── Object equality ─────────────────────────────────────────────
+// ── Object and array equality ───────────────────────────────────
 // Spec: spec.md L1073 — "Any two values of the same type may be compared for equality."
+//
+// Cross-type comparisons (e.g. `1 = 'one'`) produce null + diagnostic and
+// are tested separately below in the "Cross-type comparisons" section —
+// they pin diagnostic emission, not just the Boolean result.
 
-/// Correctness: object equality — same keys and values → true
 #[test]
-fn object_equality_same() {
-    assert_eq!(eval("{a: 1, b: 2} = {a: 1, b: 2}"), Value::Boolean(true));
-}
+fn equality_table() {
+    let cases: &[(&str, bool)] = &[
+        // object equality
+        ("{a: 1, b: 2} = {a: 1, b: 2}", true), // same keys + values
+        ("{a: 1} = {a: 2}", false),            // different values
+        ("{a: 1} = {b: 1}", false),            // different keys
+        ("{a: 1} = {a: 1, b: 2}", false),      // different lengths
+        ("{a: {b: 1}} = {a: {b: 1}}", true),   // nested
+        // array equality
+        ("[1, 2, 3] = [1, 2, 3]", true),
+        ("[1, 2, 3] = [1, 2, 4]", false),
+        ("[1, 2] = [1, 2, 3]", false), // different lengths
+        ("[] = []", true),             // empty
+    ];
 
-/// Correctness: object equality — different values → false
-#[test]
-fn object_equality_different_values() {
-    assert_eq!(eval("{a: 1} = {a: 2}"), Value::Boolean(false));
-}
-
-/// Correctness: object equality — different keys → false
-#[test]
-fn object_equality_different_keys() {
-    assert_eq!(eval("{a: 1} = {b: 1}"), Value::Boolean(false));
-}
-
-/// Correctness: object equality — different lengths → false
-#[test]
-fn object_equality_different_lengths() {
-    assert_eq!(eval("{a: 1} = {a: 1, b: 2}"), Value::Boolean(false));
-}
-
-/// Correctness: nested object equality → true
-#[test]
-fn object_equality_nested() {
-    assert_eq!(eval("{a: {b: 1}} = {a: {b: 1}}"), Value::Boolean(true));
+    for (input, expected) in cases {
+        assert_eq!(eval(input), Value::Boolean(*expected), "input={input:?}");
+    }
 }
 
 // ── today() and now() ───────────────────────────────────────────
@@ -382,32 +377,6 @@ fn today_date_parts() {
     // Since today() returns a hardcoded date, we can check its parts
     let result = eval("year(today())");
     assert!(matches!(result, Value::Number(_)));
-}
-
-// ── Array equality ──────────────────────────────────────────────
-
-/// Correctness: array equality
-#[test]
-fn array_equality_same() {
-    assert_eq!(eval("[1, 2, 3] = [1, 2, 3]"), Value::Boolean(true));
-}
-
-/// Correctness: array equality — different
-#[test]
-fn array_equality_different() {
-    assert_eq!(eval("[1, 2, 3] = [1, 2, 4]"), Value::Boolean(false));
-}
-
-/// Correctness: array equality — different lengths
-#[test]
-fn array_equality_different_lengths() {
-    assert_eq!(eval("[1, 2] = [1, 2, 3]"), Value::Boolean(false));
-}
-
-/// Correctness: empty array equality
-#[test]
-fn empty_array_equality() {
-    assert_eq!(eval("[] = []"), Value::Boolean(true));
 }
 
 // ── Cross-type comparisons ──────────────────────────────────────
