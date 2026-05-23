@@ -306,7 +306,7 @@ The 10-Haiku-reviewer swarm + 2 post-Phase-2 reviewers produced a finite finding
 | FUT-9 | MEDIUM | `env_integration_tests.rs` conflates MIP + repeat + JSON-helper into one file | Follow-up; cosmetic split |
 | FUT-10 | MEDIUM | Coercion tests in `decimal_properties.rs` are example-based, mixed with property tests | Follow-up; cosmetic split |
 | ~~FUT-11~~ | ~~MEDIUM~~ | ~~`host_bindings` missing fixture coverage for `@current`/`@index`/`@count` reserved-name catalog cases~~ | **Addressed sha `b8e7ae5`** (`@index` and `@count` symmetric tests added) |
-| FUT-12 | NIT | Workflow file `doc.yml` named `ci` — rename to `ci.yml` | Follow-up; cosmetic (skipped to avoid CI risk) |
+| ~~FUT-12~~ | ~~NIT~~ | ~~Workflow file `doc.yml` named `ci` — rename to `ci.yml`~~ | **Addressed sha `469f6d8`** (`git mv` preserves history; GitHub Actions identifies by `name:` field) |
 | ~~FUT-13~~ | ~~NIT~~ | ~~Snapshot refresh workflow undocumented for `insta` inline snapshots~~ | **Addressed sha `b3d1de3`** (CONTRIBUTING.md "Test Maintenance" section) |
 | ~~FUT-14~~ | ~~NIT~~ | ~~`mem::forget` rationale in `evaluator_regression_guards` could expand~~ | **Addressed sha `b3d1de3`** (rationale expanded with Drop semantics + stack analysis) |
 
