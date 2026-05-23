@@ -1,0 +1,8 @@
+{"file": "src/extensions/catalog.rs", "total": 4, "killed": 1, "missed": 1, "timeout": 0, "unviable": 2, "kill_rate": 0.5, "sha": "a7faaf5"}
+{"file": "src/extensions/registry.rs", "total": 16, "killed": 11, "missed": 3, "timeout": 0, "unviable": 2, "kill_rate": 0.7857, "sha": "a7faaf5"}
+{"file": "src/dependencies.rs", "total": 24, "killed": 13, "missed": 10, "timeout": 0, "unviable": 1, "kill_rate": 0.5652, "sha": "a7faaf5"}
+{"file": "src/evaluator/budget.rs", "total": 12, "killed": 4, "missed": 4, "timeout": 0, "unviable": 4, "kill_rate": 0.5, "sha": "a7faaf5"}
+{"file": "src/convert.rs", "total": 33, "killed": 15, "missed": 6, "timeout": 0, "unviable": 12, "kill_rate": 0.7143, "sha": "a7faaf5"}
+{"file": "src/error.rs", "total": 48, "killed": 33, "missed": 7, "timeout": 0, "unviable": 8, "kill_rate": 0.825, "sha": "a7faaf5"}
+{"file": "src/evaluator/builtins/dates.rs", "total": 77, "killed": 55, "missed": 6, "timeout": 0, "unviable": 16, "kill_rate": 0.9016, "sha": "9af8898"}
+{"file": "src/evaluator/builtins/money.rs", "total": 10, "killed": 4, "missed": 0, "timeout": 0, "unviable": 6, "kill_rate": 1.0, "sha": "9af8898"}

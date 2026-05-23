@@ -44,6 +44,11 @@ help:
 	@echo "  make fuzz-coverage               — generate HTML coverage from fuzz corpus"
 	@echo "  make fuzz-all                    — run all fuzz maintenance targets"
 	@echo "  make seed-fuzz                   — seed fuzz corpus (FORMSPEC_ROOT for monorepo layout)"
+	@echo "  make mutants-install             — install cargo-mutants $(CARGO_MUTANTS_VERSION) (pinned)"
+	@echo "  make mutants-p0                  — sequential mutation gate on all P0 seams (~6h)"
+	@echo "  make mutants-shard-{1..4}        — sharded mutation gate (CI parallelism)"
+	@echo "  make mutants-<file>              — per-file mutation (parser/lexer/evaluator/budget/deps/"
+	@echo "                                     convert/error/prepare-host/extensions/money-dates)"
 	@echo ""
 
 build:
