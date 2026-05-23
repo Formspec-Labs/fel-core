@@ -585,4 +585,74 @@ mod tests {
         }));
         assert!(matches!(val, TypeValue::Null));
     }
+
+    // ── Boundary tests for json_to_fel `$type:"number"` value match arms ──
+    //
+    // The two match arms `Value::Number(_)` and `Value::String(_)` inside
+    // the `$type == "number"` branch are mutation-survivor magnets: deleting
+    // either arm survives unless the test suite exercises BOTH typed-number
+    // shapes (numeric value, string-encoded value).
+
+    #[test]
+    fn typed_number_with_json_number_value_decodes() {
+        // Numeric Value variant — exercises the `Value::Number(n)` arm.
+        let val = json_to_fel(&json!({ "$type": "number", "value": 42 }));
+        assert_eq!(val, TypeValue::Number(Decimal::from(42)));
+    }
+
+    #[test]
+    fn typed_number_with_string_value_decodes() {
+        // String Value variant (for big-decimals exceeding JS safe-integer
+        // range) — exercises the `Value::String(s)` arm. Distinct kill from
+        // the json-number path above.
+        let val = json_to_fel(&json!({
+            "$type": "number",
+            "value": "123456789012345678901234567",
+        }));
+        assert_eq!(
+            val,
+            TypeValue::Number(Decimal::from_str_exact("123456789012345678901234567").unwrap())
+        );
+    }
+
+    // ── field_map_from_json_str: shortcut + parse path coverage ──
+
+    #[test]
+    fn field_map_from_empty_string_is_empty_map() {
+        // Kills `replace fn -> Ok(HashMap::new())` (this asserts the
+        // expected result, not just that it's not Err) and the
+        // `|| → &&` mutation in the early-return guard.
+        let map = field_map_from_json_str("").expect("empty string is valid");
+        assert!(map.is_empty());
+    }
+
+    #[test]
+    fn field_map_from_empty_object_string_is_empty_map() {
+        // Kills `replace == with !=` mutation: with `==`, "{}" matches
+        // and returns empty; with `!=`, "{}" falls through to JSON parse
+        // (which would also produce empty, but via a different code path).
+        let map = field_map_from_json_str("{}").expect("'{}' is valid");
+        assert!(map.is_empty());
+    }
+
+    #[test]
+    fn field_map_from_real_json_populates_map() {
+        // Kills `replace fn -> Ok(HashMap::new())`: actual non-empty
+        // result distinguishes the always-empty mutant.
+        let map =
+            field_map_from_json_str(r#"{"name": "alice", "age": 30}"#).expect("real JSON is valid");
+        assert_eq!(map.len(), 2);
+        assert_eq!(
+            map.get("name"),
+            Some(&TypeValue::String("alice".to_string()))
+        );
+        assert_eq!(map.get("age"), Some(&TypeValue::Number(Decimal::from(30))));
+    }
+
+    #[test]
+    fn field_map_from_invalid_json_is_err() {
+        // Defensive: the parse-error path is observable.
+        let result = field_map_from_json_str("{not valid json");
+        assert!(result.is_err());
+    }
 }

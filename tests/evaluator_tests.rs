@@ -757,6 +757,77 @@ fn is_date_check() {
     assert_eq!(eval("isDate(42)"), Value::Boolean(false));
 }
 
+/// `dateAdd`/`dateDiff` accept a string ISO date in addition to a `@`-
+/// literal. Exercises the `coerce_string_to_date` path that would otherwise
+/// be unhit when all callers use `@`-literals.
+///
+/// Kills `replace coerce_string_to_date -> Option<Date> with None`:
+/// the always-None mutant would cause this to fail with an "invalid date
+/// string" diagnostic and Null result.
+#[test]
+fn date_arithmetic_accepts_string_date_via_coercion() {
+    let result = eval("dateAdd('2024-01-15', 1, 'days')");
+    match &result {
+        Value::Date(Date::Date { year, month, day }) => {
+            assert_eq!((*year, *month, *day), (2024, 1, 16));
+        }
+        _ => panic!("expected Date, got {result:?}"),
+    }
+    // Also exercises dateDiff to lock the symmetric path.
+    assert_eq!(
+        eval("dateDiff('2024-03-01', '2024-01-01', 'days')"),
+        num(60),
+    );
+}
+
+/// `timeDiff` arithmetic: `(h1*3600 + m1*60 + s1) - (h2*3600 + m2*60 + s2)`.
+/// Mutation gate flagged that the inner `+` substitutions survive — meaning
+/// the test suite doesn't exercise minute and second contributions
+/// independently. Use a case where each component matters.
+#[test]
+fn time_diff_components_contribute_independently() {
+    // 10:30:45 vs 08:15:30 = 2h 15m 15s = 2*3600 + 15*60 + 15 = 8115s
+    assert_eq!(eval("timeDiff('10:30:45', '08:15:30')"), num(8115));
+    // Negative direction is symmetric.
+    assert_eq!(eval("timeDiff('08:15:30', '10:30:45')"), num(-8115));
+    // Pure-seconds case to isolate s contribution.
+    assert_eq!(eval("timeDiff('00:00:45', '00:00:15')"), num(30));
+    // Pure-minutes case to isolate m contribution.
+    assert_eq!(eval("timeDiff('00:30:00', '00:15:00')"), num(900));
+}
+
+/// `duration(...)` emits a nominal-length warning when the ISO string
+/// contains Y (year) or M (month-before-T) designators. Mutation gate
+/// flagged that the `||` → `&&` survives — meaning the warning was tested
+/// only when BOTH Y and M-before-T appear together. Pin all three cases.
+#[test]
+fn duration_emits_nominal_length_warning_per_component() {
+    use fel_core::Severity;
+    let parse_warn = |src: &str| -> bool {
+        let expr = parse(src).unwrap();
+        let result = evaluate(&expr, &MapEnvironment::new());
+        result.diagnostics.iter().any(|d| {
+            d.severity == Severity::Warning
+                && d.message
+                    .contains("year/month components use nominal lengths")
+        })
+    };
+
+    // Year only: 1 year duration — warning expected.
+    assert!(parse_warn("duration('P1Y')"));
+    // Month only: 1 month duration — warning expected.
+    assert!(parse_warn("duration('P1M')"));
+    // Year + month + day combined — warning expected.
+    assert!(parse_warn("duration('P1Y2M3D')"));
+    // Days/weeks only — NO warning (W is exact 7d, D is exact).
+    assert!(!parse_warn("duration('P5D')"));
+    assert!(!parse_warn("duration('P2W')"));
+    // Minute-only (M after T) — NOT a month, NO warning.
+    assert!(!parse_warn("duration('PT30M')"));
+    // Hours/seconds — NO warning.
+    assert!(!parse_warn("duration('PT1H30S')"));
+}
+
 // ── Time functions ──────────────────────────────────────────────
 
 #[test]
@@ -1188,6 +1259,189 @@ fn test_extension_registry_arity_mismatch_emits_diagnostic() {
                 }) if name == "needsTwo"
             )
     }));
+}
+
+/// Arity-mismatch boundary mutations in
+/// `error::extension_arity_mismatch_message`. The existing
+/// `test_extension_registry_arity_mismatch_emits_diagnostic` covers the
+/// `min_args == max` exact-arity branch; these cover the
+/// `got < min_args` and `got > max` branches under min != max.
+#[test]
+fn extension_range_arity_mismatch_below_min_emits_diagnostic() {
+    // range(min=2, max=4); call with 1 arg → "requires at least 2 args"
+    let mut extensions = ExtensionRegistry::new();
+    extensions
+        .register("range", 2, Some(4), |_| Value::Null)
+        .unwrap();
+    let expr = parse("range(1)").unwrap();
+    let result = evaluate_with(
+        &expr,
+        &MapEnvironment::new(),
+        EvaluatorOptions {
+            extensions: Some(&extensions),
+            ..EvaluatorOptions::default()
+        },
+    );
+    assert_eq!(result.value, Value::Null);
+    assert!(result.diagnostics.iter().any(|d| {
+        d.message == "range: requires at least 2 arguments"
+            && matches!(
+                &d.kind,
+                Some(DiagnosticKind::ArityMismatch {
+                    min_args: 2,
+                    max_args: Some(4),
+                    got: 1,
+                    ..
+                })
+            )
+    }));
+}
+
+#[test]
+fn extension_range_arity_mismatch_above_max_emits_diagnostic() {
+    // range(min=2, max=4); call with 5 args → "requires at most 4 args"
+    let mut extensions = ExtensionRegistry::new();
+    extensions
+        .register("range", 2, Some(4), |_| Value::Null)
+        .unwrap();
+    let expr = parse("range(1, 2, 3, 4, 5)").unwrap();
+    let result = evaluate_with(
+        &expr,
+        &MapEnvironment::new(),
+        EvaluatorOptions {
+            extensions: Some(&extensions),
+            ..EvaluatorOptions::default()
+        },
+    );
+    assert_eq!(result.value, Value::Null);
+    assert!(result.diagnostics.iter().any(|d| {
+        d.message == "range: requires at most 4 arguments"
+            && matches!(
+                &d.kind,
+                Some(DiagnosticKind::ArityMismatch {
+                    min_args: 2,
+                    max_args: Some(4),
+                    got: 5,
+                    ..
+                })
+            )
+    }));
+}
+
+#[test]
+fn extension_variadic_arity_mismatch_below_min_emits_diagnostic() {
+    // variadic(min=2, max=None); call with 1 arg → "requires at least 2 args"
+    let mut extensions = ExtensionRegistry::new();
+    extensions
+        .register("variadic", 2, None, |_| Value::Null)
+        .unwrap();
+    let expr = parse("variadic(1)").unwrap();
+    let result = evaluate_with(
+        &expr,
+        &MapEnvironment::new(),
+        EvaluatorOptions {
+            extensions: Some(&extensions),
+            ..EvaluatorOptions::default()
+        },
+    );
+    assert_eq!(result.value, Value::Null);
+    assert!(result.diagnostics.iter().any(|d| {
+        d.message == "variadic: requires at least 2 arguments"
+            && matches!(
+                &d.kind,
+                Some(DiagnosticKind::ArityMismatch {
+                    min_args: 2,
+                    max_args: None,
+                    got: 1,
+                    ..
+                })
+            )
+    }));
+}
+
+/// `has_error_diagnostics` boundary: returns true iff ANY diagnostic has
+/// `Severity::Error`. Mutations that flip `==` to `!=` or that hardcode
+/// `true` survive when no test exercises a mixed-severity vector.
+#[test]
+fn has_error_diagnostics_discriminates_severity() {
+    use fel_core::has_error_diagnostics;
+    let err = Diagnostic::error("e");
+    let warn = Diagnostic::warning("w");
+
+    assert!(has_error_diagnostics(&[err.clone()]), "single Error → true");
+    assert!(
+        !has_error_diagnostics(&[warn.clone()]),
+        "single Warning → false"
+    );
+    assert!(
+        has_error_diagnostics(&[warn.clone(), err.clone()]),
+        "Warning + Error → true (any-Error)"
+    );
+    assert!(
+        !has_error_diagnostics(&[warn.clone(), warn.clone()]),
+        "all-Warning → false"
+    );
+    assert!(
+        !has_error_diagnostics(&[]),
+        "empty vec → false (no diagnostics, no errors)"
+    );
+}
+
+/// `ExtensionRegistry::{get, contains}` mutation survivors (return-None
+/// and return-true defaults). Force the test to actually USE the result
+/// of `get`/`contains` rather than only triggering them via evaluator
+/// dispatch.
+#[test]
+fn extension_registry_get_returns_registered_function() {
+    let mut extensions = ExtensionRegistry::new();
+    extensions
+        .register("triple", 1, Some(1), |args| match &args[0] {
+            Value::Number(n) => Value::Number(*n * Decimal::from(3)),
+            _ => Value::Null,
+        })
+        .unwrap();
+
+    // Returns Some(&ExtensionFunc) when registered; would survive if `get`
+    // were mutated to always-None because we exercise the actual return.
+    let func = extensions.get("triple").expect("get returns registered fn");
+    assert_eq!(func.name, "triple");
+    assert_eq!(func.min_args, 1);
+    assert_eq!(func.max_args, Some(1));
+    let result = (func.func)(&[Value::Number(Decimal::from(7))]);
+    assert_eq!(result, Value::Number(Decimal::from(21)));
+
+    // Returns None when not registered (negative contrast for the
+    // get-returns-None mutation).
+    assert!(extensions.get("missing").is_none());
+}
+
+#[test]
+fn extension_registry_contains_discriminates() {
+    let mut extensions = ExtensionRegistry::new();
+    extensions
+        .register("hit", 0, None, |_| Value::Null)
+        .unwrap();
+    assert!(extensions.contains("hit"));
+    // `contains -> bool with true` mutation survives unless we assert
+    // a not-contains case.
+    assert!(!extensions.contains("miss"));
+}
+
+/// `undefined_function_names_from_diagnostics` filters trim-empty names.
+/// Mutation removing the `!` in `if !name.trim().is_empty()` survives if
+/// no test includes an empty-name diagnostic.
+#[test]
+fn undefined_function_names_filters_empty_names() {
+    use fel_core::undefined_function_names_from_diagnostics;
+    // Whitespace-only name should be filtered out per the `!name.trim().is_empty()` guard.
+    let empty_name_diag = Diagnostic::undefined_function("  ");
+    let real_name_diag = Diagnostic::undefined_function("foo");
+    let names = undefined_function_names_from_diagnostics(&[empty_name_diag, real_name_diag]);
+    assert_eq!(
+        names,
+        vec!["foo".to_string()],
+        "empty/whitespace-only name should be filtered; only 'foo' remains"
+    );
 }
 
 #[test]
