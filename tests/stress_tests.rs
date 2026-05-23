@@ -51,7 +51,21 @@ fn deep_parentheses_still_parse_below_limit() {
 
 #[test]
 fn long_flat_addition_chain() {
-    // Left-associative `+` builds a deep BinaryOp chain; keep TERMs modest to avoid eval stack overflow.
+    // Left-associative `+` builds a deep BinaryOp chain; keep TERMS modest
+    // to avoid eval stack overflow.
+    //
+    // TERMS=48 is empirical, not from a formal stack-depth analysis. The
+    // CI default Rust test-thread stack is 2MB; each evaluator frame
+    // consumes ~600-1KB depending on intermediate Value sizes. With per-
+    // operation overhead this caps roughly at 100-200 frames before
+    // overflow; we sit at TERMS=48 which is ~50 evaluator recursion
+    // frames — comfortable margin.
+    //
+    // If a future refactor adds per-op stack overhead (e.g. boxed
+    // closures, larger intermediate values), this test may flake on
+    // small-stack CI runners (Alpine, containers with reduced ulimit -s).
+    // Adjust TERMS downward and document in a commit referencing this
+    // comment.
     const TERMS: usize = 48;
     let mut src = String::with_capacity(TERMS * 4);
     src.push('0');

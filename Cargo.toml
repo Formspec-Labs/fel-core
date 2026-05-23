@@ -19,7 +19,12 @@ categories = ["parser-implementations"]
 
 [dependencies]
 indexmap = "2"
-intl_pluralrules = "7"
+# Pinned to ~7.0 (i.e. >=7.0, <7.1) — plural rules are CLDR-derived;
+# minor CLDR data shifts can change plural categories for specific
+# languages and break `tests/locale_fel_functions.rs` silently. Bump
+# deliberately with a regenerated CLDR fixture review and a commit
+# message citing the change.
+intl_pluralrules = "~7.0"
 proptest = { version = "1", optional = true }
 regex = "1"
 rust_decimal = "1"

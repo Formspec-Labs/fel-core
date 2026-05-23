@@ -119,7 +119,10 @@ conformance:
 ## so the mutation baseline is reproducible across reruns.
 
 CARGO_MUTANTS_VERSION = 25.3.1
-MUTANTS_JOBS ?= 8
+# Auto-detect cores for sensible default. Override locally with
+# `make MUTANTS_JOBS=N mutants-p0` on smaller hosts.
+MUTANTS_CORES ?= $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+MUTANTS_JOBS ?= $(shell echo $$(( $(MUTANTS_CORES) / 2 > 0 ? $(MUTANTS_CORES) / 2 : 1 )))
 MUTANTS_ENV = PROPTEST_CASES=64 PROPTEST_RNG_SEED=fel-core-mutants-v1
 MUTANTS_COMMON_ARGS = --all-features --no-shuffle --baseline=run --jobs $(MUTANTS_JOBS)
 
