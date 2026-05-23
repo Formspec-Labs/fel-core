@@ -305,10 +305,10 @@ The 10-Haiku-reviewer swarm + 2 post-Phase-2 reviewers produced a finite finding
 | FUT-8 | HIGH | `differential_oracle` not in `make ci`/`ratify` chain → cross-runtime drift silent until next manual run | Follow-up; touches existing CI workflow |
 | FUT-9 | MEDIUM | `env_integration_tests.rs` conflates MIP + repeat + JSON-helper into one file | Follow-up; cosmetic split |
 | FUT-10 | MEDIUM | Coercion tests in `decimal_properties.rs` are example-based, mixed with property tests | Follow-up; cosmetic split |
-| FUT-11 | MEDIUM | `host_bindings` missing fixture coverage for `@current`/`@index`/`@count` reserved-name catalog cases | Follow-up; fixture additions |
-| FUT-12 | NIT | Workflow file `doc.yml` named `ci` — rename to `ci.yml` | Follow-up; cosmetic |
-| FUT-13 | NIT | Snapshot refresh workflow undocumented for `insta` inline snapshots | Follow-up; CONTRIBUTING.md addition |
-| FUT-14 | NIT | `mem::forget` rationale in `evaluator_regression_guards` could expand | Follow-up; doc-comment polish |
+| ~~FUT-11~~ | ~~MEDIUM~~ | ~~`host_bindings` missing fixture coverage for `@current`/`@index`/`@count` reserved-name catalog cases~~ | **Addressed sha `b8e7ae5`** (`@index` and `@count` symmetric tests added) |
+| FUT-12 | NIT | Workflow file `doc.yml` named `ci` — rename to `ci.yml` | Follow-up; cosmetic (skipped to avoid CI risk) |
+| ~~FUT-13~~ | ~~NIT~~ | ~~Snapshot refresh workflow undocumented for `insta` inline snapshots~~ | **Addressed sha `b3d1de3`** (CONTRIBUTING.md "Test Maintenance" section) |
+| ~~FUT-14~~ | ~~NIT~~ | ~~`mem::forget` rationale in `evaluator_regression_guards` could expand~~ | **Addressed sha `b3d1de3`** (rationale expanded with Drop semantics + stack analysis) |
 
 **Net**: 26 findings **addressed** (with sha); 10 **accepted with rationale**; 14 **deferred** to enumerated follow-ups. Zero open without disposition.
 
