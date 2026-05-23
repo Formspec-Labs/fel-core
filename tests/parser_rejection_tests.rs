@@ -39,12 +39,12 @@ fn parser_rejection_table() {
         // ── Pipe operator (reserved for future use) ──
         (
             "1 |> 2",
-            "fel-grammar.md §7 L385-386",
+            "fel-grammar.md §7 L510-512",
             "pipe operator in middle",
         ),
         (
             "|> 2",
-            "fel-grammar.md §7 L385-386",
+            "fel-grammar.md §7 L510-512",
             "pipe operator at start",
         ),
         // ── Reserved words as function names ──
@@ -87,27 +87,27 @@ fn parser_rejection_table() {
         // ── Unterminated grouping ──
         (
             "(1 + 2",
-            "fel-grammar.md §7 L376-377",
+            "fel-grammar.md §7 L501-503",
             "unterminated parenthesis",
         ),
         (
             "[1, 2",
-            "fel-grammar.md §7 L376-377",
+            "fel-grammar.md §7 L501-503",
             "unterminated bracket",
         ),
-        ("{a: 1", "fel-grammar.md §7 L376-377", "unterminated brace"),
+        ("{a: 1", "fel-grammar.md §7 L501-503", "unterminated brace"),
         (
             "(1 + 2]",
-            "fel-grammar.md §7 L376-377",
+            "fel-grammar.md §7 L501-503",
             "mismatched delimiters",
         ),
         // ── Empty / whitespace-only input ──
-        ("", "fel-grammar.md §7 L376-377", "empty input"),
+        ("", "fel-grammar.md §7 L501-503", "empty input"),
         ("   ", "non-spec (correctness)", "whitespace-only input"),
         // ── Trailing tokens ──
         (
             "1 2",
-            "fel-grammar.md §7 L374-375",
+            "fel-grammar.md §7 L501-503",
             "two atoms without operator",
         ),
         (

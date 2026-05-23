@@ -229,7 +229,7 @@ fn date_arithmetic_table() {
 }
 
 // ── Object and array equality ───────────────────────────────────
-// Spec: spec.md L1073 — "Any two values of the same type may be compared for equality."
+// Spec: docs/SPEC.md L1073 — "Any two values of the same type may be compared for equality."
 //
 // Cross-type comparisons (e.g. `1 = 'one'`) produce null + diagnostic and
 // are tested separately below in the "Cross-type comparisons" section —
