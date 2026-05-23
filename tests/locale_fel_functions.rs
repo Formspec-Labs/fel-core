@@ -4,16 +4,10 @@
 /// including cardinal plural rules for Arabic, Polish, French, and English.
 ///
 /// These functions read from the FormspecEnvironment's locale and meta fields.
+mod common;
+
+use common::{num, s};
 use fel_core::*;
-use rust_decimal::Decimal;
-
-fn num(n: i64) -> Value {
-    Value::Number(Decimal::from(n))
-}
-
-fn s(v: &str) -> Value {
-    Value::String(v.to_string())
-}
 
 fn eval_with_env(input: &str, env: &FormspecEnvironment) -> EvalResult {
     let expr = parse(input).unwrap();

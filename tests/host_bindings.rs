@@ -171,6 +171,62 @@ fn catalog_function_binding_requires_call_syntax() {
     }));
 }
 
+/// Spec: fel-grammar.md §6.3.2 — `Value`-kind bindings are bare-name only;
+/// calling them with `()` produces a `FEL-CONTEXT-BINDING-NOT-CALLABLE`
+/// diagnostic and a null result. (Symmetric to the call-required diag
+/// above for Function bindings.)
+#[test]
+fn catalog_value_binding_rejects_call_syntax() {
+    let catalog = TestCatalog::with(
+        "response",
+        ContextBinding::value(Value::String("R-1".into())),
+    );
+
+    // Bare access works.
+    let bare = eval_with_catalog("@response", &catalog);
+    assert_eq!(bare.value, Value::String("R-1".to_string()));
+    assert!(bare.diagnostics.is_empty());
+
+    // `@response()` is rejected: Value bindings are not callable.
+    let called = eval_with_catalog("@response()", &catalog);
+    assert_eq!(called.value, Value::Null);
+    assert!(
+        called
+            .diagnostics
+            .iter()
+            .any(|d| { d.code.as_deref() == Some("FEL-CONTEXT-BINDING-NOT-CALLABLE") }),
+        "expected FEL-CONTEXT-BINDING-NOT-CALLABLE diagnostic, got {:?}",
+        called.diagnostics
+    );
+}
+
+/// Spec: fel-grammar.md §6.3.2 — Same as above for `Object`-kind
+/// bindings. Postfix traversal works; calling with `()` does not.
+#[test]
+fn catalog_object_binding_rejects_call_syntax() {
+    let catalog = TestCatalog::with(
+        "effects",
+        ContextBinding::object(object(&[("kind", Value::String("decision".into()))])),
+    );
+
+    // Postfix `.kind` works.
+    let traversal = eval_with_catalog("@effects.kind", &catalog);
+    assert_eq!(traversal.value, Value::String("decision".to_string()));
+    assert!(traversal.diagnostics.is_empty());
+
+    // `@effects()` is rejected: Object bindings are not callable.
+    let called = eval_with_catalog("@effects()", &catalog);
+    assert_eq!(called.value, Value::Null);
+    assert!(
+        called
+            .diagnostics
+            .iter()
+            .any(|d| { d.code.as_deref() == Some("FEL-CONTEXT-BINDING-NOT-CALLABLE") }),
+        "expected FEL-CONTEXT-BINDING-NOT-CALLABLE diagnostic, got {:?}",
+        called.diagnostics
+    );
+}
+
 #[test]
 fn function_binding_receives_string_argument() {
     let catalog = ArgCatalog;

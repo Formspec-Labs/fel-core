@@ -22,7 +22,19 @@ fn value_to_expr(v: &Value) -> Expr {
                 .map(|(k, v)| (k.clone(), value_to_expr(v)))
                 .collect(),
         ),
-        Value::Money(_) => Expr::Null,
+        // Money values lift to `money(amount, 'CCY')` constructor calls.
+        // Previously this branch returned `Expr::Null`, which silently
+        // dropped Money values into the null-propagation path — making
+        // proptest rows with Money operands tautological. Now the
+        // generated Expr actually evaluates back to the original Money,
+        // so properties that pass through Money see real Money behavior.
+        Value::Money(m) => Expr::FunctionCall {
+            name: "money".to_string(),
+            args: vec![
+                Expr::Number(m.amount),
+                Expr::String(m.currency.as_str().to_string()),
+            ],
+        },
     }
 }
 

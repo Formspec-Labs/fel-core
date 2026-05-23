@@ -4,23 +4,13 @@
 ///
 /// These tests use FormspecEnvironment (not just MapEnvironment) to verify
 /// MIP state queries, repeat context, and variables work through the evaluator.
+mod common;
+
+use common::{num, obj, s};
 use fel_core::*;
-use indexmap::IndexMap;
 use rust_decimal::Decimal;
-use rust_decimal::prelude::*;
+use rust_decimal::prelude::FromStr;
 use serde_json::json;
-
-fn obj(pairs: Vec<(String, Value)>) -> Value {
-    Value::Object(pairs.into_iter().collect::<IndexMap<_, _>>())
-}
-
-fn num(n: i64) -> Value {
-    Value::Number(Decimal::from(n))
-}
-
-fn s(v: &str) -> Value {
-    Value::String(v.to_string())
-}
 
 fn eval_with_env(input: &str, env: &FormspecEnvironment) -> EvalResult {
     let expr = parse(input).unwrap();

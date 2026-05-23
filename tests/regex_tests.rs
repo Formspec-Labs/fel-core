@@ -24,6 +24,26 @@ mod common;
 use common::eval;
 use fel_core::*;
 
+/// `true` iff `s` contains a `'` not preceded by an odd run of `\`.
+/// (FEL §3.4 single-quote escape inside `'...'` strings.)
+fn contains_unescaped_single_quote(s: &str) -> bool {
+    let bytes = s.as_bytes().iter().enumerate();
+    for (i, &b) in bytes {
+        if b == b'\'' {
+            let mut backslashes = 0usize;
+            let mut j = i;
+            while j > 0 && s.as_bytes()[j - 1] == b'\\' {
+                backslashes += 1;
+                j -= 1;
+            }
+            if backslashes % 2 == 0 {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 #[test]
 fn matches_table() {
     // (text, pattern, expected) — `matches(text, pattern) → Boolean(expected)`.
@@ -121,6 +141,27 @@ fn matches_table() {
         ("colour", "^colou?r$", true),
         ("user@example.com", r"\\w+@\\w+", true),
     ];
+
+    // ROW-AUTHOR CONTRACT: every `text` and `pattern` is interpolated
+    // verbatim into an FEL single-quoted string literal. Rows containing
+    // `'` or `\` MUST escape per FEL §3.4 (e.g. `r"\'"` for a literal
+    // single-quote in the FEL string, `r"\\"` for a literal backslash).
+    // Existing rows that look like `r"\\d"` are already in FEL-source
+    // form: `\\d` in FEL → regex `\d`. The harness does NOT auto-escape;
+    // doing so would conflate row-content with row-encoding.
+    //
+    // Future-row guard: assert at runtime that text/pattern do not
+    // contain an unescaped single-quote, since that would silently
+    // produce malformed FEL source.
+    for (text, pattern, _) in cases {
+        for (label, s) in [("text", *text), ("pattern", *pattern)] {
+            assert!(
+                !contains_unescaped_single_quote(s),
+                "row author error: {label} {s:?} contains an unescaped \
+                 single-quote; use `\\'` in the row literal"
+            );
+        }
+    }
 
     // Collect failures so one bad row doesn't hide the rest. With 60+
     // rows, a parser/regex regression could flip several at once; first-
