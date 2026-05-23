@@ -347,3 +347,42 @@ fn grammar_reserved_context_uses_environment_when_catalog_is_active() {
     assert_eq!(result.value, Value::String("reserved-current".to_string()));
     assert!(result.diagnostics.is_empty());
 }
+
+/// Spec: fel-grammar.md §6.3.4 — `@index` and `@count` are reserved
+/// context names alongside `@current`. When the catalog is active but
+/// doesn't bind these names, lookup falls through to the environment.
+/// Symmetric to the `@current` test above. Addresses env/host swarm
+/// review FUT-11.
+struct ReservedNamesEnv;
+impl Environment for ReservedNamesEnv {
+    fn resolve_field(&self, _segments: &[String]) -> Value {
+        Value::Null
+    }
+    fn resolve_context(&self, name: &str, _arg: Option<&str>, _tail: &[String]) -> Value {
+        match name {
+            "index" => Value::Number(rust_decimal::Decimal::from(3)),
+            "count" => Value::Number(rust_decimal::Decimal::from(10)),
+            _ => Value::Null,
+        }
+    }
+}
+
+#[test]
+fn reserved_at_index_falls_through_to_environment() {
+    let expr = parse("@index").expect("reserved @index parses");
+    let env = ReservedNamesEnv;
+    let catalog = EmptyCatalog;
+    let result = evaluate_with_catalog(&expr, &env, EvaluatorOptions::default(), &catalog);
+    assert_eq!(result.value, Value::Number(rust_decimal::Decimal::from(3)));
+    assert!(result.diagnostics.is_empty());
+}
+
+#[test]
+fn reserved_at_count_falls_through_to_environment() {
+    let expr = parse("@count").expect("reserved @count parses");
+    let env = ReservedNamesEnv;
+    let catalog = EmptyCatalog;
+    let result = evaluate_with_catalog(&expr, &env, EvaluatorOptions::default(), &catalog);
+    assert_eq!(result.value, Value::Number(rust_decimal::Decimal::from(10)));
+    assert!(result.diagnostics.is_empty());
+}
