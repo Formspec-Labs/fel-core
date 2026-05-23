@@ -21,3 +21,5 @@
 {"file": "src/prepare_host.rs", "total": 195, "killed": 133, "missed": 39, "timeout": 20, "unviable": 3, "kill_rate": 0.6927, "sha": "59be9d3"}
 {"file": "src/evaluator/builtins/dates.rs", "total": 77, "killed": 59, "missed": 2, "timeout": 0, "unviable": 16, "kill_rate": 0.9672, "sha": "fcaf59d"}
 {"file": "src/evaluator/builtins/money.rs", "total": 10, "killed": 4, "missed": 0, "timeout": 0, "unviable": 6, "kill_rate": 1.0, "sha": "fcaf59d"}
+{"file": "src/lexer.rs", "total": 184, "killed": 152, "missed": 12, "timeout": 13, "unviable": 7, "kill_rate": 0.8588, "sha": "9cfe948"}
+{"file": "src/parser.rs", "total": 147, "killed": 89, "missed": 26, "timeout": 1, "unviable": 31, "kill_rate": 0.7672, "sha": "9cfe948"}

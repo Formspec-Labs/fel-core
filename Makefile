@@ -14,6 +14,7 @@ NIGHTLY_LLVM_PROFDATA = $(RUSTUP_HOME)/toolchains/nightly-$(RUST_TRIPLE)/lib/rus
 
 .PHONY: all help build test test-full test-differential test-differential-python test-differential-wasm test-all check-ratification ratify ratify-external conformance lint deny docs package ci fuzz-extract fuzz-regression-refresh fuzz-setup fuzz-coverage fuzz-all seed-fuzz clean \
         mutants-install mutants-p0 mutants-parser mutants-lexer mutants-evaluator mutants-budget mutants-deps mutants-convert mutants-error mutants-prepare-host mutants-extensions mutants-money-dates \
+        mutants-interpolation mutants-iso-duration mutants-tier2 \
         mutants-shard-1 mutants-shard-2 mutants-shard-3 mutants-shard-4
 
 all: build
@@ -164,6 +165,17 @@ mutants-extensions:
 
 mutants-money-dates:
 	$(MUTANTS_ENV) cargo mutants $(MUTANTS_COMMON_ARGS) --file 'src/evaluator/builtins/money.rs' --file 'src/evaluator/builtins/dates.rs'
+
+# Tier-2 mutation gate — non-P0 seams. Run via `make mutants-tier2`.
+# Add to mutants-p0 explicitly if these graduate to P0 in a future
+# review (currently tracked as FUT-6 in the survivor doc).
+mutants-interpolation:
+	$(MUTANTS_ENV) cargo mutants $(MUTANTS_COMMON_ARGS) --file 'src/interpolation.rs'
+
+mutants-iso-duration:
+	$(MUTANTS_ENV) cargo mutants $(MUTANTS_COMMON_ARGS) --file 'src/iso_duration.rs'
+
+mutants-tier2: mutants-interpolation mutants-iso-duration
 
 # Run all P0 seams in one invocation. cargo-mutants handles parallelism
 # internally via --jobs; this is the canonical "run the baseline" entry.
