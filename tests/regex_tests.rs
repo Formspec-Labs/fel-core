@@ -1,6 +1,24 @@
-/// Comprehensive tests for `matches()` via the regex crate backend.
-///
-/// These tests exercise regex behavior through the public FEL API.
+//! Comprehensive tests for `matches()` via the regex crate backend.
+//!
+//! Three test surfaces:
+//!
+//!   - `matches_table` — uniform-shape `matches(text, pattern) → Boolean`
+//!     coverage. Each row pins one regex feature. Adding a feature is one
+//!     row, not one function.
+//!
+//!   - `matches_null_propagation_table` — null text or null pattern
+//!     produces `Value::Null`. Different result type from the main table.
+//!
+//!   - `matches_invalid_regex_emits_diagnostic` — bespoke shape: asserts
+//!     `Value::Null` + diagnostic *content* containing "invalid regex".
+//!     Stays standalone because it pins message text, not the boolean
+//!     outcome.
+//!
+//! Per the test triage plan (Cluster D in `thoughts/2026-05-23-test-suite-triage.md`),
+//! the regex contract surface lives in this one file. Tests previously
+//! split between this file and `evaluator_tests.rs:1085-1188` were
+//! consolidated here.
+
 use fel_core::*;
 
 fn eval(input: &str) -> Value {
@@ -9,294 +27,148 @@ fn eval(input: &str) -> Value {
     evaluate(&expr, &env).value
 }
 
-fn matches_true(text: &str, pattern: &str) {
-    let expr = format!("matches('{text}', '{pattern}')");
-    assert_eq!(
-        eval(&expr),
-        Value::Boolean(true),
-        "expected matches('{text}', '{pattern}') = true"
+#[test]
+fn matches_table() {
+    // (text, pattern, expected) — `matches(text, pattern) → Boolean(expected)`.
+    //
+    // Patterns containing `\\` are FEL-source backslash-escapes:
+    // `'\\d'` in source becomes the regex `\d`.
+    //
+    // Spec anchor: core/spec.llm.md §"matches (regex)".
+    let cases: &[(&str, &str, bool)] = &[
+        // ── Literal matching ──
+        ("hello world", "world", true),
+        ("hello world", "xyz", false),
+        ("hello", "hello", true),
+        // ── Dot (any char) ──
+        ("abc", "a.c", true),
+        ("aXc", "a.c", true),
+        ("ac", "a.c", false), // dot requires one char
+        ("ac", "^a.c$", false),
+        // ── Star quantifier (zero or more) ──
+        ("abc", "a.*c", true),
+        ("ac", "a.*c", true), // zero between a and c
+        ("aaa", "^a*$", true),
+        ("", "^a*$", true), // zero a's
+        ("anything", ".*", true),
+        ("", "^.*$", true),
+        // ── Plus quantifier (one or more) ──
+        ("aaa", "^a+$", true),
+        ("", "^a+$", false), // requires ≥1
+        ("abc", "^.+$", true),
+        ("", "^.+$", false),
+        // ── Question quantifier (zero or one) ──
+        ("ac", "^ab?c$", true),
+        ("abc", "^ab?c$", true),
+        ("abbc", "^ab?c$", false), // two b's reject
+        ("a", "^.?$", true),
+        ("", "^.?$", true),
+        ("ab", "^.?$", false), // two chars reject
+        // ── Anchors ──
+        ("abc", "^abc", true),
+        ("xabc", "^abc", false),
+        ("abc", "abc$", true),
+        ("abcx", "abc$", false),
+        ("abc", "^abc$", true),
+        ("abcd", "^abc$", false),
+        ("xabc", "^abc$", false),
+        ("", "^$", true),
+        ("a", "^$", false),
+        // ── \d (digit) — single and quantified ──
+        ("a1b", r"\\d", true), // unanchored: contains a digit
+        ("a", r"^\\d$", false),
+        ("5", r"^\\d$", true),
+        ("abc123", r"\\d+", true),
+        ("abc", r"\\d+", false),
+        ("", r"^\\d*$", true),
+        ("123", r"^\\d*$", true),
+        ("12345", r"^\\d+$", true),
+        ("123abc", r"^\\d+$", false),
+        // ── \D (non-digit) ──
+        ("abc", r"^\\D+$", true),
+        // ── \w (word char) ──
+        ("hello_123", r"^\\w+$", true),
+        ("hello_world", r"\\w+", true),
+        ("abc", r"^\\w*$", true),
+        // ── \W (non-word char) ──
+        ("!@#", r"^\\W+$", true),
+        // ── \s (whitespace) and \S (non-whitespace) ──
+        (" ", r"^\\s$", true),
+        ("hello world", r"\\s+", true),
+        ("abc", r"\\s+", false),
+        ("abc", r"^\\S+$", true),
+        // ── \d? (optional digit) ──
+        ("a", r"\\d?a", true),
+        ("1a", r"\\d?a", true),
+        // ── Escaped literal dot ──
+        ("a.b", r"a\\.b", true),
+        ("axb", r"^a\\.b$", false),
+        // ── Alternation ──
+        ("cat", "cat|dog", true),
+        ("dog", "cat|dog", true),
+        ("fish", "cat|dog", false),
+        // ── Grouping ──
+        ("abcabc", "(abc)+", true),
+        // ── Character set ──
+        ("a", "[abc]", true),
+        ("d", "[abc]", false),
+        // ── Empty pattern / empty text ──
+        ("hello", "", true), // empty pattern matches anywhere
+        ("", "", true),
+        ("", "abc", false),
+        // ── Combined patterns ──
+        ("abab", ".*b", true), // greedy + backtrack
+        ("aaabbb", "^a+b+$", true),
+        ("aaa", "^a+b+$", false),
+        ("color", "^colou?r$", true),
+        ("colour", "^colou?r$", true),
+        ("user@example.com", r"\\w+@\\w+", true),
+    ];
+
+    // Collect failures so one bad row doesn't hide the rest. With 60+
+    // rows, a parser/regex regression could flip several at once; first-
+    // fail panic would mask the blast radius.
+    let mut failures: Vec<String> = Vec::new();
+    for (text, pattern, expected) in cases {
+        let expr = format!("matches('{text}', '{pattern}')");
+        let actual = eval(&expr);
+        if actual != Value::Boolean(*expected) {
+            failures.push(format!(
+                "  matches({text:?}, {pattern:?}): expected {expected}, got {actual:?}"
+            ));
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} of {} matches_table rows failed:\n{}",
+        failures.len(),
+        cases.len(),
+        failures.join("\n")
     );
 }
 
-fn matches_false(text: &str, pattern: &str) {
-    let expr = format!("matches('{text}', '{pattern}')");
-    assert_eq!(
-        eval(&expr),
-        Value::Boolean(false),
-        "expected matches('{text}', '{pattern}') = false"
+#[test]
+fn matches_null_propagation_table() {
+    let cases: &[&str] = &["matches(null, 'abc')", "matches('abc', null)"];
+    for input in cases {
+        assert_eq!(eval(input), Value::Null, "input={input:?}");
+    }
+}
+
+#[test]
+fn matches_invalid_regex_emits_diagnostic() {
+    // Bespoke shape: pins both `Value::Null` AND diagnostic message content.
+    // Diagnostic-message-content tests stay standalone per the test triage
+    // plan (Cluster D scope contract) — merging would weaken the assertion
+    // from "contains 'invalid regex'" to just "returns Null".
+    let expr = parse("matches('abc', '[invalid')").unwrap();
+    let env = MapEnvironment::new();
+    let result = evaluate(&expr, &env);
+    assert_eq!(result.value, Value::Null);
+    assert!(!result.diagnostics.is_empty());
+    assert!(
+        result.diagnostics[0].message.contains("invalid regex"),
+        "expected diagnostic to mention 'invalid regex', got: {}",
+        result.diagnostics[0].message
     );
-}
-
-// ── Literal matching ────────────────────────────────────────────
-
-/// Correctness: plain literal substring match (no regex chars)
-#[test]
-fn literal_substring_match() {
-    matches_true("hello world", "world");
-}
-
-/// Correctness: literal match — not found
-#[test]
-fn literal_substring_no_match() {
-    matches_false("hello world", "xyz");
-}
-
-/// Correctness: exact string match
-#[test]
-fn literal_exact_match() {
-    matches_true("hello", "hello");
-}
-
-// ── Dot (any char) ──────────────────────────────────────────────
-
-/// Spec: core/spec.llm.md L214 — "matches (regex)"
-#[test]
-fn dot_matches_any_char() {
-    matches_true("abc", "a.c");
-}
-
-/// Correctness: dot does not match empty
-#[test]
-fn dot_requires_a_char() {
-    matches_false("ac", "^a.c$");
-}
-
-// ── Star quantifier ─────────────────────────────────────────────
-
-/// Correctness: .* matches zero or more of anything
-#[test]
-fn star_zero_or_more() {
-    matches_true("abc", "a.*c");
-    matches_true("ac", "a.*c"); // zero chars between a and c
-}
-
-/// Correctness: character + star
-#[test]
-fn char_star_repeated() {
-    matches_true("aaa", "^a*$");
-    matches_true("", "^a*$"); // zero a's
-}
-
-// ── Plus quantifier ─────────────────────────────────────────────
-
-/// Correctness: + requires one or more matches
-#[test]
-fn plus_one_or_more() {
-    matches_true("aaa", "^a+$");
-    matches_false("", "^a+$"); // zero a's — should not match
-}
-
-/// Correctness: .+ matches one or more of anything
-#[test]
-fn dot_plus() {
-    matches_true("abc", "^.+$");
-    matches_false("", "^.+$");
-}
-
-// ── Question mark quantifier ────────────────────────────────────
-
-/// Correctness: ? matches zero or one
-#[test]
-fn question_zero_or_one() {
-    matches_true("ac", "^ab?c$");
-    matches_true("abc", "^ab?c$");
-    matches_false("abbc", "^ab?c$"); // two b's — should not match
-}
-
-// ── Anchors ─────────────────────────────────────────────────────
-
-/// Correctness: ^ anchors to start
-#[test]
-fn caret_anchors_start() {
-    matches_true("abc", "^abc");
-    matches_false("xabc", "^abc");
-}
-
-/// Correctness: $ anchors to end
-#[test]
-fn dollar_anchors_end() {
-    matches_true("abc", "abc$");
-    matches_false("abcx", "abc$");
-}
-
-/// Correctness: both anchors for full match
-#[test]
-fn both_anchors_full_match() {
-    matches_true("abc", "^abc$");
-    matches_false("abcd", "^abc$");
-    matches_false("xabc", "^abc$");
-}
-
-/// Correctness: pattern with only anchors
-#[test]
-fn empty_pattern_with_anchors() {
-    matches_true("", "^$");
-    matches_false("a", "^$");
-}
-
-// ── Character class escapes (single match, no quantifier) ───────
-
-/// Correctness: \\d matches a single digit
-#[test]
-fn backslash_d_matches_single_digit() {
-    // In FEL strings, \\ becomes \, so the pattern is \d
-    let result = eval(r#"matches('a1b', '\\d')"#);
-    assert_eq!(result, Value::Boolean(true));
-}
-
-/// Correctness: \\d does not match non-digit (without quantifier)
-#[test]
-fn backslash_d_rejects_non_digit_single() {
-    // "^\\d$" — single digit anchored — no quantifier, works fine
-    let result = eval(r#"matches('a', '^\\d$')"#);
-    assert_eq!(result, Value::Boolean(false));
-
-    let result = eval(r#"matches('5', '^\\d$')"#);
-    assert_eq!(result, Value::Boolean(true));
-}
-
-/// Correctness: \\s matches single whitespace
-#[test]
-fn backslash_s_matches_single_whitespace() {
-    let result = eval(r#"matches(' ', '^\\s$')"#);
-    assert_eq!(result, Value::Boolean(true));
-}
-
-// ── Escape sequences WITH quantifiers ───────────────────────────
-
-/// \\d+ matches one or more digits
-#[test]
-fn backslash_d_plus() {
-    assert_eq!(eval(r#"matches('abc123', '\\d+')"#), Value::Boolean(true));
-}
-
-/// \\w+ matches one or more word characters
-#[test]
-fn backslash_w_plus() {
-    assert_eq!(
-        eval(r#"matches('hello_123', '^\\w+$')"#),
-        Value::Boolean(true)
-    );
-}
-
-/// \\D+ matches non-digits
-#[test]
-fn backslash_upper_d_plus() {
-    assert_eq!(eval(r#"matches('abc', '^\\D+$')"#), Value::Boolean(true));
-}
-
-/// \\W+ matches non-word chars
-#[test]
-fn backslash_upper_w_plus() {
-    assert_eq!(eval(r#"matches('!@#', '^\\W+$')"#), Value::Boolean(true));
-}
-
-/// \\S+ matches non-whitespace
-#[test]
-fn backslash_upper_s_plus() {
-    assert_eq!(eval(r#"matches('abc', '^\\S+$')"#), Value::Boolean(true));
-}
-
-/// \\d* matches zero or more digits
-#[test]
-fn backslash_d_star() {
-    assert_eq!(eval(r#"matches('', '^\\d*$')"#), Value::Boolean(true));
-}
-
-/// Email-like pattern with \\w+
-#[test]
-fn email_like_pattern() {
-    assert_eq!(
-        eval(r#"matches('user@example.com', '\\w+@\\w+')"#),
-        Value::Boolean(true)
-    );
-}
-
-/// Anchored \\d+ pattern
-#[test]
-fn anchored_digit_pattern() {
-    assert_eq!(eval(r#"matches('12345', '^\\d+$')"#), Value::Boolean(true));
-}
-
-// ── Escape sequences in patterns (literal escapes, no quantifier) ──
-
-/// Correctness: literal dot via escape
-#[test]
-fn escaped_dot_matches_literal_dot() {
-    let result = eval(r#"matches('a.b', 'a\\.b')"#);
-    assert_eq!(result, Value::Boolean(true));
-}
-
-/// Correctness: escaped dot should not match arbitrary char
-#[test]
-fn escaped_dot_rejects_non_dot() {
-    let result = eval(r#"matches('axb', '^a\\.b$')"#);
-    assert_eq!(result, Value::Boolean(false));
-}
-
-// ── Edge cases ──────────────────────────────────────────────────
-
-/// Correctness: empty pattern matches anything (contains empty string)
-#[test]
-fn empty_pattern_matches_anything() {
-    matches_true("hello", "");
-    matches_true("", "");
-}
-
-/// Correctness: empty text with non-empty pattern
-#[test]
-fn empty_text_non_empty_pattern() {
-    matches_false("", "abc");
-}
-
-/// Correctness: pattern with only star
-#[test]
-fn dot_star_matches_anything() {
-    matches_true("anything", ".*");
-    matches_true("", "^.*$");
-}
-
-// ── Null propagation ────────────────────────────────────────────
-
-/// Spec: core/spec.llm.md L250 — "Evaluation errors... produce null + diagnostic"
-#[test]
-fn matches_null_text_returns_null() {
-    assert_eq!(eval("matches(null, 'abc')"), Value::Null);
-}
-
-/// Correctness: null pattern returns null
-#[test]
-fn matches_null_pattern_returns_null() {
-    assert_eq!(eval("matches('abc', null)"), Value::Null);
-}
-
-// ── Combined patterns (no escape quantifiers) ───────────────────
-
-/// Correctness: greedy matching with backtracking
-#[test]
-fn greedy_backtracking() {
-    // ".*b" on "abab" — greedy .* should consume as much as possible then backtrack
-    matches_true("abab", ".*b");
-}
-
-/// Correctness: multiple quantifiers in sequence
-#[test]
-fn multiple_quantifiers() {
-    matches_true("aaabbb", "^a+b+$");
-    matches_false("aaa", "^a+b+$");
-}
-
-/// Correctness: question mark in complex pattern
-#[test]
-fn question_mark_in_pattern() {
-    matches_true("color", "^colou?r$");
-    matches_true("colour", "^colou?r$");
-}
-
-/// Correctness: dot with quantifiers
-#[test]
-fn dot_with_various_quantifiers() {
-    matches_true("a", "^.?$"); // zero or one char
-    matches_true("", "^.?$"); // zero chars
-    matches_false("ab", "^.?$"); // two chars — doesn't match .?
 }
