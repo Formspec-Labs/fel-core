@@ -219,6 +219,39 @@ fn instance_function_call_records_instance_ref() {
     );
 }
 
+/// `let foo = $items in valid(foo)` — VarRef as the first arg of a MIP
+/// function (`valid`/`relevant`/`readonly`/`required`). Kills
+/// `src/dependencies.rs:249` "delete match arm Expr::VarRef in
+/// extract_field_path_str" — without that arm, VarRef yields "" and
+/// nothing is inserted into mip_deps.
+#[test]
+fn let_bound_var_as_mip_first_arg_records_in_mip_deps() {
+    let expr = parse("let foo = $items in valid(foo)").expect("parse");
+    let deps = extract_dependencies(&expr);
+    assert!(
+        deps.mip_deps.contains("foo"),
+        "VarRef as MIP first arg must extract its name into mip_deps; got {:?}",
+        deps.mip_deps
+    );
+}
+
+/// `(($a.b).c).d` — doubly-nested PostfixAccess. Kills
+/// `src/dependencies.rs:269` "delete match arm Expr::PostfixAccess in
+/// extend_field_path" — that arm chains nested PostfixAccess segments
+/// into the path. Without it, `extend_field_path` on the inner
+/// PostfixAccess returns None and the outer path `.d` is lost, so we'd
+/// record "a.b.c" instead of the full "a.b.c.d".
+#[test]
+fn nested_postfix_access_records_full_chain() {
+    let expr = parse("(($a.b).c).d").expect("parse");
+    let deps = extract_dependencies(&expr);
+    assert!(
+        deps.fields.contains("a.b.c.d"),
+        "doubly-nested PostfixAccess MUST chain all segments into 'a.b.c.d'; got {:?}",
+        deps.fields
+    );
+}
+
 /// `dependencies_to_json_value` must produce a non-empty JSON object
 /// when dependencies are non-empty. Pins the function-return mutation
 /// where `Default::default()` returns Value::Null.

@@ -1292,4 +1292,43 @@ mod tests {
             other => panic!("expected LetBinding, got {other:?}"),
         }
     }
+
+    /// Pins the Eof-clamp invariant in `current()` and `advance()`
+    /// (lines 78, 90, 91). Architecture-review F4 noted that the
+    /// Category A equivalence claim for these mutants rested on
+    /// un-enumerated call-site discipline; a direct test converts the
+    /// ambiguous "no input distinguishes" claim into a pinned
+    /// invariant. Specifically, repeatedly calling `advance()` and
+    /// `current()` after parsing must clamp `pos` and never panic on
+    /// out-of-bounds token access — even if `pos` reaches
+    /// `tokens.len()`. Mutants on `tokens.len() - 1` arithmetic
+    /// (`- → +|/`) that turn the clamp upper bound into something
+    /// `>= tokens.len()` will panic here when `pos.min(...) == len`.
+    #[test]
+    fn parser_clamps_pos_past_eof_without_panic() {
+        use crate::lexer::Lexer;
+        let mut lexer = Lexer::new("42");
+        let tokens = lexer.tokenize().expect("tokenize");
+        let mut parser = Parser {
+            tokens,
+            pos: 0,
+            no_in_depth: 0,
+            recursion_depth: 0,
+            max_recursion_depth: 32,
+        };
+        // Parse the expression to consume tokens up to Eof.
+        let _ = parser.parse_expression().expect("parse");
+        // Try to advance past Eof many times; the advance() guard at
+        // line 91 (`pos < tokens.len()`) plus the current() clamp at
+        // line 78 (`pos.min(tokens.len() - 1)`) must hold together.
+        for _ in 0..16 {
+            let _ = parser.advance();
+            let cur = parser.current();
+            assert!(
+                matches!(cur.token, Token::Eof),
+                "current() past Eof must return Eof, got {:?}",
+                cur.token
+            );
+        }
+    }
 }
