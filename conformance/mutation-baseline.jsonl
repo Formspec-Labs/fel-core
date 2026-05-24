@@ -23,3 +23,17 @@
 {"file": "src/evaluator/builtins/money.rs", "total": 10, "killed": 4, "missed": 0, "timeout": 0, "unviable": 6, "kill_rate": 1.0, "sha": "fcaf59d"}
 {"file": "src/lexer.rs", "total": 184, "killed": 152, "missed": 12, "timeout": 13, "unviable": 7, "kill_rate": 0.8588, "sha": "9cfe948"}
 {"file": "src/parser.rs", "total": 147, "killed": 89, "missed": 26, "timeout": 1, "unviable": 31, "kill_rate": 0.7672, "sha": "9cfe948"}
+{"file": "src/convert.rs", "total": 33, "killed": 21, "missed": 0, "timeout": 0, "unviable": 12, "kill_rate": 1.0, "sha": "9394ff1"}
+{"file": "src/dependencies.rs", "total": 24, "killed": 17, "missed": 6, "timeout": 0, "unviable": 1, "kill_rate": 0.7391, "sha": "9394ff1"}
+{"file": "src/error.rs", "total": 48, "killed": 37, "missed": 3, "timeout": 0, "unviable": 8, "kill_rate": 0.925, "sha": "9394ff1"}
+{"file": "src/evaluator/budget.rs", "total": 12, "killed": 8, "missed": 0, "timeout": 0, "unviable": 4, "kill_rate": 1.0, "sha": "9394ff1"}
+{"file": "src/evaluator/builtins/dates.rs", "total": 77, "killed": 59, "missed": 2, "timeout": 0, "unviable": 16, "kill_rate": 0.9672, "sha": "9394ff1"}
+{"file": "src/evaluator/builtins/money.rs", "total": 10, "killed": 4, "missed": 0, "timeout": 0, "unviable": 6, "kill_rate": 1.0, "sha": "9394ff1"}
+{"file": "src/evaluator/core.rs", "total": 310, "killed": 215, "missed": 42, "timeout": 0, "unviable": 53, "kill_rate": 0.8366, "sha": "9394ff1"}
+{"file": "src/extensions/catalog.rs", "total": 4, "killed": 2, "missed": 0, "timeout": 0, "unviable": 2, "kill_rate": 1.0, "sha": "9394ff1"}
+{"file": "src/extensions/registry.rs", "total": 16, "killed": 13, "missed": 1, "timeout": 0, "unviable": 2, "kill_rate": 0.9286, "sha": "9394ff1"}
+{"file": "src/interpolation.rs", "total": 2, "killed": 2, "missed": 0, "timeout": 0, "unviable": 0, "kill_rate": 1.0, "sha": "9394ff1"}
+{"file": "src/iso_duration.rs", "total": 50, "killed": 40, "missed": 6, "timeout": 0, "unviable": 4, "kill_rate": 0.8696, "sha": "9394ff1"}
+{"file": "src/lexer.rs", "total": 184, "killed": 152, "missed": 12, "timeout": 13, "unviable": 7, "kill_rate": 0.8588, "sha": "9394ff1"}
+{"file": "src/parser.rs", "total": 147, "killed": 89, "missed": 25, "timeout": 2, "unviable": 31, "kill_rate": 0.7672, "sha": "9394ff1"}
+{"file": "src/prepare_host.rs", "total": 195, "killed": 139, "missed": 33, "timeout": 20, "unviable": 3, "kill_rate": 0.724, "sha": "9394ff1"}
