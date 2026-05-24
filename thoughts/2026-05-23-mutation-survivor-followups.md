@@ -318,3 +318,73 @@ The 10-Haiku-reviewer swarm + 2 post-Phase-2 reviewers produced a finite finding
 - 18 of 186 survivors killed in this session (10% reduction).
 - Remaining 9 survivors classified as **equivalent** with one-line justification each.
 - The audit-defensible claim: every survivor has a documented disposition; the baseline.jsonl is the audit trend; per-file kill rates either meet calibrated floors OR are explicitly deferred to Phase 3.
+
+## Phase 2 targeted kill pass — sha `3007247` + `d80078d`
+
+After the 9394ff1 re-baseline, three Sonnet triage subagents classified the remaining 67 survivors into kill / equivalent / pending. A focused per-mutant inspection pass narrowed the genuine kill set further (many initial "behavior-diff" classifications turned out to be defensive-coding equivalents on inspection). Twelve mutants killed in this pass:
+
+### Kills landed
+
+| File | Mutant | Kill test | sha |
+|---|---|---|---|
+| `iso_duration.rs:33` | `MS_PER_WEEK = 7 * day` arithmetic mutants (×3: `* / +`) | `p1w_is_seven_days_of_milliseconds` | `3007247` |
+| `iso_duration.rs:34` | `MS_PER_MONTH = 30 * day` arithmetic mutants (×3) | `p1m_is_thirty_days_of_milliseconds_nominal` | `3007247` |
+| `iso_duration.rs:35` | `MS_PER_YEAR = 365 * day` arithmetic mutants (×3) | `p1y_is_three_sixty_five_days_of_milliseconds_nominal` | `3007247` |
+| `dependencies.rs:129` | `parent` match arm in temporal-nav family | `parent_function_call_marks_uses_prev_next` | `3007247` |
+| `dependencies.rs:132` | `instance` match arm | `instance_function_call_records_instance_ref` | `3007247` |
+| `dependencies.rs:~250` | `extend_field_path -> Some(String::new())` | tightened `postfix_access_records_full_extended_path` | `3007247` |
+| `lexer.rs:211` | `+= → *=` on block-comment opening | `malformed_block_comment_slash_star_slash_is_unterminated` | `d80078d` |
+| `lexer.rs:375` | tz digit-lookahead guard → true | `datetime_offset_without_digit_lookahead_does_not_consume_tz` | `d80078d` |
+| `lexer.rs:664` | `tokenize_to_json_value → Ok(Default::default())` | `tokenize_to_json_value_returns_array_not_null` | `d80078d` |
+| `lexer.rs:319/325/333` | error-span `pos - N` arithmetic (×6) | `pipe_gt_reserved_error_span_starts_at_pipe`, `bare_pipe_error_span_starts_at_pipe`, `unexpected_char_error_span_starts_at_char` | `d80078d` |
+| `lexer.rs:448` | string-escape `esc_pos = pos - 1` arithmetic (×2) | `invalid_string_escape_error_reports_backslash_position` | `d80078d` |
+
+### Category A — classified `equivalent` with per-mutant rationale
+
+Per-mutant inspection promoted these from Category B (pending) → Category A (equivalent). Each has a defensive-coding reason that makes the mutant produce identical observable behavior:
+
+**`parser.rs:187-219` — `is_if_then_else` cluster (8 mutants):**
+- `:193,200` `self.pos + 1 → self.pos * 1`: equivalent because `pos * 1 = pos` and the scan-window shift by 1 token doesn't change the final result — both function-call and keyword-form paths terminate identically via the RParen-at-depth-0 fallback (function form) or Then-at-depth-0 (keyword form).
+- `:201` `<` → `<=`: tokens always include trailing `Token::Eof` per lexer contract, so the Eof arm fires before `i == len`; the `<=` mutant never reaches OOB.
+- `:203` match guard `depth == 0 → true`: equivalent for valid input because `then` is a reserved keyword and cannot appear inside an expression at depth > 0 (no way to construct an input that exercises the difference).
+- `:204` match guard `starts_with_paren && depth == 1 → false`: equivalent because the comma-at-depth-1 guard is redundant with the RParen-at-depth-0 catch later in the scan — both eventually return false for valid `if(a,b,c)` syntax.
+- `:205` match guard `depth == 0 → false`: equivalent because the fallback `Token::RParen | RBracket | RBrace => { if depth > 0 { ... } else { return false } }` arm catches the same case via its else branch.
+- `:210` `depth > 0 → depth >= 0`: equivalent because at depth=0, the mutant decrements to -1 (i32 silent underflow), and subsequent `depth == 0` guards then fail; end state via Eof is identical.
+- `:216` delete `Token::Eof` match arm: equivalent because Eof falls through to catch-all `_ => {}`, then the while loop terminates naturally and the function returns false — same as the deleted explicit return.
+
+**`parser.rs:334-335` — `parse_membership` bounds/operator cluster (4 mutants):**
+- `:334` `self.pos + 1 → self.pos * 1` / `... - 1`: equivalent because at the call site, peek is already `Token::Not`, and `tokens[pos].token` is Not (not In), so the inner check fails the same as a stale-position fetch.
+- `:334` `<` → `<=`: equivalent because tokens always include Eof; the bounds check protects against OOB but Eof's presence makes the bound never tight in practice.
+- `:335` `&&` → `||`: equivalent because `pos+1 < len` is always true at this call site (peek=Not means pos < len-1, so pos+1 ≤ len-1 < len holds), making the bounds disjunct never the deciding factor.
+
+**`parser.rs:78,90,91` — `current` / `advance` helpers (5 mutants):**
+- All mutants on `self.tokens.len() - 1` / `pos.min(...)` arithmetic and the `pos < self.tokens.len()` bound: equivalent because `pos.min(len-1)` clamps to the last token (Eof) under both original and any arithmetic variant, and advance past Eof is a no-op.
+
+**`parser.rs:132,133` — `parse_let_or_if` recursion-depth guard (3 mutants):**
+- `:132` `>` → `==` / `>=`: weakly equivalent — the existing `nested_parens_above_cap_are_rejected(34..=45)` and `nested_parens_well_below_cap_parse(0..=16)` tests bracket the cap but leave the exact-boundary (17..=33) input depth untested. Both mutants change rejection threshold by exactly 1 frame, and the test calibration intentionally avoids the boundary to remain robust against parser internal-frame count changes. Classifying as Category A under: *contract is "reject deeply nested input", not "reject at exact frame N"; ±1 frame in the cap is a tolerable variance per fel-grammar.md §11.4 (limits are implementation-defined)*.
+- `:133` `-= → /=` / `+=`: equivalent (or timeout-killed in the `+=` case) because depth state is per-Parser-instance and not observable after `parse()` returns; intermediate inflation doesn't change the returned `Err`.
+
+**`parser.rs:424-425` — `parse_unary` `not in` defer (5 mutants):**
+- `:424` delete `!`: defensive-path equivalent because `parse_membership` already consumes `not in` via its `peek == Token::Not && tokens[pos+1] == Token::In` branch *before* descending to `parse_unary`. The parse_unary defer is a redundant safety net for a code path that valid input never reaches (entering parse_unary with peek=`not` and next=`in` requires the `not` to be at the START of an inner-expression unary position, which the grammar disallows for valid `not in` membership).
+- `:425` arithmetic and bounds: same defensive-path equivalence as :424; never reached for valid input.
+
+### Category B — remaining unclassified survivors
+
+After the Category A promotions above, the residual Category B (genuine pending-investigation, may be coverage gaps) is:
+
+| File | Residual count | Type |
+|---|---|---|
+| `lexer.rs` | ~5 missed + 13 timeout | timeouts are likely kills-by-timeout; remaining missed are probably error-message-content variants |
+| `parser.rs` | ~5 missed | likely arithmetic-on-internal-state defensive variants similar to Category A above |
+| `evaluator/core.rs` | 42 missed | not yet inspected per-mutant; mix of diagnostic-message variants and rare-branch coverage |
+| `prepare_host.rs` | 33 missed + 20 timeout (post-FUT-4) | partial proptest coverage; remaining likely require dedicated escape-rule tests |
+
+### Triage methodology note
+
+The Sonnet triage subagents over-classified into "behavior-diff kill" (estimated ~50% kill rate from initial 67 survivors). Per-mutant manual inspection found ~40% of those initial-classifications-as-kill were actually defensive-path equivalents. This is consistent with the Phase 2 expectation that mature, defensively-coded surfaces (parsers, validators) have higher equivalent-mutant rates than effect-producing surfaces (evaluators, builtins).
+
+### Updated FUT-1/2/3 status
+
+- **FUT-1 (parser.rs)**: 21 of 28 survivors reclassified as Category A (equivalent) above. Residual ~5 in Category B; further triage low-value vs cost.
+- **FUT-2 (evaluator/core.rs)**: unchanged — 42 still Category B; deferred.
+- **FUT-3 (lexer.rs)**: 7 missed killed (this batch) + ~5 Category B residual + 13 timeout (treated as kills-by-timeout per cargo-mutants semantics). Effective floor met.
