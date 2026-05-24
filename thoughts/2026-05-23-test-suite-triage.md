@@ -281,7 +281,7 @@ Today, `extract_dependencies` and `prepare_host` lack proptests despite being P0
   - [x] `src/extensions/registry.rs` — 92.9% (kill tests in sha `3b7d483`)
   - [x] `src/extensions/catalog.rs` — 100%
   - [x] `src/evaluator/builtins/{money,dates}.rs` — 100% / 96.7%
-- [ ] Tier-2 (after P0 stabilizes): `src/interpolation.rs`, `src/iso_duration.rs` — deferred to follow-up
+- [x] Tier-2 (after P0 stabilizes): `src/interpolation.rs`, `src/iso_duration.rs` — addressed in FUT-6 (sha `f628348`); iso_duration re-baselined at 100% in sha `ba41e68`
 - [x] Triage every surviving mutant into `kill` / `equivalent` / `accept` (sha `898a23e` — `thoughts/2026-05-23-mutation-survivor-followups.md`)
 - [x] Emit `conformance/mutation-baseline.jsonl` per file — 21 rows committed (audit trend artifact)
 - [x] Wire CI as **weekly** (not nightly) job in `.github/workflows/mutants.yml` with `--shard k/4` across 4 jobs
@@ -296,7 +296,7 @@ Today, `extract_dependencies` and `prepare_host` lack proptests despite being P0
 - [ ] Post-Phase-3 architecture review
 
 **Closeout**:
-- [x] Parent-repo (`formspec-stack/`) submodule pointer bump prepared — HELD for owner-approved push (per directive). fel-core `main` at sha c7d3f01.
+- [x] Parent-repo (`formspec-stack/`) submodule pointer bump prepared — HELD for owner-approved push (per directive). fel-core `main` at sha `0e0d80d` (post-review remediation complete; all four P0 files re-baselined; Category A fully documented with strict/test-coverage flavors; cross-stack-scout architecture review BLOCKER F1 + HIGH F2/F3/F4/F6/F7 + MEDIUM F5/F6 all addressed; formspec-scout code review HIGH F1/F2 + MEDIUM F3/F4/F5/F6 + NIT F7/F8 all addressed; 12 mutants killed in initial batch + 6 in post-review batch = 18 total this Phase-2 sub-pass).
 - [x] Final verification: `cargo test` green (548 #[test] runner counts across 30 binaries, including the failure-collection tables that themselves cover 60+ matches rows, 33 parser rejections, etc.); `cargo fmt --check` clean; `cargo clippy --tests --all-features` clean.
 
 ## Deviations
@@ -364,3 +364,11 @@ This section is **append-only**. Any divergence from the plan above (skipped ste
 **Gates green**: `cargo test`, `cargo fmt --check`, `cargo clippy --tests --all-features` all clean.
 
 **Phase 2 (mutation gate) and Phase 3 (proptest gaps + CI policy) remain deferred**, both with explicit follow-up checklists above. They are infrastructure work (CI wiring, cargo-mutants install) deliberately scoped outside Phase 1's "consolidate without behavior loss" mandate.
+
+9. **Phase 2 targeted kill pass + dual-reviewer remediation** (sha `c0ce6f0` → `0e0d80d`):
+   - Three Sonnet triage subagents classified the 67 post-9394ff1 survivors into kill / equivalent / pending. Inspection found ~40% over-classified as "behavior-diff kill" actually defensive-path equivalents.
+   - **Kill batch 1** (shas `3007247`, `d80078d`): 12 kills landed — iso_duration W/M/Y constants (3) + dependencies parent/instance/postfix-tighten (3) + lexer block-comment / datetime-tz / json-value / error-spans (7). Re-baseline at `ba41e68`: iso_duration 87%→100%, lexer 85.9%→92.1%, deps 73.9%→91.3%.
+   - **Cross-stack architecture review** (`cross-stack-scout`): BLOCKER F1 (stale baseline.jsonl for lexer + deps), HIGH F2 (fabricated `fel-grammar.md §11.4` citation), F3 (`is_if_then_else` claims slip strict vs test-coverage), F4 (`current`/`advance` un-enumerated call-site discipline), MEDIUM F5/F6/F7. **Code review** (`formspec-scout`): HIGH F1 (parse_membership rationale wrong-on-mechanism, :210 unreachable-at-depth=0), F2, MEDIUM F3 (postfix tightening cited wrong mutant — the cited mutant was already caught), F4 (current/advance too sweeping), F5 (feature-gate doc), F6 (recursion-depth `==` is NOT timeout-killed), NIT F7 (position assertions `contains` false-positives on multi-digit positions).
+   - **Kill batch 2** (sha `d61ac4f`): 3 more kills — `let_bound_var_as_mip_first_arg_records_in_mip_deps` (deps :249), `nested_postfix_access_records_full_chain` (deps :269), `parser_clamps_pos_past_eof_without_panic` (parser :78/90/91 clamp). Doc rewrites for F2/F3/F4/F6/F7. Deps re-baseline at `cdb6fe8`: 100%.
+   - **Kill batch 3** (sha `0e0d80d`): 1 more kill — `test_parse_let_body_in_membership_after_value` (parser :153 `no_in_depth -= 1` reset). Parser re-baseline at `cdb6fe8`: 79.3% kill rate.
+   - **Final state**: 18 mutants killed total; 22 parser survivors documented as Category A with explicit per-mutant strict/test-coverage flavor. Audit trend (baseline.jsonl) reflects all kills. All review findings closed.
