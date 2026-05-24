@@ -292,8 +292,8 @@ Today, `extract_dependencies` and `prepare_host` lack proptests despite being P0
 **Phase 3 — Leverage policy in CI**:
 - [x] Proptest for `extract_dependencies` (P0 seam) — **FUT-5** addressed in sha `f628348` (`tests/dependencies_proptest.rs` — 3 proptests + spec-anchored example tests). Dependencies kill rate now 100%.
 - [x] Proptest for `prepare` / `prepare_for_host` (P0 seam) — **FUT-4** addressed in sha `f628348` (`tests/prepare_host_proptest.rs` — 5 property tests including idempotence + termination + parseability). prepare_host kill rate uplift in baseline.jsonl.
-- [ ] CI gate: each public `lib.rs` re-export requires ≥1 proptest before example tests count — open (Phase 3 policy work, separate ticket)
-- [ ] Post-Phase-3 architecture review — open (deferred until policy gate above lands)
+- [x] CI gate: each public `lib.rs` re-export requires ≥1 proptest before example tests count — addressed in shas `9d44f38` (design) → `fa403bd` (design revision per cross-stack-scout review) → `c3cdd4b` (manifest + ignored gate) → 5 P0 + 6 Phase 3b proptest commits → `d3e5494` (wire cites) → `c76ee6a` (activate) → `d522418` (Phase 3e remediation). `tests/lib_reexport_coverage.toml` has 50 entries (36 covered + 14 exempt), `tests/lib_reexport_coverage_gate.rs` runs on every PR with 18 self-tests.
+- [x] Post-Phase-3 architecture review — addressed via cross-stack-scout + formspec-scout parallel reviews at sha `86d4bde`; 2 BLOCKER + 3 HIGH + 5 MEDIUM findings all remediated in `d522418` + `f770b4c`.
 
 **Closeout**:
 - [x] Parent-repo (`formspec-stack/`) submodule pointer bump prepared — HELD for owner-approved push (per directive). fel-core `main` at sha `0e0d80d` (post-review remediation complete; all four P0 files re-baselined; Category A fully documented with strict/test-coverage flavors; cross-stack-scout architecture review BLOCKER F1 + HIGH F2/F3/F4/F6/F7 + MEDIUM F5/F6 all addressed; formspec-scout code review HIGH F1/F2 + MEDIUM F3/F4/F5/F6 + NIT F7/F8 all addressed; 12 mutants killed in initial batch + 6 in post-review batch = 18 total this Phase-2 sub-pass).
@@ -372,3 +372,12 @@ This section is **append-only**. Any divergence from the plan above (skipped ste
    - **Kill batch 2** (sha `d61ac4f`): 3 more kills — `let_bound_var_as_mip_first_arg_records_in_mip_deps` (deps :249), `nested_postfix_access_records_full_chain` (deps :269), `parser_clamps_pos_past_eof_without_panic` (parser :78/90/91 clamp). Doc rewrites for F2/F3/F4/F6/F7. Deps re-baseline at `cdb6fe8`: 100%.
    - **Kill batch 3** (sha `0e0d80d`): 1 more kill — `test_parse_let_body_in_membership_after_value` (parser :153 `no_in_depth -= 1` reset). Parser re-baseline at `cdb6fe8`: 79.3% kill rate.
    - **Final state**: 18 mutants killed total; 22 parser survivors documented as Category A with explicit per-mutant strict/test-coverage flavor. Audit trend (baseline.jsonl) reflects all kills. All review findings closed.
+
+10. **Phase 3 CI gate execution** (sha `9d44f38` → `f770b4c`):
+    - Phase 3a design + arch-review revision (shas `9d44f38`, `fa403bd`).
+    - Phase 3a-1: 5 P0 proptests via parallel craftsmen (`a4e95bf` EvalBudget, `1f3d93f` ExtensionRegistry, `48f9280` Diagnostic, `ba30c81` prepare, `4aa6ac6` fel_to_*_json wire styles).
+    - Phase 3a-2: manifest + gate scaffold (sha `c3cdd4b`) — 80 entries, gate `#[ignore]`'d.
+    - Phase 3b: 6 parallel Tier-2 proptest craftsmen closing 32 GAP symbols (`fd4a479` iso_duration, `e03eb7e` evaluate_siblings, `675cb64` json_exports, `f7764cc` interpolation_trace, `f13c9f3` identifiers_types, `ff7e66d` env_catalog).
+    - Phase 3c activation: manifest wired (`d3e5494`) then `#[ignore]` lifted (`c76ee6a`). Plus Cargo.toml `[[test]]` registration fix (`86d4bde`).
+    - Phase 3e dual-reviewer + remediation: cross-stack-scout flagged 2 BLOCKERs (fake-pass cites on `JsonWireStyle` + `ExtensionError` exemptions) + 2 HIGHs; formspec-scout flagged 1 HIGH (parser doc-comment false-positive) + 3 MEDIUMs. All 10 findings remediated in `d522418` (cite fixes + parser hardening + resolver tightening) + `f770b4c` (mutation-survivor lifecycle doc).
+    - **Final state**: 50 manifest entries (36 covered by named proptests + 14 exempted per E1-E8 with normative consumer-citation rules); gate runs on every PR via `cargo test`; 18 self-tests pinning gate parser/resolver. Phase 3 CI gate active.
