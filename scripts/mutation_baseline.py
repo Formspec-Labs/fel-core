@@ -7,15 +7,41 @@ Reads `mutants.out/outcomes.json` after a `cargo mutants` run and appends one
 line per mutated file to `conformance/mutation-baseline.jsonl`:
 
     {"file": "...", "total": N, "killed": K, "missed": M, "timeout": T,
-     "unviable": U, "kill_rate": K/(K+M+T), "sha": "abc1234"}
+     "unviable": U, "kill_rate": (K+T)/(K+M+T), "sha": "abc1234"}
 
 `kill_rate` denominator excludes `unviable` (mutants that don't compile —
 neither caught nor a test gap; they're just compile-time invariants).
 
+Policy: timeouts credited as kills (FUT-17).
+    See thoughts/2026-05-23-mutation-survivor-followups.md §FUT-17.
+    A cargo-mutants `Timeout` outcome means the mutant ran past the
+    per-mutant wall-clock budget (default 30s, well above any normal test).
+    Per the per-mutant inspections recorded in that doc — lexer.rs at
+    ba41e68+ (13 timeouts), parser.rs at 7726f86 (14 timeouts), and
+    prepare_host.rs Cluster P1 (20 timeouts) — every diagnosed timeout
+    traces to a genuine non-terminating mutant (cursor index frozen,
+    advance-loop suppressed, recursion-depth reset removed, etc.). The
+    suite detected the behavioral diff via wall-clock; that's a kill,
+    just registered through a different signal than `cargo test` failure.
+
+    Historical rows in the .jsonl predating this change retain the
+    old-formula kill_rate values for audit-trail purposes; this script
+    can re-emit any historical row under the new formula via
+    `--recompute-historical` (rows appended with sha
+    `historical-recompute@<current-sha>` so the trend is unambiguous).
+
+Note on `floor_met`: the floors documented in followups.md §"Definition: floor met"
+use `(Killed + Equivalent) / (Killed + Equivalent + Missed - PendingInvestigation)`,
+which is computed manually from the per-file triage tables (not from this script).
+The two metrics are deliberately distinct — this script's `kill_rate` is the
+mechanically-derived audit trend; floor_met is the human-judgment-augmented
+acceptance criterion. Updating this formula does not change floor_met semantics.
+
 Usage:
     python3 scripts/mutation_baseline.py [--append]
+    python3 scripts/mutation_baseline.py --recompute-historical
 
-Without `--append`, prints the rows to stdout for inspection.
+Without `--append` or `--recompute-historical`, prints rows to stdout.
 """
 from __future__ import annotations
 
@@ -27,6 +53,120 @@ from collections import defaultdict
 from pathlib import Path
 
 
+def compute_kill_rate(killed: int, missed: int, timeout: int) -> float:
+    """FUT-17 formula: credit timeouts as kills.
+
+    kill_rate = (killed + timeout) / (killed + missed + timeout)
+
+    `unviable` is excluded from both numerator and denominator (mutants that
+    don't compile are not test gaps).
+    """
+    viable = killed + missed + timeout
+    if viable <= 0:
+        return 0.0
+    return (killed + timeout) / viable
+
+
+def current_sha() -> str:
+    return subprocess.run(
+        ["git", "rev-parse", "--short", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+
+
+def recompute_historical(baseline_path: Path) -> int:
+    """Re-emit every prior row under the FUT-17 formula.
+
+    Rows are APPENDED to the baseline tagged with sha
+    `historical-recompute@<current-sha>` so the audit trend file shows
+    both the original (old-formula) row and the new (corrected) row for
+    each (file, original-sha) pair. The original rows are preserved
+    verbatim — they ARE the audit trail.
+
+    Skips rows already present as historical-recomputes (idempotent).
+    """
+    if not baseline_path.exists():
+        print(f"error: {baseline_path} not found", file=sys.stderr)
+        return 1
+
+    sha = current_sha()
+    recompute_tag = f"historical-recompute@{sha}"
+
+    rows: list[dict] = []
+    already_recomputed: set[tuple[str, str]] = set()
+    with baseline_path.open() as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            rows.append(row)
+            if isinstance(row.get("sha"), str) and row["sha"].startswith(
+                "historical-recompute@"
+            ):
+                # Track (file, original_sha) so we don't double-recompute.
+                orig = row.get("recomputed_from_sha")
+                if orig:
+                    already_recomputed.add((row["file"], orig))
+
+    new_rows: list[dict] = []
+    for row in rows:
+        orig_sha = row.get("sha")
+        if not isinstance(orig_sha, str) or orig_sha.startswith(
+            "historical-recompute@"
+        ):
+            continue  # Skip non-string-sha rows and prior recomputes
+        if (row["file"], orig_sha) in already_recomputed:
+            continue  # Already recomputed at some earlier pass
+
+        k = int(row.get("killed", 0))
+        m = int(row.get("missed", 0))
+        t = int(row.get("timeout", 0))
+        new_rate = compute_kill_rate(k, m, t)
+
+        # Skip rows where the formula change has zero effect (no timeouts).
+        # Reduces noise — only the four P0 files (lexer, parser, prepare_host)
+        # plus any future timeout-bearing files emit a recompute row.
+        if t == 0:
+            continue
+
+        new_rows.append(
+            {
+                "file": row["file"],
+                "total": row.get("total", 0),
+                "killed": k,
+                "missed": m,
+                "timeout": t,
+                "unviable": row.get("unviable", 0),
+                "kill_rate": round(new_rate, 4),
+                "sha": recompute_tag,
+                "recomputed_from_sha": orig_sha,
+                "prior_kill_rate": row.get("kill_rate"),
+            }
+        )
+
+    with baseline_path.open("a") as f:
+        for row in new_rows:
+            f.write(json.dumps(row) + "\n")
+
+    print(
+        f"appended {len(new_rows)} historical-recompute row(s) to {baseline_path} "
+        f"(tag: {recompute_tag})",
+        file=sys.stderr,
+    )
+
+    # Sanity: no NaN, no negative kill_rate, no kill_rate > 1.
+    for row in new_rows:
+        rate = row["kill_rate"]
+        assert 0.0 <= rate <= 1.0, f"invalid kill_rate {rate} for {row['file']}"
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -35,11 +175,20 @@ def main() -> int:
         help="Append rows to conformance/mutation-baseline.jsonl (default: stdout only)",
     )
     parser.add_argument(
+        "--recompute-historical",
+        action="store_true",
+        help="Re-emit historical rows under the FUT-17 formula "
+        "(tagged sha `historical-recompute@<current-sha>`).",
+    )
+    parser.add_argument(
         "--outcomes",
         default="mutants.out/outcomes.json",
         help="Path to cargo-mutants outcomes.json",
     )
     args = parser.parse_args()
+
+    if args.recompute_historical:
+        return recompute_historical(Path("conformance/mutation-baseline.jsonl"))
 
     outcomes_path = Path(args.outcomes)
     if not outcomes_path.exists():
@@ -65,12 +214,7 @@ def main() -> int:
         )
         return 1
 
-    sha = subprocess.run(
-        ["git", "rev-parse", "--short", "HEAD"],
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.strip()
+    sha = current_sha()
 
     # Group outcomes by mutated file.
     by_file: dict[str, dict[str, int]] = defaultdict(
@@ -90,7 +234,7 @@ def main() -> int:
         bucket = {
             "MissedMutant": "missed",     # mutant survived test suite (test gap)
             "CaughtMutant": "killed",
-            "Timeout": "timeout",
+            "Timeout": "timeout",          # FUT-17: credited as kill in kill_rate
             "Unviable": "unviable",
         }.get(summary, None)
         if bucket is None:
@@ -102,8 +246,9 @@ def main() -> int:
 
     rows = []
     for file_path, counts in sorted(by_file.items()):
-        viable = counts["killed"] + counts["missed"] + counts["timeout"]
-        kill_rate = counts["killed"] / viable if viable > 0 else 0.0
+        kill_rate = compute_kill_rate(
+            counts["killed"], counts["missed"], counts["timeout"]
+        )
         rows.append(
             {
                 "file": file_path,

@@ -58,6 +58,8 @@ Post-Phase-2 architecture review H1 (sha `898a23e` review): the previous "calibr
 
 **Definition: floor met.** A file has met its floor when `(Killed + Equivalent) / (Killed + Equivalent + Missed - PendingInvestigation) ≥ Floor`. The PendingInvestigation column is held aside; it neither helps nor hurts the ratio. New survivors that appear outside Category A in a future run flag a real regression.
 
+**Note on `kill_rate` vs `floor_met` formulas (post-FUT-17).** `scripts/mutation_baseline.py` emits the mechanically-derived `kill_rate = (killed + timeout) / (killed + missed + timeout)` per FUT-17 — timeouts are credited as kills-by-detection (the suite caught the behavioral diff via wall-clock instead of `cargo test` failure; see the per-mutant inspections at lexer.rs Cluster (`ba41e68+`), parser.rs let-body counter, and prepare_host.rs Cluster P1). `floor_met` above remains a separate human-judgment metric that excludes PendingInvestigation and credits per-mutant-annotated Equivalent rows — it is computed manually from the triage tables, not from this script's `kill_rate`. The two metrics are deliberately distinct: `kill_rate` is the audit trend artifact; `floor_met` is the acceptance criterion.
+
 The recalibration is honest: per-mutant analysis backs Category A entries; Category B is explicitly the "didn't look yet" pile. The plan's success criterion ("every survivor either killed or annotated equivalent with one-line justification") applies to Category A. Category B is a *follow-up ticket*, not a closed survivor.
 
 ### Follow-up tickets (Phase 2 leftover + Phase 3)
@@ -420,7 +422,7 @@ F1 (BLOCKER) addressed by running `make mutants-lexer`, `make mutants-deps`, and
 
 **Headline.** 42 evaluator/core.rs survivors → 36 promoted to Category A equivalent (4 strict + 32 test-coverage), 6 remain kill candidates. 33 prepare_host.rs missed + 20 timeout → 20 timeouts reclassified as kills-by-timeout (genuine infinite loops, no test exists to claim them as kills today), 9 missed promoted to Category A equivalent (2 strict + 7 test-coverage), 24 missed remain kill candidates against the proptest's blind spots.
 
-The 6 + 24 = 30 residual kill candidates become **FUT-15** (evaluator/core diag-content + rare null-branch + money-arithmetic interaction tightening) and **FUT-16** (prepare_host_proptest invariant strengthening + JSON-options edge cases). The 20 timeout-kills remain pending FUT-17-style decision to formally convert them; the `kill_rate` formula treats timeouts as non-kills today, so reclassifying them is a labeling note, not a metric move.
+The 6 + 24 = 30 residual kill candidates become **FUT-15** (evaluator/core diag-content + rare null-branch + money-arithmetic interaction tightening) and **FUT-16** (prepare_host_proptest invariant strengthening + JSON-options edge cases). The 20 timeout-kills are credited as kills under the FUT-17 formula (timeouts in the `kill_rate` numerator); the prior framing of "labeling note, not metric move" was true under the old formula and is superseded by the FUT-17 closure.
 
 **One real bug surfaced** (see end of section): `prepare_for_host` line 470 `&&` → `||` (`replace_self_ref && !leaf.is_empty()` → `||`) survives because no test exercises `replace_self_ref=true` with empty `current_item_path`. The defensive guard prevents `replace_bare_current_field_refs` from being called with an empty leaf (which would short-circuit anyway via line 202's `current_field.is_empty()`). Two layers of defense, neither covered by a test. Equivalent today; brittle if line 202 changes.
 
@@ -570,7 +572,7 @@ Add 3 (E3, E13×3 counted as 1 cluster = 3 mutants) → really: **3 strict (E3, 
 
 ### prepare_host.rs — 33 missed + 20 timeout classified
 
-Source: `mutants.out/missed.txt` + `mutants.out/timeout.txt`. 139 caught + 33 missed + 20 timeout + 3 unviable = 195 total. Kill rate 71.3% (139 / (139+33+20)).
+Source: `mutants.out/missed.txt` + `mutants.out/timeout.txt`. 139 caught + 33 missed + 20 timeout + 3 unviable = 195 total. Kill rate 82.8% under post-FUT-17 formula `(139+20)/(139+33+20)`; was 71.3% under pre-FUT-17 formula `139/(139+33+20)`.
 
 **Cluster P1 — 20 timeout-kills (genuine infinite loops):**
 
@@ -589,7 +591,7 @@ All 20 timeouts cluster around `QuoteAwareCursor` index/length helpers and the a
 - `:338, :341 += → */-=` in `replace_implicit_repeat_alias`: same.
 - `:362, :365 += → */-=` in `replace_explicit_dollar_repeat_alias`: same.
 
-- **All 20: TIMEOUT-KILL.** These are genuine non-terminating mutants. The Phase 3 `prepare_host_proptest.rs` includes `prepare_terminates_on_arbitrary_input` which would catch them IF the proptest framework's individual-case-timeout fired. `cargo-mutants` uses a hard 30s timeout per mutant which the test runner doesn't see — so the mutants register as `Timeout` outcome (not `Failed`). Per the project's `kill_rate = killed / (killed + missed + timeout)` formula, these don't count as kills today. **Reclassifying them as kills requires either (a) a per-call timeout assertion in the proptest, or (b) accepting timeout-kills against the formula** (which was the lexer.rs disposition at sha `ba41e68+`).
+- **All 20: TIMEOUT-KILL.** These are genuine non-terminating mutants. The Phase 3 `prepare_host_proptest.rs` includes `prepare_terminates_on_arbitrary_input` which would catch them IF the proptest framework's individual-case-timeout fired. `cargo-mutants` uses a hard 30s timeout per mutant which the test runner doesn't see — so the mutants register as `Timeout` outcome (not `Failed`). Per the post-FUT-17 `kill_rate = (killed + timeout) / (killed + missed + timeout)` formula, these now count as kills (the suite detected the behavioral diff via wall-clock instead of `cargo test` failure). Pre-FUT-17 disposition required either (a) a per-call timeout assertion in the proptest, or (b) accepting timeout-kills against the formula; option (b) was chosen at sha `{pending-FUT-17}` consistent with the lexer.rs precedent at sha `ba41e68+`.
 
 **Cluster P2 — `is_ident_start` substitution (2 mutants):**
 
@@ -739,9 +741,9 @@ Sum: 2+4+2+8+2+2+1+2+1 = 24 KILL. Strict: P4 (202:33) + P5 (288:41) = 2. Test-co
 | `prepare_host.rs` | 33 missed + 20 timeout | 2 | 7 | 24 | 20 | 24 missed kill candidates → FUT-16; 20 timeouts → FUT-3-style decision |
 | **Total** | **95** | **6** | **39** | **30** | **20** | **50 residual** |
 
-**Kill rate effect (per `kill_rate = killed / (killed + missed + timeout)` formula):**
-- evaluator/core.rs: 215 / (215+42+0) = 83.66%; even after promoting 36 of 42 to equivalent, the FORMULA kill rate is unchanged because the formula doesn't credit equivalents — that's a labeling-only move. A separate "audit kill rate including equivalents" would be (215+36) / 257 = 97.7%.
-- prepare_host.rs: 139 / 192 = 72.4%; promoting 9 to equivalent + 20 to timeout-kill leaves formula unchanged. Audit kill rate including equivalents AND timeout-kills: (139+9+20) / 192 = 87.5%.
+**Kill rate effect (per post-FUT-17 `kill_rate = (killed + timeout) / (killed + missed + timeout)` formula):**
+- evaluator/core.rs: (215+0) / (215+42+0) = 83.66%; no timeouts so the FUT-17 formula change has no effect. After promoting 36 of 42 missed to equivalent, the FORMULA kill rate is unchanged because the formula doesn't credit equivalents — that's a labeling-only move. A separate "audit kill rate including equivalents" would be (215+36) / 257 = 97.7%.
+- prepare_host.rs: (139+20) / 192 = 82.81%; post-FUT-17 the 20 timeouts are credited (was 72.4% pre-FUT-17). Promoting 9 missed to equivalent is still a labeling move. Audit kill rate including equivalents AND timeout-kills: (139+9+20) / 192 = 87.5%.
 
 ### Real bugs / open questions surfaced
 
@@ -768,9 +770,9 @@ Sum: 2+4+2+8+2+2+1+2+1 = 24 KILL. Strict: P4 (202:33) + P5 (288:41) = 2. Test-co
 | Ticket | Scope |
 |---|---|
 | FUT-15 | Address 6 evaluator/core.rs kill candidates: PostfixAccess let-binding access (E5), eval_field_ref flat-key fallback non-null path (E6), 4 num_op money-arithmetic interaction tests (E11 Money+Number addition, Money−Money same-currency, Money×Money rejection routing, currency-mismatch correctness). Estimated: ~6 focused tests; lifts evaluator/core.rs kill rate from 83.66% → ~85.6%. |
-| FUT-16 | Address 24 prepare_host.rs missed kill candidates via two paths: (a) extend prepare_host_proptest.rs with generators for backslash-escape strings, prefix-blocked positions, OOB `$group.field` boundary cases (8-12 mutants covered); (b) add 5 direct integration tests for the `prepare`, `host_options_from_json`, `prepare_for_host:470` guard, `is_ident_start` digit/underscore edges. Lifts kill rate from 72.4% → ~85%. |
+| FUT-16 | Address 24 prepare_host.rs missed kill candidates via two paths: (a) extend prepare_host_proptest.rs with generators for backslash-escape strings, prefix-blocked positions, OOB `$group.field` boundary cases (8-12 mutants covered); (b) add 5 direct integration tests for the `prepare`, `host_options_from_json`, `prepare_for_host:470` guard, `is_ident_start` digit/underscore edges. Lifts kill rate from 82.8% (post-FUT-17 baseline) → ~95%. |
 | FUT-16-INVESTIGATE | Investigate why `:312:5` and `:320:5` in prepare_host.rs survived despite seemingly-covering inline mod tests; possibly cargo-mutants config issue with inline `#[cfg(test)] mod tests`. |
-| FUT-17 | Decision on timeout-kill counting in `kill_rate` formula. Either: (a) extend formula to credit timeouts as kills (lexer.rs precedent at ba41e68+); (b) require dedicated termination assertions per timeout cluster (more work, same audit outcome). Cross-file impact: lexer.rs 13 timeouts, parser.rs 14 timeouts, prepare_host.rs 20 timeouts. Total 47 timeouts in suspended classification. |
+| ~~FUT-17~~ | ~~Decision on timeout-kill counting in `kill_rate` formula. Either: (a) extend formula to credit timeouts as kills (lexer.rs precedent at ba41e68+); (b) require dedicated termination assertions per timeout cluster (more work, same audit outcome). Cross-file impact: lexer.rs 13 timeouts, parser.rs 14 timeouts, prepare_host.rs 20 timeouts. Total 47 timeouts in suspended classification.~~ | **Addressed sha {pending-FUT-17}** — chose option (a). `scripts/mutation_baseline.py` formula updated to `kill_rate = (killed + timeout) / (killed + missed + timeout)`. Historical rows recomputed and appended under sha tag `historical-recompute@<current-sha>` (originals preserved). Effect on the four P0 files at their last per-file sha: lexer.rs `0.9209 → 0.9944` (ba41e68), parser.rs `0.8017 → 0.9224` (7726f86), prepare_host.rs `0.7240 → 0.8281` (9394ff1), evaluator/core.rs `0.8366 → 0.8366` (9394ff1, no timeouts). 47 timeouts now correctly credited (lexer 13 + parser 14 + prepare_host 20). |
 
 ### Mutation-survivor ↔ lib_reexport_coverage_gate lifecycle
 
@@ -780,4 +782,4 @@ When a mutation survivor (FUT-15/16/17 or any future ticket) is identified on a 
 
 FUT-2 closed with: **42 of 42 evaluator/core.rs survivors classified** — 36 equivalent (4 strict + 32 test-coverage) + 6 kill candidates (FUT-15). The 83.66% formula kill rate is honest per the project's policy; the audit-trend kill rate including equivalents is 97.7%, well above the (provisional) ≥80% floor.
 
-FUT-4 residual closed with: **53 of 53 prepare_host.rs survivors classified** — 9 equivalent + 24 kill candidates (FUT-16) + 20 timeout-kills (FUT-17). The 72.4% formula kill rate remains below an "if it had a floor" mark, but per the prior disposition (`prepare_host.rs` deferred to Phase 3 with the proptest), the proptest landed at sha `f628348` and the remaining survivors are now classified rather than pending.
+FUT-4 residual closed with: **53 of 53 prepare_host.rs survivors classified** — 9 equivalent + 24 kill candidates (FUT-16) + 20 timeout-kills now credited under FUT-17. The 82.8% post-FUT-17 formula kill rate (up from 72.4% pre-FUT-17) remains a per-file working number, not a floor; the file's original disposition (deferred to Phase 3 with the proptest landing at sha `f628348`) stands and the remaining survivors are classified rather than pending.
