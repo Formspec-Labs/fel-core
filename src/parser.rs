@@ -1293,6 +1293,30 @@ mod tests {
         }
     }
 
+    /// Kills `src/parser.rs:153:30` — `replace -= with /= in
+    /// Parser::parse_let_or_if_inner` on `self.no_in_depth -= 1`. The
+    /// counter is incremented before parsing the let-value to suppress
+    /// `in` as membership; if it's never decremented (mutant: `/= 1`
+    /// is a no-op), then subsequent `in` operators in the let body
+    /// would be silently skipped. Pin this by parsing a let whose body
+    /// uses `in` as membership.
+    #[test]
+    fn test_parse_let_body_in_membership_after_value() {
+        let expr = parse("let x = 1 in x in [1, 2]").expect("must parse");
+        match expr {
+            Expr::LetBinding { name, body, .. } => {
+                assert_eq!(name, "x");
+                match *body {
+                    Expr::Membership { negated, .. } => {
+                        assert!(!negated, "expected non-negated membership");
+                    }
+                    other => panic!("expected Membership in let-body, got {other:?}"),
+                }
+            }
+            other => panic!("expected LetBinding, got {other:?}"),
+        }
+    }
+
     /// Pins the Eof-clamp invariant in `current()` and `advance()`
     /// (lines 78, 90, 91). Architecture-review F4 noted that the
     /// Category A equivalence claim for these mutants rested on

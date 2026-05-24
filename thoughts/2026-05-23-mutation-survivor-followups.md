@@ -237,7 +237,7 @@ Phase 2 closure is achievable by completing items 1-7. Phase 3 covers 8.
 | `error.rs` | ✓ 92.5% (sha 3b7d483) | Arity-boundary + severity-discrimination + name-filter tests; 3 equivalent `<`↔`<=` mutants on unreachable-by-callsite paths |
 | `lexer.rs` | ✓ 92.1% (sha ba41e68+) | 7 new kills (block-comment, datetime-tz, json-value, error-spans); 1 residual missed (read_number minus check, Category A strict-equivalent: `start` is captured BEFORE the optional advance so the resulting `chars[start..pos]` slice is identical); 13 timeout classified as kills-by-timeout. Floor met |
 | `evaluator/core.rs` | ✓ 83% (recalibrated ≥80%) | 42 survivors pending follow-up triage (FUT-2); mix of diag-message variants and rare-branch coverage gaps |
-| `parser.rs` | ✓ ≥75% (recalibrated; awaits re-baseline) | 1 new kill (parser_clamps_pos_past_eof); 21 of 28 prior survivors reclassified Category A (per-mutant rationale below); ~6 residual Category B (test-coverage flavor on invalid-input error paths). Inline `#[cfg(test)] mod tests` covers positive parse shapes |
+| `parser.rs` | ✓ 79.3% (sha cdb6fe8; awaits +1 kill re-baseline) | 6 new kills (5 via clamp test + 1 via let-body-in-membership test); 22 of 23 residual survivors reclassified Category A with explicit per-mutant rationale (strict + test-coverage flavors). Inline `#[cfg(test)] mod tests` covers positive parse shapes |
 | `prepare_host.rs` | ✓ Phase 3 proptest landed (FUT-4) | 33 missed + 20 timeout residual; further investigation deferred |
 | `dependencies.rs` | ✓ 91.3% (sha ba41e68+) | 5 new kills (parent, instance, postfix-tighten, let-bound-var-MIP, nested-postfix); 0 residual missed expected after re-baseline. Floor met |
 
@@ -336,6 +336,7 @@ After the 9394ff1 re-baseline, three Sonnet triage subagents classified the rema
 | `dependencies.rs:249` | delete `Expr::VarRef` arm in `extract_field_path_str` | `let_bound_var_as_mip_first_arg_records_in_mip_deps` | (post-review) |
 | `dependencies.rs:269` | delete `Expr::PostfixAccess` arm in `extend_field_path` | `nested_postfix_access_records_full_chain` | (post-review) |
 | `parser.rs:78,90,91` | `current`/`advance` clamp arithmetic (5 mutants) | `parser_clamps_pos_past_eof_without_panic` (inline `#[cfg(test)] mod tests`) | (post-review) |
+| `parser.rs:153` | `no_in_depth -= 1 → /= 1` after let-value (counter never resets, body `in` membership silently suppressed) | `test_parse_let_body_in_membership_after_value` | (post-review final) |
 | `lexer.rs:211` | `+= → *=` on block-comment opening | `malformed_block_comment_slash_star_slash_is_unterminated` | `d80078d` |
 | `lexer.rs:375` | tz digit-lookahead guard → true | `datetime_offset_without_digit_lookahead_does_not_consume_tz` | `d80078d` |
 | `lexer.rs:664` | `tokenize_to_json_value → Ok(Default::default())` | `tokenize_to_json_value_returns_array_not_null` | `d80078d` |
@@ -396,7 +397,7 @@ The Sonnet triage subagents over-classified into "behavior-diff kill" (estimated
 
 ### Updated FUT-1/2/3 status
 
-- **FUT-1 (parser.rs)**: 5 mutants killed (current/advance clamp via inline test); 22 reclassified as Category A (mix of strict + test-coverage equivalence). Residual ~6 in Category B; further triage low-value vs cost.
+- **FUT-1 (parser.rs)**: 6 mutants killed across two batches: 5 via `parser_clamps_pos_past_eof_without_panic` (current/advance clamp invariant) + 1 via `test_parse_let_body_in_membership_after_value` (let-value no_in_depth reset). 22 reclassified as Category A (mix of strict + test-coverage equivalence). All 23 post-fix survivors documented; zero unclassified. Re-baseline at sha cdb6fe8 shows 79.3% kill rate (was 76.7% at 9394ff1); next re-run after the :153 kill should yield 80.2%.
 - **FUT-2 (evaluator/core.rs)**: unchanged — 42 still Category B; deferred.
 - **FUT-3 (lexer.rs)**: 7 missed killed (this batch); 1 residual missed reclassified Category A (read_number `start`-captured-before-advance strict-equivalent); 13 timeout (kills-by-timeout). Re-baseline at ba41e68 shows 92.1% kill rate. Floor met.
 
