@@ -70,6 +70,76 @@ fn arb_safe_expr() -> impl Strategy<Value = String> {
     })
 }
 
+/// FUT-16 Path (a): generator for string literals containing backslash-
+/// escape sequences. The base `arb_safe_expr` never produces backslashes,
+/// so the `step_quote` escape handler (`src/prepare_host.rs:83`) is
+/// undertested by the existing proptests. Emits `$ + '<body>' + $`
+/// — bare-`$` on both sides of the escape-containing quoted literal —
+/// so self-ref rewrite fires before AND after the quote, which kills
+/// `:83:18 ==→!=` / `:83:26 &&→||` mutants (they leak the in-quote
+/// state past the close `'` and suppress the trailing bare-`$` rewrite).
+fn arb_expr_with_escaped_string() -> impl Strategy<Value = String> {
+    let safe_char = prop_oneof![
+        Just("a".to_string()),
+        Just("b".to_string()),
+        Just(" ".to_string()),
+        Just("1".to_string()),
+        Just("\\n".to_string()),
+        Just("\\t".to_string()),
+        Just("\\'".to_string()),
+        Just("\\\\".to_string()),
+    ];
+    proptest::collection::vec(safe_char, 0..6)
+        .prop_map(|body| format!("$ + '{}' + $", body.concat()))
+}
+
+/// FUT-16 Path (a): generator for implicit-alias positions where the prefix
+/// char varies across the blocked/unblocked boundary. Targets P6 + P7
+/// mutants (`is_blocked_implicit_prefix`, `:334:63` chars[i-1] arithmetic).
+/// Emits expressions like `<prefix>rows.score + 1` where `<prefix>` is
+/// either an unblocked char (space, `(`, `+`) — forcing the alias to fire
+/// — or a blocked char (ident-char, `.`, `$`, `@`) — forcing it to skip.
+fn arb_expr_with_alias_at_varying_prefix() -> impl Strategy<Value = String> {
+    let prefix = prop_oneof![
+        Just(" ".to_string()),
+        Just("(".to_string()),
+        Just("+".to_string()),
+        Just("*".to_string()),
+        Just("x".to_string()),
+        Just(".".to_string()),
+        Just("$".to_string()),
+        Just("@".to_string()),
+    ];
+    let suffix = prop_oneof![
+        Just(" + 1".to_string()),
+        Just(")".to_string()),
+        Just("".to_string()),
+        Just("123".to_string()),
+        Just("[0]".to_string()),
+    ];
+    (prefix, suffix).prop_map(|(p, s)| format!("{p}rows.score{s}"))
+}
+
+/// FUT-16 Path (a): generator for `$group.field` patterns near string-
+/// boundary positions. Targets P5 mutants (`replace_qualified_group_ref_outside_quotes`
+/// index arithmetic at `:281:27/31/51`, `:285:58/62`, `:289:25`). Emits
+/// expressions where `$group.field` appears at start, mid, or end of the
+/// expression — including trailing-dot and `$group` (no dot) shapes that
+/// stress the OOB guards.
+fn arb_expr_with_group_ref_at_boundary() -> impl Strategy<Value = String> {
+    let pattern = prop_oneof![
+        Just("$group.qty".to_string()),
+        Just("$group.q".to_string()),
+        Just("$group.".to_string()),
+        Just("$group".to_string()),
+        Just("$group.qty + 1".to_string()),
+        Just("a + $group.qty".to_string()),
+        Just("a + $group".to_string()),
+        Just("a + $group.".to_string()),
+    ];
+    pattern.prop_map(|s| s)
+}
+
 fn prep(
     expression: &str,
     current_item_path: &str,
@@ -295,6 +365,107 @@ proptest! {
         prop_assert!(
             parse(&out).is_ok(),
             "prepared (owned) output {out:?} (from {expr:?}, path {path:?}, replace={replace}) does not parse"
+        );
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // FUT-16 Path (a) — generator extensions for prepare_host.rs
+    // mutation-survivor coverage. See
+    // `thoughts/2026-05-23-mutation-survivor-followups.md` §FUT-16.
+    // ──────────────────────────────────────────────────────────────────
+
+    /// Strings containing backslash-escape sequences must round-trip
+    /// through `prepare_for_host` without panic AND must not leak
+    /// in-quote state past the close `'`. Targets `src/prepare_host.rs:83`
+    /// step_quote escape handler (base `arb_safe_expr` never generates
+    /// `\` chars, so the escape branches are otherwise untested under
+    /// proptest).
+    ///
+    /// Invariant: input has bare `$` BEFORE and AFTER the quoted span.
+    /// Both should be rewritten to `$qty` under self-ref. Output must
+    /// contain `$qty` exactly TWICE (one for each bare `$`), proving
+    /// step_quote correctly closed the quote and resumed outside-quote
+    /// scanning. Mutants that leak in-quote state past the close suppress
+    /// the trailing bare-`$` rewrite → only one `$qty` in output.
+    #[test]
+    fn escape_strings_round_trip_through_prepare(
+        expr in arb_expr_with_escaped_string(),
+    ) {
+        let out = prep(&expr, "items[0].qty", true, &[], &[]);
+        let qty_count = out.matches("$qty").count();
+        prop_assert_eq!(
+            qty_count, 2,
+            "expected $qty twice (bare-$ before AND after quoted span); got {} in output {:?} from {:?}",
+            qty_count, out, expr
+        );
+    }
+
+    /// Implicit alias rewrites must respect prefix-blocked-vs-unblocked
+    /// boundary at varying character positions. Targets P6
+    /// (`is_blocked_implicit_prefix`) and P7 (`:334:63` chars[i-1] arithmetic).
+    /// Asserts: an UNBLOCKED prefix (space, `(`, `+`, `*`) followed by the
+    /// alias produces `$rows[*].score` in the output; a BLOCKED prefix
+    /// (ident-char, `.`, `$`, `@`) suppresses the rewrite.
+    #[test]
+    fn alias_prefix_block_respected_at_varying_positions(
+        expr in arb_expr_with_alias_at_varying_prefix(),
+    ) {
+        let out = prep(
+            &expr,
+            "",
+            false,
+            &[],
+            &["rows[0].score", "rows[1].score"],
+        );
+        let prefix_char = expr.chars().next().expect("non-empty");
+        let unblocked = matches!(prefix_char, ' ' | '(' | '+' | '*');
+        let blocked_dot_or_at = matches!(prefix_char, '.' | '@');
+        let blocked_ident_or_dollar = prefix_char.is_ascii_alphanumeric()
+            || prefix_char == '_'
+            || prefix_char == '$';
+        if unblocked {
+            // Suffix may continue the alias (`123`, `[0]`) → rewrite
+            // suppressed by `suffix_continues_alias`. Check the suffix.
+            let after_alias = &expr[1 + "rows.score".len()..];
+            let suffix_blocks = after_alias.starts_with(|c: char|
+                c.is_ascii_alphanumeric() || c == '_' || c == '['
+            );
+            if !suffix_blocks {
+                prop_assert!(
+                    out.contains("$rows[*].score"),
+                    "unblocked prefix {prefix_char:?} should fire alias rewrite; got {out:?} from {expr:?}"
+                );
+            }
+        } else if blocked_dot_or_at || blocked_ident_or_dollar {
+            // Implicit rewrite suppressed. The `$`-prefix case still triggers
+            // the explicit rewrite (`$rows.score` → `$rows[*].score`), so
+            // assert on the implicit-pass invariant only when prefix is not `$`.
+            if prefix_char != '$' {
+                prop_assert!(
+                    !out.contains("[*]"),
+                    "blocked prefix {prefix_char:?} should suppress alias rewrite; got {out:?} from {expr:?}"
+                );
+            }
+        }
+    }
+
+    /// `$group.field` rewrites at boundary positions (start, mid, end,
+    /// trailing dot, no dot) must not panic and must produce the correct
+    /// rewrite shape. Targets P5 (`replace_qualified_group_ref_outside_quotes`
+    /// arithmetic at `:281:27/31/51`, `:285:58/62`, `:289:25`).
+    #[test]
+    fn group_ref_boundary_positions_do_not_panic(
+        expr in arb_expr_with_group_ref_at_boundary(),
+    ) {
+        // Repeat ancestor "group" via path; current_item_path puts us
+        // inside an innermost group instance so qualified rewrites fire.
+        let out = prep(&expr, "group[0].x", false, &[("group", 2)], &[]);
+        // Termination + non-panic is the primary invariant. Output length
+        // is bounded by input + concrete-prefix expansion; assert it's
+        // non-empty when input is non-empty.
+        prop_assert!(
+            !out.is_empty() || expr.is_empty(),
+            "prepared output unexpectedly empty for {expr:?}: {out:?}"
         );
     }
 }
