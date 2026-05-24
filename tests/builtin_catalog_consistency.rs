@@ -1,11 +1,13 @@
-//! Catalog → dispatch consistency test.
+//! Catalog → dispatch consistency tests.
 //!
 //! Asserts every entry in `BUILTIN_FUNCTIONS` is recognized by the evaluator's
-//! `eval_function` dispatch. Drift between the catalog and the dispatcher would
+//! `eval_function` dispatch AND that catalog-declared arity is uniformly
+//! enforced — FUT-7. Drift between the catalog and the dispatcher would
 //! silently break tooling that consumes the catalog (wos-lint, WASM surfaces,
 //! IDE autocomplete).
 
-use fel_core::{MapEnvironment, builtin_function_catalog, evaluate, parse};
+use fel_core::error::DiagnosticKind;
+use fel_core::{MapEnvironment, builtin_arity, builtin_function_catalog, evaluate, parse};
 
 #[test]
 #[should_panic(expected = "has no dispatch arm — diagnostic")]
@@ -60,169 +62,244 @@ fn every_catalog_entry_is_dispatched() {
     }
 }
 
-/// Catalog ↔ dispatch parity SURVEY: arity enforcement uniformity.
+/// Every catalog entry's `arity()` derivation matches the underlying parameter slice.
 ///
-/// Per FUT-7 (filed as a follow-up to this run): the FEL evaluator's
-/// builtin dispatch does NOT uniformly enforce the catalog's declared
-/// arity. Some builtins silently accept wrong-arity calls and return
-/// `Null` without a diagnostic; others go through null-propagation /
-/// type-mismatch paths that emit OTHER diagnostics; only external
-/// `ExtensionRegistry::call` enforces `ArityMismatch` cleanly.
-///
-/// This survey records the *count* of catalog entries whose
-/// observable behavior on wrong arity is "silent return" (no diagnostic,
-/// non-Null value). It pins the current behavior so future evaluator
-/// refactors that tighten arity enforcement surface here as a test diff
-/// for explicit review.
-///
-/// Addresses post-Phase-2 swarm review HIGH on
-/// `builtin_catalog_consistency` being existence-only.
+/// `min_args` counts leading required, non-variadic params plus one when the
+/// trailing param is `required: true, variadic: true` (the contract is "at
+/// least one of these"). `max_args` is `None` when the trailing param is
+/// variadic, otherwise total parameter count. The lookup helper must agree.
 #[test]
-fn catalog_arity_enforcement_uniformity_survey() {
-    use fel_core::builtin_function_catalog;
-    use fel_core::extensions::Parameter;
-
-    fn arity_bounds(parameters: &[Parameter]) -> (usize, Option<usize>) {
-        let required = parameters.iter().filter(|p| p.required).count();
-        let has_variadic = parameters.iter().any(|p| p.variadic);
-        let max = if has_variadic {
-            None
-        } else {
-            Some(parameters.len())
-        };
-        (required, max)
+fn catalog_arity_helper_matches_entries() {
+    for entry in builtin_function_catalog() {
+        let (min, max) = entry.arity();
+        // Sanity: min cannot exceed max when bounded.
+        if let Some(m) = max {
+            assert!(min <= m, "{}: min={min} > max={m}", entry.name);
+        }
+        // The lookup helper must agree with the method derivation.
+        let via_lookup = builtin_arity(entry.name)
+            .unwrap_or_else(|| panic!("builtin_arity({}) returned None", entry.name));
+        assert_eq!(
+            via_lookup,
+            (min, max),
+            "{}: arity lookup mismatch",
+            entry.name
+        );
     }
+}
 
+/// Uniformity guarantee (FUT-7): every catalog-declared builtin rejects both
+/// "too few" and "too many" arg counts with the structured arity diagnostic.
+/// No builtin silently accepts under-arity (defaulting missing positions to
+/// null) or over-arity (ignoring trailing args).
+///
+/// This test is the closure of the previous survey-style audit: counts of
+/// silently-accepting builtins must be exactly zero.
+#[test]
+fn catalog_arity_uniformly_enforced_at_dispatch() {
     let env = MapEnvironment::new();
-    let mut silent_on_too_few: Vec<&'static str> = Vec::new();
-    let mut silent_on_too_many: Vec<&'static str> = Vec::new();
+    let mut silent_on_too_few = Vec::<String>::new();
+    let mut silent_on_too_many = Vec::<String>::new();
 
     for entry in builtin_function_catalog() {
-        let (min_args, max_args) = arity_bounds(entry.parameters);
+        let (min, max) = entry.arity();
 
-        if min_args >= 1 {
-            let too_few = min_args - 1;
-            let args = (0..too_few)
-                .map(|i| (i + 1).to_string())
-                .collect::<Vec<_>>()
-                .join(", ");
-            let expr_src = format!("{}({args})", entry.name);
-            if let Ok(parsed) = parse(&expr_src) {
-                let result = evaluate(&parsed, &env);
-                let silent = result.value != fel_core::Value::Null && result.diagnostics.is_empty();
-                if silent {
-                    silent_on_too_few.push(entry.name);
-                }
+        // Probe under-arity if the function takes at least one required arg.
+        if min > 0 {
+            // Call with `min - 1` null args (always parseable as `null` literals).
+            let arg_list = vec!["null"; min - 1].join(", ");
+            let src = format!("{}({})", entry.name, arg_list);
+            let parsed = parse(&src).unwrap_or_else(|e| {
+                panic!(
+                    "under-arity probe for {} failed to parse `{}`: {e}",
+                    entry.name, src
+                )
+            });
+            let result = evaluate(&parsed, &env);
+            let rejected = result.diagnostics.iter().any(|d| {
+                matches!(
+                    &d.kind,
+                    Some(DiagnosticKind::ArityMismatch { name, .. }) if name == entry.name
+                )
+            });
+            if !rejected {
+                silent_on_too_few.push(entry.name.to_string());
             }
         }
 
-        if let Some(max) = max_args
-            && min_args <= max
-        {
-            let too_many = max + 1;
-            let args = (0..too_many)
-                .map(|i| (i + 1).to_string())
-                .collect::<Vec<_>>()
-                .join(", ");
-            let expr_src = format!("{}({args})", entry.name);
-            if let Ok(parsed) = parse(&expr_src) {
-                let result = evaluate(&parsed, &env);
-                let silent = result.value != fel_core::Value::Null && result.diagnostics.is_empty();
-                if silent {
-                    silent_on_too_many.push(entry.name);
-                }
+        // Probe over-arity if the function has a bounded upper limit.
+        if let Some(m) = max {
+            let arg_list = vec!["null"; m + 1].join(", ");
+            let src = format!("{}({})", entry.name, arg_list);
+            let parsed = parse(&src).unwrap_or_else(|e| {
+                panic!(
+                    "over-arity probe for {} failed to parse `{}`: {e}",
+                    entry.name, src
+                )
+            });
+            let result = evaluate(&parsed, &env);
+            let rejected = result.diagnostics.iter().any(|d| {
+                matches!(
+                    &d.kind,
+                    Some(DiagnosticKind::ArityMismatch { name, .. }) if name == entry.name
+                )
+            });
+            if !rejected {
+                silent_on_too_many.push(entry.name.to_string());
             }
         }
     }
 
-    // Print the survey so `cargo test -- --nocapture` shows the current
-    // gap surface. Future-you reading this: if these lists grow
-    // unexpectedly between releases, the evaluator quietly stopped
-    // enforcing arity for new builtins.
-    println!("[catalog-arity-survey]");
-    println!(
-        "  silent on too-few args  ({:>3}): {silent_on_too_few:?}",
-        silent_on_too_few.len()
-    );
-    println!(
-        "  silent on too-many args ({:>3}): {silent_on_too_many:?}",
-        silent_on_too_many.len()
-    );
-
-    // Pinned upper bounds — adjust ONLY downward (with a commit message
-    // citing the evaluator-side enforcement fix that made it tighter).
-    // Upward drift means new catalog entries the dispatch doesn't gate;
-    // that should fail loudly. Current actual: 10 / 24 at sha-of-commit.
-    const MAX_KNOWN_SILENT_TOO_FEW: usize = 15;
-    const MAX_KNOWN_SILENT_TOO_MANY: usize = 30;
     assert!(
-        silent_on_too_few.len() <= MAX_KNOWN_SILENT_TOO_FEW,
-        "silent-on-too-few count grew unexpectedly: {} > {}",
+        silent_on_too_few.is_empty(),
+        "FUT-7 regression: {} builtins silently accept too-few args: {:?}",
         silent_on_too_few.len(),
-        MAX_KNOWN_SILENT_TOO_FEW
+        silent_on_too_few
     );
     assert!(
-        silent_on_too_many.len() <= MAX_KNOWN_SILENT_TOO_MANY,
-        "silent-on-too-many count grew unexpectedly: {} > {}",
+        silent_on_too_many.is_empty(),
+        "FUT-7 regression: {} builtins silently accept too-many args: {:?}",
         silent_on_too_many.len(),
-        MAX_KNOWN_SILENT_TOO_MANY
+        silent_on_too_many
     );
 }
 
-/// `DiagnosticKind` is the closed/append-only public API surface for
-/// machine-readable diagnostic categories (per crate `README.md`
-/// stability commitment). When a new variant is added, this test forces
-/// the maintainer to extend the `kind_to_string` map below — protecting
-/// downstream code (CI fixture serializers, conformance harnesses) that
-/// reads the kind by name from silently mis-categorizing the new variant.
-///
-/// If you've added a variant to `DiagnosticKind` and this test won't
-/// compile, that's the test working as designed: add the new match arm
-/// here and update any consumer that needed to know about it.
+/// Pinned diagnostic shape for under-arity (representative cases).
+/// Exercising one bounded-equal (`min==max`) and one bounded-range function
+/// guards against regression of the catalog-driven message phrasing.
 #[test]
-fn diagnostic_kind_variants_have_exhaustive_string_mapping() {
-    use fel_core::DiagnosticKind;
+fn under_arity_rejection_pins_diagnostic_shape() {
+    let env = MapEnvironment::new();
 
-    // The exhaustive match below MUST cover every variant. Compilation
-    // fails if a variant is added without updating this map — the audit
-    // signal we want.
-    fn kind_to_string(k: &DiagnosticKind) -> &'static str {
-        match k {
-            DiagnosticKind::UndefinedFunction { .. } => "undefinedFunction",
-            DiagnosticKind::TypeMismatch { .. } => "typeMismatch",
-            DiagnosticKind::ArityMismatch { .. } => "arityMismatch",
-        }
-    }
+    // `power(base, exponent)` is bounded 2..=2 — "requires exactly 2 arguments".
+    let result = evaluate(&parse("power(2)").unwrap(), &env);
+    let diag = result
+        .diagnostics
+        .iter()
+        .find_map(|d| match &d.kind {
+            Some(DiagnosticKind::ArityMismatch {
+                name,
+                min_args,
+                max_args,
+                got,
+            }) => Some((name.clone(), *min_args, *max_args, *got)),
+            _ => None,
+        })
+        .expect("power(2) must emit ArityMismatch");
+    assert_eq!(diag, ("power".to_string(), 2, Some(2), 1));
 
-    // Spot-construct each variant to confirm runtime behavior (not just
-    // exhaustiveness at compile time).
-    let cases = [
-        (
-            DiagnosticKind::UndefinedFunction {
-                name: "foo".to_string(),
-            },
-            "undefinedFunction",
-        ),
-        (
-            DiagnosticKind::TypeMismatch {
-                fn_name: "f".to_string(),
-                expected: "number".to_string(),
-                got: "string".to_string(),
-            },
-            "typeMismatch",
-        ),
-        (
-            DiagnosticKind::ArityMismatch {
-                name: "f".to_string(),
-                min_args: 1,
-                max_args: Some(2),
-                got: 3,
-            },
-            "arityMismatch",
-        ),
-    ];
+    // `substring(value, start, length?)` is bounded 2..=3 — "requires at least 2".
+    let result = evaluate(&parse("substring('x')").unwrap(), &env);
+    let diag = result
+        .diagnostics
+        .iter()
+        .find_map(|d| match &d.kind {
+            Some(DiagnosticKind::ArityMismatch {
+                name,
+                min_args,
+                max_args,
+                got,
+            }) => Some((name.clone(), *min_args, *max_args, *got)),
+            _ => None,
+        })
+        .expect("substring('x') must emit ArityMismatch");
+    assert_eq!(diag, ("substring".to_string(), 2, Some(3), 1));
 
-    for (kind, expected_name) in &cases {
-        assert_eq!(kind_to_string(kind), *expected_name);
+    // `coalesce(...values)` is `1..` (variadic required) — "requires at least 1".
+    let result = evaluate(&parse("coalesce()").unwrap(), &env);
+    let diag = result
+        .diagnostics
+        .iter()
+        .find_map(|d| match &d.kind {
+            Some(DiagnosticKind::ArityMismatch {
+                name,
+                min_args,
+                max_args,
+                got,
+            }) => Some((name.clone(), *min_args, *max_args, *got)),
+            _ => None,
+        })
+        .expect("coalesce() must emit ArityMismatch");
+    assert_eq!(diag, ("coalesce".to_string(), 1, None, 0));
+}
+
+/// Pinned diagnostic shape for over-arity (previously silently dropped).
+/// `round(value, precision?)` is bounded 1..=2; a third arg used to be ignored.
+#[test]
+fn over_arity_rejection_pins_diagnostic_shape() {
+    let env = MapEnvironment::new();
+
+    let result = evaluate(&parse("round(1, 2, 3)").unwrap(), &env);
+    let diag = result
+        .diagnostics
+        .iter()
+        .find_map(|d| match &d.kind {
+            Some(DiagnosticKind::ArityMismatch {
+                name,
+                min_args,
+                max_args,
+                got,
+            }) => Some((name.clone(), *min_args, *max_args, *got)),
+            _ => None,
+        })
+        .expect("round(1, 2, 3) must emit ArityMismatch");
+    assert_eq!(diag, ("round".to_string(), 1, Some(2), 3));
+
+    // `length(value)` is exact 1..=1 — extra args now rejected (used to be dropped).
+    let result = evaluate(&parse("length('a', 'b')").unwrap(), &env);
+    let diag = result
+        .diagnostics
+        .iter()
+        .find_map(|d| match &d.kind {
+            Some(DiagnosticKind::ArityMismatch {
+                name,
+                min_args,
+                max_args,
+                got,
+            }) => Some((name.clone(), *min_args, *max_args, *got)),
+            _ => None,
+        })
+        .expect("length('a', 'b') must emit ArityMismatch");
+    assert_eq!(diag, ("length".to_string(), 1, Some(1), 2));
+
+    // `today()` is exact 0..=0 — a stray arg now rejected.
+    let result = evaluate(&parse("today(1)").unwrap(), &env);
+    let diag = result
+        .diagnostics
+        .iter()
+        .find_map(|d| match &d.kind {
+            Some(DiagnosticKind::ArityMismatch {
+                name,
+                min_args,
+                max_args,
+                got,
+            }) => Some((name.clone(), *min_args, *max_args, *got)),
+            _ => None,
+        })
+        .expect("today(1) must emit ArityMismatch");
+    assert_eq!(diag, ("today".to_string(), 0, Some(0), 1));
+}
+
+/// Variadic catalog declarations remain unbounded above: `coalesce`, `format`,
+/// `min`, `max`. Calls with many args must not be rejected.
+#[test]
+fn variadic_calls_remain_unbounded() {
+    let env = MapEnvironment::new();
+    for src in [
+        "coalesce(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)",
+        "format('{0}-{1}-{2}-{3}', 'a', 'b', 'c', 'd')",
+        "min(5, 4, 3, 2, 1)",
+        "max(1, 2, 3, 4, 5)",
+    ] {
+        let parsed = parse(src).unwrap_or_else(|e| panic!("parse {src}: {e}"));
+        let result = evaluate(&parsed, &env);
+        let arity_diag = result
+            .diagnostics
+            .iter()
+            .any(|d| matches!(&d.kind, Some(DiagnosticKind::ArityMismatch { .. })));
+        assert!(
+            !arity_diag,
+            "variadic call `{src}` must not be rejected by the arity gate"
+        );
     }
 }

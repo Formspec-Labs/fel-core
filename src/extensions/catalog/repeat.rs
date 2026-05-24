@@ -5,6 +5,13 @@ use super::super::types::*;
 
 pub(super) const ENTRIES: &[BuiltinFunctionCatalogEntry] = &[
     // ── repeat ───────────────────────────────────────────────────────────────
+    // Repeat-navigation builtins (`prev`, `next`, `parent`) currently return the
+    // previous/next/parent ITEM as a whole; the optional `fieldName` argument is
+    // documented as part of the eventual richer surface but is presently ignored
+    // by the evaluator. Until a separate ticket implements field-projection
+    // semantics, the parameter is declared optional so the uniform arity gate
+    // accepts both the bare form `prev()` (return the prior item) and the
+    // forward-compatible `prev('field')` shape.
     BuiltinFunctionCatalogEntry {
         name: "prev",
         category: "repeat",
@@ -12,23 +19,23 @@ pub(super) const ENTRIES: &[BuiltinFunctionCatalogEntry] = &[
             name: "fieldName",
             fel_type: FelType::String,
             description: Some(
-                "Name of the sibling field to read from the previous repeat instance.",
+                "Reserved for the future field-projection form. Currently ignored; bare `prev()` returns the previous repeat item.",
             ),
-            required: true,
+            required: false,
             variadic: false,
             allowed_values: None,
         }],
         returns: FelType::Any,
         return_description: None,
-        description: "Returns the value of the named field from the previous repeat instance (index - 1). Must be called within a repeat context. Returns null if at the first instance or not inside a repeat.",
+        description: "Returns the previous repeat instance's value. Must be called within a repeat context. Returns null if at the first instance or not inside a repeat. The optional `fieldName` argument is reserved and not yet honored.",
         null_handling: Some("Returns null when no previous instance exists."),
         deterministic: true,
         emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[Example {
-            expression: "prev('runningTotal')",
+            expression: "prev()",
             result_json: "500",
-            note: Some("Value from previous row"),
+            note: Some("Value of the previous repeat item"),
         }],
         since_version: "1.0",
         package: Package::Formspec,
@@ -39,22 +46,24 @@ pub(super) const ENTRIES: &[BuiltinFunctionCatalogEntry] = &[
         parameters: &[Parameter {
             name: "fieldName",
             fel_type: FelType::String,
-            description: Some("Name of the sibling field to read from the next repeat instance."),
-            required: true,
+            description: Some(
+                "Reserved for the future field-projection form. Currently ignored; bare `next()` returns the next repeat item.",
+            ),
+            required: false,
             variadic: false,
             allowed_values: None,
         }],
         returns: FelType::Any,
         return_description: None,
-        description: "Returns the value of the named field from the next repeat instance (index + 1). Must be called within a repeat context. Returns null if at the last instance or not inside a repeat.",
+        description: "Returns the next repeat instance's value. Must be called within a repeat context. Returns null if at the last instance or not inside a repeat. The optional `fieldName` argument is reserved and not yet honored.",
         null_handling: Some("Returns null when no next instance exists."),
         deterministic: true,
         emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[Example {
-            expression: "next('amount')",
+            expression: "next()",
             result_json: "200",
-            note: Some("Peek at next row's value"),
+            note: Some("Value of the next repeat item"),
         }],
         since_version: "1.0",
         package: Package::Formspec,
@@ -65,22 +74,24 @@ pub(super) const ENTRIES: &[BuiltinFunctionCatalogEntry] = &[
         parameters: &[Parameter {
             name: "fieldName",
             fel_type: FelType::String,
-            description: Some("Name of the ancestor field to find."),
-            required: true,
+            description: Some(
+                "Reserved for the future field-projection form. Currently ignored; bare `parent()` returns the parent repeat item.",
+            ),
+            required: false,
             variadic: false,
             allowed_values: None,
         }],
         returns: FelType::Any,
         return_description: None,
-        description: "Walks up the path hierarchy from the current item and returns the value of the first ancestor field matching the given name. Useful for accessing enclosing group data from within nested repeats.",
-        null_handling: Some("Returns null if no ancestor field with that name is found."),
+        description: "Returns the parent repeat instance's value when called from within a nested repeat. Returns null if no parent exists. The optional `fieldName` argument is reserved and not yet honored.",
+        null_handling: Some("Returns null if no parent repeat exists."),
         deterministic: true,
         emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[Example {
-            expression: "parent('projectName')",
+            expression: "parent()",
             result_json: "\"Infrastructure Upgrade\"",
-            note: None,
+            note: Some("Value of the enclosing repeat item"),
         }],
         since_version: "1.0",
         package: Package::Formspec,

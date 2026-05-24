@@ -75,9 +75,7 @@ impl<'a> Evaluator<'a> {
     }
 
     pub(in crate::evaluator) fn fn_count_where(&mut self, args: &[Expr]) -> Value {
-        if !self.require_min_args(args, 2, "countWhere") {
-            return Value::Null;
-        }
+        // Arity enforced by the uniform pre-dispatch gate in `eval_function`.
         let arr_val = self.eval(&args[0]);
         let arr = match self.get_array(&arr_val, "countWhere") {
             Some(a) => a,
@@ -94,9 +92,7 @@ impl<'a> Evaluator<'a> {
     }
 
     pub(in crate::evaluator) fn fn_every(&mut self, args: &[Expr]) -> Value {
-        if !self.require_min_args(args, 2, "every") {
-            return Value::Null;
-        }
+        // Arity enforced by the uniform pre-dispatch gate in `eval_function`.
         let arr_val = self.eval(&args[0]);
         let arr = match self.get_array(&arr_val, "every") {
             Some(a) => a,
@@ -112,9 +108,7 @@ impl<'a> Evaluator<'a> {
     }
 
     pub(in crate::evaluator) fn fn_some(&mut self, args: &[Expr]) -> Value {
-        if !self.require_min_args(args, 2, "some") {
-            return Value::Null;
-        }
+        // Arity enforced by the uniform pre-dispatch gate in `eval_function`.
         let arr_val = self.eval(&args[0]);
         let arr = match self.get_array(&arr_val, "some") {
             Some(a) => a,

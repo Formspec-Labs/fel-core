@@ -58,3 +58,15 @@ pub fn builtin_function_catalog_for(
         Package::Formspec => true,
     })
 }
+
+/// Look up the catalog-declared arity for `name` as `(min_args, max_args)`.
+///
+/// Returns `None` when `name` is not a built-in. The evaluator uses this for the
+/// uniform pre-dispatch arity check so every catalog-declared signature is
+/// enforced consistently — see `Evaluator::eval_function`.
+pub fn builtin_arity(name: &str) -> Option<(usize, Option<usize>)> {
+    BUILTIN_FUNCTIONS
+        .iter()
+        .find(|e| e.name == name)
+        .map(BuiltinFunctionCatalogEntry::arity)
+}

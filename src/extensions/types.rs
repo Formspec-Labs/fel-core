@@ -128,6 +128,40 @@ pub struct BuiltinFunctionCatalogEntry {
     pub package: Package,
 }
 
+impl BuiltinFunctionCatalogEntry {
+    /// Catalog-declared arity bounds: `(min_args, max_args)`.
+    ///
+    /// `min_args` counts leading required, non-variadic parameters; a trailing
+    /// `required: true, variadic: true` parameter contributes one to `min_args`
+    /// (the contract is "at least one of these"). `max_args` is `None` when the
+    /// last parameter is variadic, otherwise the total parameter count.
+    ///
+    /// This is the single source of truth consumed by the evaluator's uniform
+    /// pre-dispatch arity check (see `eval_function`).
+    pub fn arity(&self) -> (usize, Option<usize>) {
+        let mut min = 0usize;
+        let mut variadic_tail = false;
+        for p in self.parameters {
+            if p.variadic {
+                variadic_tail = true;
+                if p.required {
+                    min += 1;
+                }
+                break;
+            }
+            if p.required {
+                min += 1;
+            }
+        }
+        let max = if variadic_tail {
+            None
+        } else {
+            Some(self.parameters.len())
+        };
+        (min, max)
+    }
+}
+
 /// Type alias for extension function implementations.
 pub type ExtensionFn = Box<dyn Fn(&[TypeValue]) -> TypeValue + Send + Sync>;
 

@@ -156,9 +156,7 @@ impl<'a> Evaluator<'a> {
     }
 
     pub(in crate::evaluator) fn fn_format(&mut self, args: &[Expr]) -> Value {
-        if args.is_empty() {
-            return Value::Null;
-        }
+        // Arity enforced by the uniform pre-dispatch gate in `eval_function`.
         let template = match self.eval(&args[0]) {
             Value::String(s) => s,
             Value::Null => return Value::Null,

@@ -499,36 +499,6 @@ impl<'a> Evaluator<'a> {
         out
     }
 
-    /// Emits `{fn_name}: requires at least {min} arguments` and returns `false` when `args.len() < min`.
-    pub(super) fn require_min_args(&mut self, args: &[Expr], min: usize, fn_name: &str) -> bool {
-        if args.len() < min {
-            self.diagnostics
-                .push(crate::error::Diagnostic::arity_mismatch(
-                    fn_name,
-                    min,
-                    None,
-                    args.len(),
-                ));
-            return false;
-        }
-        true
-    }
-
-    /// Emits an arity diagnostic and returns `false` when the argument count differs.
-    pub(super) fn require_exact_args(&mut self, args: &[Expr], n: usize, fn_name: &str) -> bool {
-        if args.len() != n {
-            self.diagnostics
-                .push(crate::error::Diagnostic::arity_mismatch(
-                    fn_name,
-                    n,
-                    Some(n),
-                    args.len(),
-                ));
-            return false;
-        }
-        true
-    }
-
     /// Records a structured type mismatch diagnostic (no [`Value`] returned).
     pub(super) fn diag_expected_type(&mut self, fn_name: &str, expected: &str, got_type: &str) {
         self.diagnostics
@@ -1571,6 +1541,21 @@ impl<'a> Evaluator<'a> {
     // ── Standard library functions ──────────────────────────────
 
     fn eval_function(&mut self, name: &str, args: &[Expr]) -> Value {
+        // Uniform catalog-driven arity gate (FUT-7). Every built-in's signature
+        // — `(min, max)` derived from `BuiltinFunctionCatalogEntry::arity` — is
+        // enforced before dispatch so handlers cannot silently accept too-few
+        // args (defaulting missing positions to null) or too-many args (ignoring
+        // tails). Unknown names skip this gate and fall through to the
+        // extension registry / undefined-function diagnostic at the bottom.
+        if let Some((min, max)) = crate::extensions::builtin_arity(name) {
+            let got = args.len();
+            let out_of_bounds = got < min || max.is_some_and(|m| got > m);
+            if out_of_bounds {
+                self.diagnostics
+                    .push(Diagnostic::arity_mismatch(name, min, max, got));
+                return Value::Null;
+            }
+        }
         match name {
             // Aggregates
             "sum" => self.fn_aggregate(args, "sum", |nums| nums.iter().copied().sum()),
@@ -1813,10 +1798,10 @@ impl<'a> Evaluator<'a> {
     }
 
     /// Filter array elements by predicate (shared by sumWhere / avgWhere / minWhere / maxWhere / moneySumWhere).
+    ///
+    /// Arity is enforced upstream by the uniform pre-dispatch gate in `eval_function`;
+    /// callers are guaranteed `args.len() >= 2` and may index `args[0]`/`args[1]` directly.
     pub(super) fn filter_where(&mut self, args: &[Expr], fn_name: &str) -> Option<Vec<Value>> {
-        if !self.require_min_args(args, 2, fn_name) {
-            return None;
-        }
         let arr_val = self.eval(&args[0]);
         let arr = self.get_array(&arr_val, fn_name)?;
         let mut matched = Vec::new();

@@ -576,10 +576,13 @@ fn test_builtin_type_and_arity_diagnostics_normalize() {
 
     let out = evaluate(&parse("power(2)").unwrap(), &env);
     assert_eq!(out.value, Value::Null);
+    // After FUT-7 the catalog-driven gate knows `power` is bounded (2..=2), so
+    // the diagnostic uses the precise "exactly" phrasing rather than the looser
+    // "at least" the legacy per-builtin helper used to emit.
     assert!(
         out.diagnostics
             .iter()
-            .any(|d| d.message.contains("requires at least 2 arguments"))
+            .any(|d| d.message.contains("requires exactly 2 arguments"))
     );
 
     let out = evaluate(&parse("power('a', 2)").unwrap(), &env);

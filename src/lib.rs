@@ -55,8 +55,8 @@ pub use evaluator::{
 };
 pub use extensions::{
     ExtensionCallOutcome, ExtensionError, ExtensionFn, ExtensionFunc, ExtensionRegistry, Package,
-    builtin_function_catalog, builtin_function_catalog_for, builtin_function_catalog_json_value,
-    builtin_function_catalog_json_value_for,
+    builtin_arity, builtin_function_catalog, builtin_function_catalog_for,
+    builtin_function_catalog_json_value, builtin_function_catalog_json_value_for,
 };
 pub use indexmap::IndexMap;
 pub use interpolation::expr_is_interpolation_static_literal;

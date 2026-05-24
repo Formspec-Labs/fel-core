@@ -13,9 +13,7 @@ impl<'a> Evaluator<'a> {
     // ── Logical helpers ─────────────────────────────────────────
 
     pub(in crate::evaluator) fn fn_if(&mut self, args: &[Expr]) -> Value {
-        if !self.require_exact_args(args, 3, "if") {
-            return Value::Null;
-        }
+        // Arity enforced by the uniform pre-dispatch gate in `eval_function`.
         let cond = self.eval(&args[0]);
         match cond {
             Value::Null => {
@@ -207,10 +205,7 @@ impl<'a> Evaluator<'a> {
     // ── MIP state queries ───────────────────────────────────────
 
     pub(in crate::evaluator) fn fn_mip(&mut self, args: &[Expr], kind: &str) -> Value {
-        if args.is_empty() {
-            self.diag(format!("{kind}: requires 1 argument"));
-            return Value::Null;
-        }
+        // Arity enforced by the uniform pre-dispatch gate in `eval_function`.
         let path = extract_field_path(&args[0]);
         match kind {
             "valid" => self.env.mip_valid(&path),

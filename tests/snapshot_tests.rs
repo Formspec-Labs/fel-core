@@ -46,8 +46,12 @@ fn snapshot_type_mismatch_errors() {
 
 #[test]
 fn snapshot_builtin_arity_errors() {
-    assert_snapshot!(diag_first("countWhere([1])"), @"countWhere: requires at least 2 arguments");
-    assert_snapshot!(diag_first("moneySumWhere([money(1, 'USD')])"), @"moneySumWhere: requires at least 2 arguments");
+    // After FUT-7 the catalog drives arity bounds: countWhere / moneySumWhere
+    // are declared `(array, predicate)` (min=max=2), so the diagnostic uses the
+    // precise "exactly" phrasing. money(amount, currency) is bounded 2..=2, so
+    // a third argument now yields an arity error rather than a silent drop.
+    assert_snapshot!(diag_first("countWhere([1])"), @"countWhere: requires exactly 2 arguments");
+    assert_snapshot!(diag_first("moneySumWhere([money(1, 'USD')])"), @"moneySumWhere: requires exactly 2 arguments");
     assert_snapshot!(diag_first("money(10, 'XXXx')"), @"money: currency must be a three-letter ISO code");
-    assert_snapshot!(diag_first("money(10, 'USD', 3)"), @"no diagnostics");
+    assert_snapshot!(diag_first("money(10, 'USD', 3)"), @"money: requires exactly 2 arguments");
 }

@@ -65,9 +65,7 @@ impl<'a> Evaluator<'a> {
     }
 
     pub(in crate::evaluator) fn fn_power(&mut self, args: &[Expr]) -> Value {
-        if !self.require_min_args(args, 2, "power") {
-            return Value::Null;
-        }
+        // Arity enforced by the uniform pre-dispatch gate in `eval_function`.
         let base = match self.eval_arg(args, 0) {
             Value::Number(n) => n,
             Value::Null => return Value::Null,
