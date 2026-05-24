@@ -772,6 +772,10 @@ Sum: 2+4+2+8+2+2+1+2+1 = 24 KILL. Strict: P4 (202:33) + P5 (288:41) = 2. Test-co
 | FUT-16-INVESTIGATE | Investigate why `:312:5` and `:320:5` in prepare_host.rs survived despite seemingly-covering inline mod tests; possibly cargo-mutants config issue with inline `#[cfg(test)] mod tests`. |
 | FUT-17 | Decision on timeout-kill counting in `kill_rate` formula. Either: (a) extend formula to credit timeouts as kills (lexer.rs precedent at ba41e68+); (b) require dedicated termination assertions per timeout cluster (more work, same audit outcome). Cross-file impact: lexer.rs 13 timeouts, parser.rs 14 timeouts, prepare_host.rs 20 timeouts. Total 47 timeouts in suspended classification. |
 
+### Mutation-survivor ↔ lib_reexport_coverage_gate lifecycle
+
+When a mutation survivor (FUT-15/16/17 or any future ticket) is identified on a symbol that has a manifest entry in `tests/lib_reexport_coverage.toml`, update that entry's `notes` field to flag the gap with a `(survivor: <mutant-loc>)` reference (e.g. `(survivor: src/evaluator/core.rs:412)`). This keeps the gate's reviewer-facing audit trail (manifest `notes`) in sync with the mutation-survivor backlog, so a future reviewer reading the manifest sees the known coverage hole without having to cross-reference this doc. The gate itself does not enforce this — it is a reviewer-discipline note — but the cross-reference closes the audit loop between the two coverage instruments.
+
 ### Updated FUT-2 status
 
 FUT-2 closed with: **42 of 42 evaluator/core.rs survivors classified** — 36 equivalent (4 strict + 32 test-coverage) + 6 kill candidates (FUT-15). The 83.66% formula kill rate is honest per the project's policy; the audit-trend kill rate including equivalents is 97.7%, well above the (provisional) ≥80% floor.
