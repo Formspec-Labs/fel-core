@@ -1,4 +1,6 @@
-//! Property tests for `fel_core::prepare_for_host` — Phase 3 FUT-4.
+//! Property tests for `fel_core::prepare_for_host` and `fel_core::prepare`
+//! — Phase 3 FUT-4 (and Phase 3a P0 #4 per
+//! `thoughts/2026-05-23-phase-3-ci-gate-design.md:233`).
 //!
 //! Phase 2 mutation gate confirmed `prepare_host.rs` has the lowest kill
 //! rate (69%) among P0 seams with 20 timeout-survivors indicating
@@ -7,7 +9,7 @@
 //! survivors, generate diverse inputs and assert invariants on the
 //! prepass output.
 //!
-//! Properties tested:
+//! Properties tested on `prepare_for_host`:
 //!
 //! 1. **Pass-through on no-op context** — empty `current_item_path` +
 //!    no repeat counts + `replace_self_ref=false` MUST be identity on
@@ -22,10 +24,21 @@
 //! 4. **Idempotence** — running prepare twice produces the same output
 //!    as running it once (the transform is its own fixed point on
 //!    already-prepared expressions).
+//!
+//! Properties tested on `prepare` (owned-options sibling):
+//!
+//! - **Equivalence** — `prepare(&opts)` MUST equal `prepare_for_host(input)`
+//!   built from the same fields. The two entry points diverge on input
+//!   shape only (borrowed vs owned); behavior is identical. This
+//!   single property pins the contract and obviates per-property
+//!   duplication of idempotence / termination / parseability — they
+//!   transitively follow from equivalence plus the `prepare_for_host`
+//!   properties. The three required `prepare`-side proptests below
+//!   carry over by calling through the owned entry point.
 
 #![allow(clippy::missing_docs_in_private_items)]
 
-use fel_core::{PrepareHostInput, parse, prepare_for_host};
+use fel_core::{PrepareHostInput, PrepareHostOptions, parse, prepare, prepare_for_host};
 use proptest::prelude::*;
 use std::collections::HashMap;
 
@@ -73,6 +86,26 @@ fn prep(
         repeat_counts: &rc,
         field_paths: &fp,
     })
+}
+
+/// Owned-options sibling of [`prep`]. Routes through `prepare` rather
+/// than `prepare_for_host` so the owned entry point is exercised
+/// directly under proptest pressure.
+fn prep_owned(
+    expression: &str,
+    current_item_path: &str,
+    replace_self_ref: bool,
+    repeats: &[(&str, u32)],
+    paths: &[&str],
+) -> String {
+    let opts = PrepareHostOptions {
+        expression: expression.to_string(),
+        current_item_path: current_item_path.to_string(),
+        replace_self_ref,
+        repeat_counts: repeats.iter().map(|(k, v)| (k.to_string(), *v)).collect(),
+        field_paths: paths.iter().map(|s| (*s).to_string()).collect(),
+    };
+    prepare(&opts)
 }
 
 proptest! {
@@ -176,5 +209,92 @@ proptest! {
         // this input class. proptest's test-runner timeout catches
         // hangs in CI.
         let _ = prep(&expr, &path, true, &repeats, &[]);
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // `prepare` (owned-options sibling) — Phase 3a P0 #4
+    // ──────────────────────────────────────────────────────────────────
+    //
+    // `prepare(&PrepareHostOptions)` is a shape-only adapter over
+    // `prepare_for_host(PrepareHostInput<'_>)` (see
+    // `src/prepare_host.rs:456-464`). The properties below mirror the
+    // `prepare_for_host` block above; the additional `equivalence`
+    // property pins the contract that the two entry points must produce
+    // byte-identical output for equivalent inputs. A future mutation
+    // that diverges `prepare` from `prepare_for_host` is caught by the
+    // equivalence test; the idempotence / termination / parseability
+    // tests provide redundancy at the owned entry point itself so the
+    // proptest manifest can cite `prepare` directly per the FUT-4 gate.
+
+    /// Equivalence: `prepare(&opts)` and `prepare_for_host(input)` must
+    /// agree byte-for-byte for inputs built from the same fields. This
+    /// is the load-bearing invariant for the shape-only divergence.
+    #[test]
+    fn prepare_equivalent_to_prepare_for_host(
+        expr in arb_safe_expr(),
+        path in arb_safe_ident().prop_map(|n| format!("{n}[0].field")),
+        replace in any::<bool>(),
+        repeats_n in 0u32..5,
+    ) {
+        let repeats: Vec<(&str, u32)> = if repeats_n > 0 {
+            vec![("group", repeats_n)]
+        } else {
+            vec![]
+        };
+        let owned = prep_owned(&expr, &path, replace, &repeats, &[]);
+        let borrowed = prep(&expr, &path, replace, &repeats, &[]);
+        prop_assert_eq!(owned, borrowed);
+    }
+
+    /// Idempotence (owned): `prepare(prepare(opts)) == prepare(opts)`
+    /// for the same context. Mirrors `prepare_is_idempotent` above.
+    #[test]
+    fn prepare_owned_is_idempotent(
+        expr in arb_safe_expr(),
+        path in arb_safe_ident().prop_map(|n| format!("{n}[0].field")),
+    ) {
+        let Ok(_) = parse(&expr) else {
+            return Ok(());
+        };
+        let once = prep_owned(&expr, &path, true, &[], &[]);
+        let twice = prep_owned(&once, &path, true, &[], &[]);
+        prop_assert_eq!(once, twice);
+    }
+
+    /// Termination (owned): the owned entry point must terminate on
+    /// any `arb_safe_expr`. Mirrors `prepare_terminates_on_arbitrary_input`.
+    #[test]
+    fn prepare_owned_terminates_on_arbitrary_input(
+        expr in arb_safe_expr(),
+        path in arb_safe_ident().prop_map(|n| format!("{n}[0].field")),
+        repeats_n in 0u32..5,
+    ) {
+        let Ok(_) = parse(&expr) else {
+            return Ok(());
+        };
+        let repeats: Vec<(&str, u32)> = if repeats_n > 0 {
+            vec![("group", repeats_n)]
+        } else {
+            vec![]
+        };
+        let _ = prep_owned(&expr, &path, true, &repeats, &[]);
+    }
+
+    /// Parseability (owned): output of `prepare` parses back to a
+    /// valid AST. Mirrors `prepared_output_parses` above.
+    #[test]
+    fn prepare_owned_output_parses(
+        expr in arb_safe_expr(),
+        path in arb_safe_ident().prop_map(|n| format!("{n}[0].field")),
+        replace in any::<bool>(),
+    ) {
+        let Ok(_) = parse(&expr) else {
+            return Ok(());
+        };
+        let out = prep_owned(&expr, &path, replace, &[], &[]);
+        prop_assert!(
+            parse(&out).is_ok(),
+            "prepared (owned) output {out:?} (from {expr:?}, path {path:?}, replace={replace}) does not parse"
+        );
     }
 }
