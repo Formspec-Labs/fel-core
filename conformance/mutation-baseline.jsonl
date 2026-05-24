@@ -54,3 +54,5 @@
 {"file": "src/lexer.rs", "total": 184, "killed": 163, "missed": 1, "timeout": 13, "unviable": 7, "kill_rate": 0.9944, "sha": "historical-recompute@3a4a8c8", "recomputed_from_sha": "ba41e68", "prior_kill_rate": 0.9209}
 {"file": "src/parser.rs", "total": 147, "killed": 92, "missed": 23, "timeout": 1, "unviable": 31, "kill_rate": 0.8017, "sha": "historical-recompute@3a4a8c8", "recomputed_from_sha": "cdb6fe8", "prior_kill_rate": 0.7931}
 {"file": "src/parser.rs", "total": 147, "killed": 93, "missed": 9, "timeout": 14, "unviable": 31, "kill_rate": 0.9224, "sha": "historical-recompute@3a4a8c8", "recomputed_from_sha": "7726f86", "prior_kill_rate": 0.8017}
+{"file": "src/evaluator/core.rs", "total": 308, "killed": 218, "missed": 37, "timeout": 0, "unviable": 53, "kill_rate": 0.8549, "sha": "fcfd8ae"}
+{"file": "src/prepare_host.rs", "total": 195, "killed": 165, "missed": 7, "timeout": 20, "unviable": 3, "kill_rate": 0.9635, "sha": "fcfd8ae"}
