@@ -511,3 +511,128 @@ fn public_tokenize_exposes_chevrotain_compatible_names_and_spans() {
     assert_eq!(name.start, 4);
     assert_eq!(name.end, 8);
 }
+
+// ── Mutation-survivor kills (Phase 2 follow-up FUT) ──────────────
+//
+// These tests pin specific behaviors that the baseline test suite
+// failed to constrain — verified via cargo-mutants survivor list.
+// Each test names the mutant location and what behavior it pins.
+
+/// Kills `src/lexer.rs:211` — `replace += with *=` on block-comment
+/// opening `self.pos += 2`. The mutant elides the `/*` consumption,
+/// then the inner closing-scan loop walks forward looking for `*/`.
+/// For input `/*/` (3 chars), the mutant's inner scan finds `*` at
+/// pos=1 and `/` at pos=2 — treating the input as a complete empty
+/// block comment — while the original requires `*/` AFTER `/*` and
+/// errors on this malformed input.
+#[test]
+fn malformed_block_comment_slash_star_slash_is_unterminated() {
+    let result = Lexer::new("/*/").tokenize();
+    assert!(
+        result.is_err(),
+        "`/*/` must error as unterminated block comment, not parse as empty comment; got {result:?}"
+    );
+}
+
+/// Kills `src/lexer.rs:375` — `replace match guard ... with true` on
+/// the timezone digit-lookahead in `read_date_literal`. The original
+/// requires `+`/`-` to be followed by an ASCII digit before consuming
+/// the offset; the mutant unconditionally consumes the sign + 5 chars,
+/// swallowing whatever follows into the DateTime literal.
+#[test]
+fn datetime_offset_without_digit_lookahead_does_not_consume_tz() {
+    let toks = tokens("@2024-01-15T10:30:00+abc");
+    // Original: DateTime stops before `+`, then Plus + Identifier follow.
+    assert_eq!(
+        toks,
+        vec![
+            Token::DateTimeLiteral("@2024-01-15T10:30:00".into()),
+            Token::Plus,
+            Token::Identifier("abc".into()),
+        ],
+        "tz lookahead must require digit after sign; `+abc` must NOT be consumed as offset"
+    );
+}
+
+/// Kills `src/lexer.rs:664` — `replace tokenize_to_json_value ->
+/// Result<Value, String> with Ok(Default::default())`. The mutant
+/// returns `Ok(Value::Null)` regardless of input. The original returns
+/// an Array of token objects.
+#[test]
+fn tokenize_to_json_value_returns_array_not_null() {
+    let v = fel_core::tokenize_to_json_value("42").expect("tokenize ok");
+    assert!(
+        v.is_array(),
+        "tokenize_to_json_value must return an array of tokens, not {v:?}"
+    );
+    let arr = v.as_array().unwrap();
+    assert!(
+        !arr.is_empty(),
+        "tokenize of `42` must produce a non-empty token array"
+    );
+}
+
+/// Kills `src/lexer.rs:319` — `replace - with +|/` on `self.pos - 2`
+/// inside the `|>` reserved-operator error path. The error span MUST
+/// begin at the `|` character (pos-2 after consuming `|` then `>`),
+/// not at pos+2 or pos/2.
+#[test]
+fn pipe_gt_reserved_error_span_starts_at_pipe() {
+    let err = Lexer::new("$x |> $y")
+        .tokenize()
+        .expect_err("`|>` must be a reserved-operator error");
+    let msg = err.to_string();
+    // `|>` begins at byte offset 3 (after "$x ").
+    assert!(
+        msg.contains("position 3"),
+        "`|>` error must report position 3 (start of `|`), got: {msg}"
+    );
+}
+
+/// Kills `src/lexer.rs:325` — `replace - with +|/` on `self.pos - 1`
+/// in the bare-`|` error path. The error position MUST be the offset
+/// of the `|` character, not pos+1 or pos/1.
+#[test]
+fn bare_pipe_error_span_starts_at_pipe() {
+    let err = Lexer::new("$x | $y")
+        .tokenize()
+        .expect_err("bare `|` must be an unexpected-character error");
+    let msg = err.to_string();
+    // `|` is at byte offset 3.
+    assert!(
+        msg.contains("position 3"),
+        "bare `|` error must report position 3, got: {msg}"
+    );
+}
+
+/// Kills `src/lexer.rs:333` — `replace - with +|/` on `self.pos - 1`
+/// in the catch-all unexpected-character error path. The error
+/// position MUST be the offset of the offending character.
+#[test]
+fn unexpected_char_error_span_starts_at_char() {
+    let err = Lexer::new("$x ` $y")
+        .tokenize()
+        .expect_err("backtick must be unexpected-character error");
+    let msg = err.to_string();
+    // `\`` is at byte offset 3.
+    assert!(
+        msg.contains("position 3"),
+        "unexpected `` ` `` must report position 3, got: {msg}"
+    );
+}
+
+/// Kills `src/lexer.rs:448` — `replace - with +|/` on `self.pos - 1`
+/// computing `esc_pos` (position of the backslash) in `read_string`.
+/// The error MUST report the backslash position, not pos+1 or pos/1.
+#[test]
+fn invalid_string_escape_error_reports_backslash_position() {
+    // Opening quote at 0; backslash at 1; `X` at 2.
+    let err = Lexer::new(r#"'\X'"#)
+        .tokenize()
+        .expect_err("`\\X` must be an unrecognized-escape error");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("position 1"),
+        "escape error must report backslash position 1, got: {msg}"
+    );
+}
