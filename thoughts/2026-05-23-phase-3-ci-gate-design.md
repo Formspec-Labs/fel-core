@@ -9,9 +9,13 @@
 
 Phase 2 measured what example-based tests miss. `extract_dependencies` sat at **56 %** kill rate with only example tests (`environment_integration_tests.rs`) pinning it; FUT-5 added one proptest file (`dependencies_proptest.rs`) and the same surface jumped to **100 %**. `prepare_host` showed the same shape (69 % → uplifted by FUT-4). Example tests document *intent*; property tests pin *contract*. The Phase 3 gate codifies that asymmetry as a normative discipline: a public re-export in `src/lib.rs` does not count as "covered" until ≥1 property test exercises it. Example tests remain valuable as executable documentation, but they cannot be the only thing standing between a re-export and a regression. This is not a coverage-percentage gate — it is a structural gate on the **public-API → proptest** mapping.
 
+**Proxy framing.** The gate uses re-export presence as a tractable proxy for behavioral contract — easy to grep, easy to enumerate, easy to fail-loudly on drift. It is an imperfect proxy: some re-exports are pure data carriers, some are tag enums, some are third-party. The exemption categories (E1–E8 below) exist precisely because of that imperfection. Where the proxy under-counts (a non-re-exported internal function with rich behavior), Phase 2 mutation testing is the safety net. Where the proxy over-counts (a tag enum with no behavior of its own), exemptions opt out with reviewer-readable justification. The gate is the structural skeleton; mutation testing is the semantic muscle. Both are required.
+
 ## Current state
 
 Snapshot of `src/lib.rs` re-exports (sha `75653b9`) → proptest coverage. "Direct" = the proptest names or constructs the symbol explicitly. "Transitive (arb_expr)" = exercised because `arb_expr` generates AST nodes that flow through the symbol when parsed/evaluated/printed. "None" = no proptest references it; only example tests (or no test).
+
+**Audit provenance.** Table re-audited at sha `9d44f38`; every "Transitive" or "Indirect" claim is verified by `grep -rn '<symbol>' tests/` against actual usage rather than transitive reasoning alone. Canonical re-export paths follow `src/lib.rs` (e.g. `Environment` is re-exported under `evaluator::`, not `environment::` — the rows below reflect the actual path).
 
 ### Module re-exports (`pub mod`)
 
@@ -33,10 +37,8 @@ These are public modules; the gate applies to the named symbols re-exported from
 | `dependencies::dependencies_to_json_value` | `dependencies_proptest.rs:dependencies_to_json_value_reflects_actual_deps` (example, in proptest file) | — | **MIXED** — see §Mechanism |
 | `dependencies::dependencies_to_json_value_styled` | — | — | **GAP** |
 | `dependencies::extract_dependencies` | `dependencies_proptest.rs:extract_is_idempotent`, `fields_union_under_binary_add`, `wildcard_propagates_through_binary_op` | yes | **COVERED** (Phase 2 lifted 56 % → 100 %) |
-| `environment::Environment` | `host_bindings.rs` (example only); used as trait in `differential_oracle.rs` proptest harness | indirect | **MIXED** — see §Mechanism |
-| `environment::FormspecEnvironment` | — | — | **GAP** |
-| `environment::MapEnvironment` | `semantic_invariants.rs:*`, `fel_proptest.rs:*`, `ast_proptest.rs:*`, `differential_oracle.rs:*`, `fel_chaos_proptest.rs:tokenize_parse_eval_do_not_panic` | yes | **COVERED** |
-| `environment::MipState` | — | — | **EXEMPT?** — data-shape struct; see §Exemption categories |
+| `environment::FormspecEnvironment` | — | — | **GAP** (example-only in `env_mip_tests.rs`, `locale_fel_functions.rs`) |
+| `environment::MipState` | — | constructed via struct-literal in `env_mip_tests.rs` (example) | **EXEMPT?** — data-shape struct; see §Exemption categories |
 | `environment::RepeatContext` | — | — | **EXEMPT?** — data-shape struct |
 | `error::Diagnostic` | — | indirect (eval results carry diagnostics; no proptest asserts on them) | **GAP** |
 | `error::DiagnosticKind` | — | indirect | **GAP** (P0 per triage; example-only) |
@@ -53,19 +55,19 @@ These are public modules; the gate applies to the named symbols re-exported from
 | `evaluator::ContextBindingCatalog` | trait, impls in `host_bindings.rs` examples | — | **EXEMPT?** — trait surface |
 | `evaluator::ContextBindingKind` | example | — | **EXEMPT?** — enum tag |
 | `evaluator::EmptyCatalog` | example | — | **EXEMPT?** — ZST sentinel |
-| `evaluator::Environment` | duplicate of `environment::Environment` re-export | — | **EXEMPT?** — re-export-only legibility |
+| `evaluator::Environment` | trait surface; impls in `host_bindings.rs:58,357` and `trace_tests.rs:60` are example tests only | — | **EXEMPT?** — trait surface (E6); canonical impl is `MapEnvironment` |
 | `evaluator::EvalBudget` | example in `budget_tests.rs` | — | **GAP** (P0) |
 | `evaluator::EvalResult` | result type of `evaluate`; carried through all eval proptests | yes | **COVERED** |
 | `evaluator::Evaluator` | — | indirect | **EXEMPT?** — internal driver type; `evaluate` is the public entry |
 | `evaluator::EvaluatorOptions` | example | — | **GAP** |
-| `evaluator::MapEnvironment` | duplicate re-export | — | **EXEMPT?** — re-export-only legibility |
+| `evaluator::MapEnvironment` | `semantic_invariants.rs:*`, `fel_proptest.rs:*`, `ast_proptest.rs:*`, `differential_oracle.rs:18` (constructed in `rust_val`), `fel_chaos_proptest.rs:tokenize_parse_eval_do_not_panic` | yes | **COVERED** |
 | `evaluator::UNBOUND_CONTEXT_REF_CODE` | example in `host_bindings.rs` | — | **EXEMPT?** — error-code constant |
 | `evaluator::eval_with_fields` | example in `evaluator_tests.rs` | — | **GAP** |
 | `evaluator::evaluate` | every eval proptest | yes | **COVERED** |
 | `evaluator::evaluate_with` | example in `trace_tests.rs` | — | **GAP** |
 | `evaluator::evaluate_with_catalog` | example in `host_bindings.rs` | — | **GAP** |
-| `extensions::ExtensionCallOutcome` | — | indirect | **EXEMPT?** — enum tag |
-| `extensions::ExtensionError` | — | indirect | **EXEMPT?** — error enum |
+| `extensions::ExtensionCallOutcome` | — | flows through `ExtensionRegistry::call` (P0 GAP); not named in any test | **EXEMPT?** — enum tag; consumer (`ExtensionRegistry`) is P0 GAP — exemption blocked until consumer covered |
+| `extensions::ExtensionError` | — | flows through `ExtensionRegistry::call`; not named in any test | **EXEMPT?** — error enum; same caveat as `ExtensionCallOutcome` |
 | `extensions::ExtensionFn` | — | — | **EXEMPT?** — function-pointer typedef |
 | `extensions::ExtensionFunc` | — | — | **EXEMPT?** — struct holding `ExtensionFn` |
 | `extensions::ExtensionRegistry` | example in `budget_tests.rs` | indirect | **GAP** (P0) |
@@ -126,17 +128,17 @@ Sorted by Phase-2 P0 priority (highest leverage first):
 12. `error::reject_undefined_functions` + `error::undefined_function_names_from_diagnostics` + `error::has_error_diagnostics` — diagnostic-filter helpers; one proptest on a generated `Vec<Diagnostic>` covers the trio.
 13. `types::parse_date_literal` + `types::parse_datetime_literal` + `types::value_size_estimate` + `context_json::formspec_environment_from_json_map` + `extensions::builtin_function_catalog_for` + `extensions::builtin_function_catalog_json_value{,_for}` + `convert::field_map_from_json_str` + `convert::json_object_to_field_map` + `prepare_host::host_options_from_json` — JSON-input parsers and catalog-export helpers.
 
-Total: ~13 proptests close ~30 gaps (most gaps fold into shared property statements over parameterized siblings).
+Total: **~16 proptests** close ~30 gaps. Initial estimate was ~13 assuming `_styled` JSON-export siblings collapse cleanly under a `JsonWireStyle` parameter; on closer read each `_styled` sibling differs in output *shape* (not just an output flag) — at minimum the proptest body needs a `match style { Compact => ..., Styled => ... }` branch with separate invariant assertions, and several pairs warrant separate property statements rather than a parameterized one. Phase 3a closeout will report the actual count.
 
 ## Exemption categories
 
 The gate as literally stated ("each `pub use` requires ≥1 proptest") would mandate proptests for symbols where a property test is not the right artifact. Per the prompt's standing authorization to name exemption categories, these are out of scope:
 
 - **(E1) Third-party re-exports.** `indexmap::IndexMap`. Not our contract; upstream owns the property surface.
-- **(E2) Re-export-only legibility.** `evaluator::Environment` / `evaluator::MapEnvironment` are duplicates of `environment::*` re-exports for namespace ergonomics. Cover once, at the canonical path.
-- **(E3) Plain data carriers with no behavior.** `MipState`, `RepeatContext`, `ContextBinding`, `PositionedToken`, `TraceStep` — structs/enums whose construction is mechanical and whose use is via methods on owning types. The property surface lives on the *consumer*.
-- **(E4) Tag enums.** `Severity`, `BudgetExceededKind`, `ContextBindingKind`, `JsonWireStyle`, `ExtensionCallOutcome`. The behavior under each tag is what's testable; the tag itself is a discriminator. A proptest over the *consumer* of the tag (e.g. `EvalBudget::check` for `BudgetExceededKind`) is the right pin.
-- **(E5) Error/result enums.** `Error`, `ParseError`, `ExtensionError`. Exempt iff the `Ok` branch is property-tested AND the `Err` branch is exercised by an example test pinning a specific diagnostic. (`DiagnosticKind` is *not* exempt — it is the closed enumeration consumed by tooling, not a `Result::Err` shape.)
+- **(E2) Re-export-only legibility.** Reserved for the case where the same symbol is re-exported under two paths for namespace ergonomics. Not currently used — `Environment` and `MapEnvironment` are only re-exported under `evaluator::`, not duplicated. Kept as a category for the foreseeable case of a future cross-module alias.
+- **(E3) Plain data carriers with no behavior.** `MipState`, `RepeatContext`, `ContextBinding`, `PositionedToken`, `TraceStep` — structs/enums whose construction is mechanical and whose use is via methods on owning types. The property surface lives on the *consumer*. **Manifest MUST cite the consumer's proptest** (`consumer_proptests = ["tests/foo.rs::bar"]`) and the gate verifies the citation resolves to a real test function. Without a verified consumer, the exemption is rejected.
+- **(E4) Tag enums.** `Severity`, `BudgetExceededKind`, `ContextBindingKind`, `JsonWireStyle`, `ExtensionCallOutcome`. The behavior under each tag is what's testable; the tag itself is a discriminator. A proptest over the *consumer* of the tag (e.g. `EvalBudget::check` for `BudgetExceededKind`) is the right pin. **Same citation rule as E3** — `consumer_proptests` required and gate-verified.
+- **(E5) Error/result enums.** `Error`, `ParseError`, `ExtensionError`. Exempt iff the `Ok` branch is property-tested AND the `Err` branch is example-tested. The "AND" is unverifiable from a status flag alone, so the manifest MUST carry both: `consumer_proptests = ["tests/foo.rs::ok_branch_property"]` for the Ok path AND `example_tests = ["tests/bar.rs:L42-L60"]` for the Err path. The gate verifies both citations resolve (grep on the file:line range, grep on the fn name). Failing either rejects the exemption. (`DiagnosticKind` is *not* exempt — it is the closed enumeration consumed by tooling, not a `Result::Err` shape.)
 - **(E6) Trait surfaces.** `Environment`, `ContextBindingCatalog`. The trait itself is a port; the gate applies to a *canonical implementation* (e.g. `MapEnvironment`, `EmptyCatalog`).
 - **(E7) Function-pointer typedefs and ZSTs.** `ExtensionFn`, `ExtensionFunc`, `EmptyCatalog`, `Package`. No behavior to property-test; consumer surface (`ExtensionRegistry`) is the pin.
 - **(E8) Constants.** `UNBOUND_CONTEXT_REF_CODE`. A literal string; the right test is a snapshot, not a property.
@@ -199,6 +201,19 @@ reason = "Third-party re-export; upstream owns the property surface"
 [symbols."evaluator::EvalBudget"]
 proptests = []  # GAP — must be filled before gate turns on
 gap_ticket = "FUT-7"
+
+# E3/E4 — consumer citation required and gate-verified
+[symbols."environment::MipState"]
+exempt = "E3"
+reason = "Plain data carrier; behavior lives on consumer"
+consumer_proptests = ["tests/env_mip_tests.rs::mip_relevant_query_reflects_state"]
+
+# E5 — both consumer proptest AND example test required
+[symbols."error::Error"]
+exempt = "E5"
+reason = "Result::Err shape for parse; Ok branch property-tested, Err branch example-tested"
+consumer_proptests = ["tests/fel_proptest.rs::parse_print_roundtrip_decimal_integer"]
+example_tests = ["tests/parser_rejection_tests.rs:L225-L265"]
 ```
 
 The test fails CI if:
@@ -206,6 +221,8 @@ The test fails CI if:
 - A manifest entry has `proptests = []` and no `exempt` field.
 - A `proptests = [...]` entry references a function that doesn't exist.
 - An `exempt` value isn't one of E1–E8.
+- An `exempt = "E3"`/`"E4"`/`"E5"` entry lacks `consumer_proptests = [...]`, or the cited proptest function doesn't exist.
+- An `exempt = "E5"` entry lacks `example_tests = ["file.rs:Lstart-Lend"]`, or the file/line range doesn't resolve.
 
 The test does **not** verify the proptest actually exercises the symbol semantically — that's reviewer judgment, encoded in the `notes` field. The gate is structural, not semantic. (Mutation testing in Phase 2 is the semantic gate.)
 
@@ -223,6 +240,8 @@ The test does **not** verify the proptest actually exercises the symbol semantic
 
 **Phase 3c — write the manifest + gate test.** `tests/lib_reexport_coverage.toml` + `tests/lib_reexport_coverage_gate.rs`. First commit has the gate test `#[ignore]`'d so the manifest can land for review without blocking CI. Second commit removes the ignore.
 
+**Commit message convention.** The activation commit (removes `#[ignore]`) MUST use the subject line `test(gate): activate lib_reexport_coverage_gate` so `git log --grep='activate lib_reexport_coverage_gate'` finds the activation point without scanning diffs.
+
 **Phase 3d — wire into CI.** No new workflow needed; the gate runs as part of `cargo test` on the existing `ratification-gate` per-push job.
 
 **Phase 3e — post-gate review.** Architecture review via `semi-formal-architecture-review` — confirms manifest categories, exemption justifications, and that no symbol slipped through as "covered" without a real proptest. Code review on the manifest itself.
@@ -230,9 +249,9 @@ The test does **not** verify the proptest actually exercises the symbol semantic
 **Owner-questions before starting:**
 - **Q1.** Does the gate apply to `formspec-py` (PyO3 bindings) and `formspec-engine`/`formspec-wasm` (WASM bindings) consumers, or only to `fel-core`'s Rust public API? **Lean:** `fel-core` only for Phase 3. WASM/Py have their own conformance corpora (`make test-differential`) that pin behavior across the boundary; a separate gate for the bindings is a follow-up if needed.
 - **Q2.** Does `#[cfg(any(test, feature = "proptest-strategies"))] pub mod testing` count as a public re-export? **Lean:** No. It is a test-helper surface, not a contract — exempt as E1-style (test-infrastructure, not consumer contract). Document explicitly in the manifest.
-- **Q3.** When a symbol is exempt as E3/E4/E5 because "the consumer is property-tested", does the manifest need to *cite* the consumer's proptest? **Lean:** Yes. The `reason` field should say `Consumer: tests/foo.rs::bar_proptest`. Forces the reviewer to confirm the consumer is genuinely covered, not just nominally exempt.
+- **Q3.** Resolved as normative — see §Exemption categories E3/E4/E5. Manifest carries `consumer_proptests = [...]` (and `example_tests = [...]` for E5) and the gate verifies the citations resolve.
 
-**Dependencies:** none external — `cargo test` already runs every PR. No new crate dep needed (toml parsing via `toml = "0.8"` if not already in dev-deps; otherwise hand-rolled key-value parser is sufficient for the manifest shape).
+**Dependencies:** `cargo test` already runs every PR (no new CI workflow). One new dev-dep: add `toml = "0.8"` to `[dev-dependencies]` in `Cargo.toml`. Verified: no `toml` dep exists today (neither under `[dependencies]` nor `[dev-dependencies]`). A hand-rolled key-value parser was considered and rejected — it saves ~50 LOC versus a well-maintained, widely-used crate that already handles the manifest's escape/quote/nesting edge cases. Cost is one transitive dep tree in dev-build only.
 
 ## Failure mode
 
@@ -252,7 +271,9 @@ To resolve, choose ONE:
    tag enum, or third-party re-export, exempt it:
    [symbols."evaluator::NewThing"]
    exempt = "E3"   # or E1, E2, E4, ...
-   reason = "<one-line justification, cite consumer if E3/E4/E5>"
+   reason = "<one-line justification>"
+   consumer_proptests = ["tests/foo.rs::bar"]   # REQUIRED for E3/E4/E5
+   example_tests = ["tests/bar.rs:L42-L60"]     # REQUIRED for E5 (Err branch)
 
 3. If `NewThing` should not be public, demote to `pub(crate)` and the
    gate stops applying.
@@ -266,7 +287,8 @@ The contributor's choices are: write the proptest, exempt with justification, or
 - New re-export → manifest entry required.
 - Removed re-export → manifest entry removed (gate fails on stale entry, also useful).
 - Renamed re-export → manifest entry renamed; proptest references checked against the new symbol.
-- Symbol moves between modules (e.g. `evaluator::Environment` → `environment::Environment`) → manifest entry updated; the canonical path policy resolves duplicates.
+- Symbol moves between modules (e.g. a hypothetical `evaluator::Environment` → `environment::Environment` reshuffle) → manifest entry updated; the canonical path policy resolves duplicates.
+- **Phase 2 mutation survivor on a manifested symbol** → tracked in `thoughts/followups.md` (or successor survivor backlog); does **not** fail the structural gate (the proptest exists, which is what the gate checks); the manifest entry's `notes` field MUST flag the known semantic gap with a survivor reference (e.g. `notes = "survivor: tests/X.rs::Y mutation Z survives — see followups.md#sym-name"`). Resolves once a strengthened proptest kills the mutant.
 
 **What does not fail the gate:**
 - Adding a new proptest for an already-covered symbol (manifest can list multiple).
