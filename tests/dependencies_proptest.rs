@@ -18,6 +18,17 @@
 //!    `has_self_ref`; bare `$` outside does.
 //! 5. **Wildcard propagation** — any `[*]` segment in the AST marks
 //!    `has_wildcard=true`.
+//!
+//! ## Feature gate
+//!
+//! This file is gated on `#![cfg(feature = "proptest-strategies")]`
+//! for the `arb_expr` strategy import. The example-style `#[test]`
+//! cases below (parent/instance/postfix/let-bound-var/nested-postfix
+//! and the spec-anchored kills) live here for proximity to the
+//! proptest cases but ALSO require `--features proptest-strategies`.
+//! Run via `cargo test --features proptest-strategies` or `make test`
+//! (which uses `--all-features`). Plain `cargo test` will silently
+//! skip the entire file.
 
 #![cfg(feature = "proptest-strategies")]
 #![allow(clippy::missing_docs_in_private_items)]
@@ -160,11 +171,15 @@ fn wildcard_propagates_through_let() {
 
 /// PostfixAccess match arm — `(expr).field` — must extract the FULL
 /// path including the postfix segment. The previous assertion accepted
-/// either `"a.b"` OR `"a.b.c"` as success, which let the
-/// `extend_field_path -> Some(String::new())` mutation survive (an empty
-/// string in the set passes neither contains check but the inner
-/// `walk(expr, ...)` fallback still inserts `"a.b"`). Tighten to the
-/// strict expectation per FEL path-extension semantics.
+/// either `"a.b"` OR `"a.b.c"` as success, which is too loose: a
+/// hypothetical mutation that drops the `for seg in extra_path` append
+/// loop at `src/dependencies.rs:263-265` would return `Some("a.b")`,
+/// and the OR-loose check would still pass. Tighten to the strict
+/// expectation per FEL path-extension semantics. (Prophylactic; the
+/// cargo-mutants survey of this region didn't surface a specific
+/// surviving mutant — all `extend_field_path` body mutations at
+/// `:261-265` and `:269` are caught, including the trivial-return
+/// `Some(String::new())` variant which a contains-check passes.)
 #[test]
 fn postfix_access_records_full_extended_path() {
     let expr = parse("($a.b).c").expect("parse");

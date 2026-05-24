@@ -332,7 +332,7 @@ After the 9394ff1 re-baseline, three Sonnet triage subagents classified the rema
 | `iso_duration.rs:35` | `MS_PER_YEAR = 365 * day` arithmetic mutants (×3) | `p1y_is_three_sixty_five_days_of_milliseconds_nominal` | `3007247` |
 | `dependencies.rs:129` | `parent` match arm in temporal-nav family | `parent_function_call_marks_uses_prev_next` | `3007247` |
 | `dependencies.rs:132` | `instance` match arm | `instance_function_call_records_instance_ref` | `3007247` |
-| `dependencies.rs:~250` | `extend_field_path -> Some(String::new())` | tightened `postfix_access_records_full_extended_path` | `3007247` |
+| `dependencies.rs` PostfixAccess tightening | (prophylactic — no specific surviving mutant; the OR-loose `contains("a.b") || contains("a.b.c")` would permit a hypothetical mutation producing `Some("a.b")` to pass) | tightened `postfix_access_records_full_extended_path` (OR-loose → strict `a.b.c`) | `3007247` |
 | `dependencies.rs:249` | delete `Expr::VarRef` arm in `extract_field_path_str` | `let_bound_var_as_mip_first_arg_records_in_mip_deps` | (post-review) |
 | `dependencies.rs:269` | delete `Expr::PostfixAccess` arm in `extend_field_path` | `nested_postfix_access_records_full_chain` | (post-review) |
 | `parser.rs:78,90,91` | `current`/`advance` clamp arithmetic (5 mutants) | `parser_clamps_pos_past_eof_without_panic` (inline `#[cfg(test)] mod tests`) | (post-review) |
@@ -352,23 +352,32 @@ Per-mutant inspection promoted these from Category B (pending) → Category A (e
 - `:203` match guard `depth == 0 → true`: **test-coverage** — for valid input `then` cannot appear at depth > 0, but for invalid input like `if(then, x, y)` (lexer tokenizes `then` regardless of context — `lexer.rs:524`) the mutant returns true (routes to keyword form) while original returns false (routes to function form), producing different error messages. No test asserts the specific error wording for either path; the spec (`fel-grammar.md §7`) only contracts "reject invalid input with a diagnostic," not the diagnostic content.
 - `:204` match guard `starts_with_paren && depth == 1 → false`: **test-coverage** — for valid `if(a,b,c)`, both paths reach return-false via the RParen-at-depth-0 catch. For invalid input like `if(a, b) then x else y`, original returns false (function form rejection) and mutant continues scanning (may find `then` at depth 0 → return true → keyword-form rejection). Different error messages; no test asserts content.
 - `:205` match guard `depth == 0 → false`: **strict** — the fallback `Token::RParen | RBracket | RBrace => { if depth > 0 { ... } else { return false } }` arm catches the same case via its else branch; comma at depth 0 falls through catch-all and continues scanning, but eventually hits the same return-false path.
-- `:210` `depth > 0 → depth >= 0`: **strict** — at depth=0, the mutant decrements to -1 (i32 silent underflow); subsequent `depth == 0` guards then fail; end state via Eof is identical.
+- `:210` `depth > 0 → depth >= 0`: **strict** — the `>` body executes only when its enclosing arm fires for non-zero depth, and `:205`'s `Token::RParen | RBracket | RBrace if depth == 0 => return false` matches BEFORE `:210` ever evaluates at depth==0. So `:210`'s `depth > 0` vs `depth >= 0` is dead-equivalent: both `true` for depth > 0 (the only path that reaches them), no difference at depth==0 because the line never executes there.
 - `:216` delete `Token::Eof` match arm: **strict** — Eof falls through to catch-all `_ => {}`, then the while loop terminates naturally and the function returns false. Same as the deleted explicit return.
 
 **`parser.rs:334-335` — `parse_membership` bounds/operator cluster (4 mutants):**
-- `:334` `self.pos + 1 → self.pos * 1` / `... - 1`: **strict** — at the call site, peek is already `Token::Not`, and `tokens[pos]` is Not (not In). The inner check fails identically.
-- `:334` `<` → `<=`: **strict** — tokens always include Eof; bounds check never tight in practice.
-- `:335` `&&` → `||`: **test-coverage** — for valid `x in y` / `x not in y`, both paths agree. For invalid `5 not 3` (Not followed by non-In), original returns left and the unconsumed Not propagates as a downstream parse error; mutant enters the membership branch, consumes Not + the next token as if it were `in`, and produces a different downstream parse error. No test asserts the discriminating wording.
+
+Note: `:334` is the bounds check `pos + 1 < self.tokens.len()`; `:335` is the indexing `tokens[self.pos + 1]`. Mutants on the `:335` indexing expression (`pos + 1 → pos * 1 / pos - 1`) appear in `mutants.out/caught.txt`, killed by existing `parser::tests::test_parse_not_in` (`src/parser.rs:1081`) and `evaluator_tests.rs:305`. The four survivors below are all on the `:334` bounds clause and the boolean connective.
+
+- `:334` `self.pos + 1 → self.pos * 1` / `... - 1`: **strict** — lexer contract guarantees Eof at last position, so when peek == Not the bounds inequality `pos+1 < len` is necessarily true regardless of how `pos+1` is computed (the `<` LHS is `<= len-1`); the bounds disjunct never gates.
+- `:334` `<` → `<=`: **strict** — same lexer-contract argument; bound never tight.
+- `:335` `&&` → `||`: **test-coverage** — for valid `x in y` / `x not in y`, both paths agree (cond1 holds and cond2 holds). For invalid `5 not 3` (Not followed by non-In), original `&&` requires cond2 (`tokens[pos+1] == In`) → false → fall through; mutant `||` requires only cond1 (always true) → enter branch, consume Not + `3` as if it were `in`, produce different downstream parse error. No test asserts the discriminating wording.
 
 **`parser.rs:78,90,91` — `current` / `advance` helpers (5 mutants):**
 - **Killed** by `parser::tests::parser_clamps_pos_past_eof_without_panic` (added per architecture-review F4). The test exercises `advance()` past Eof and asserts `current()` returns Eof without panic, pinning the `pos.min(len - 1)` clamp invariant. Mutants on `len - 1 → len + 1` panic at `tokens[len]` OOB when pos == len after exhausting tokens.
 
 **`parser.rs:132,133` — `parse_let_or_if` recursion-depth guard (3 mutants):**
-- `:132` `>` → `==` / `>=`: **test-coverage** — the existing `nested_parens_above_cap_are_rejected(34..=45)` and `nested_parens_well_below_cap_parse(0..=16)` tests bracket the cap but leave the exact-boundary (17..=33) input-depth untested. Both mutants change rejection threshold by exactly 1 frame. The contract (`docs/SPEC.md:367` — "Implementations SHOULD enforce parser depth and evaluator budget limits") names depth-rejection but not the exact threshold; ±1 frame is within implementation-defined latitude.
+
+Trace of `parse_let_or_if`: each call does `self.recursion_depth += 1` then `if self.recursion_depth > self.max_recursion_depth { Err }`. Original rejects when depth becomes max+1 (first call producing depth=33). Both `==` and `>=` mutants reject when depth becomes max (first call producing depth=32) — they shift rejection by ONE frame earlier.
+
+- `:132` `>` → `==`: **test-coverage** — mutant rejects at depth==32 (one frame earlier than original's depth>32). For all test inputs that exercise the cap (`nested_parens_above_cap_are_rejected(34..=45)`), both original and mutant reject — original at depth 33, mutant at depth 32. Test asserts `is_err()`; both satisfy. For shallow inputs (`well_below_cap_parse(0..=16)`), neither rejects. Mutant `==` does NOT produce stack overflow (each call increments by exactly 1, hitting 32 exactly once per recursion path), so it's not a timeout-kill — genuinely test-coverage equivalent.
+- `:132` `>` → `>=`: **test-coverage** — identical behavior to `==` mutant (both reject at exactly depth==max).
 - `:133` `-= → /=` / `+=`: **strict** — depth state is per-Parser-instance and not observable after `parse()` returns; intermediate inflation on the error-return path doesn't change the returned `Err`.
 
+The contract (`docs/SPEC.md:367` — "Implementations SHOULD enforce parser depth and evaluator budget limits") names depth-rejection but not the exact threshold; ±1 frame is within implementation-defined latitude.
+
 **`parser.rs:424-425` — `parse_unary` `not in` defer (5 mutants):**
-- `:424` delete `!`, `:425` arithmetic and bounds: **strict for valid input, unreachable for invalid input** — `parse_membership` consumes `not in` via its `peek == Token::Not && tokens[pos+1] == Token::In` branch *before* descending to `parse_unary`. The parse_unary defer is a redundant safety net; entering parse_unary with peek=`not` and next=`in` requires `not` at the START of an inner-expression unary position, which valid grammar disallows for membership. Invalid inputs that could reach this code path produce errors via downstream `parse_postfix`/`parse_primary` whether the defer fires or not; no test discriminates.
+- `:424` delete `!`, `:425` arithmetic and bounds: **strict for valid input, test-coverage for invalid input** — `parse_membership` consumes `not in` via its `peek == Token::Not && tokens[pos+1] == Token::In` branch *before* descending to `parse_unary`. The defer at parse_unary's `not in` lookahead is a redundant safety net: its purpose is **error-message attribution** (defer to parse_postfix which produces "unexpected token Not" rather than parse_unary's "expected operand after not" path), NOT parse-validity. Both original and mutants reject `not in` at inner-unary positions; only the error wording differs. No test asserts the discriminating wording.
 
 ### Category B — remaining unclassified survivors
 

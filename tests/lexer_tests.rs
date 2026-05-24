@@ -572,6 +572,33 @@ fn tokenize_to_json_value_returns_array_not_null() {
     );
 }
 
+/// Helper: assert that the error message contains "position N" with
+/// N bracketed by non-digits (or end-of-string), so an assertion for
+/// `position 1` doesn't false-positive on `position 13`.
+fn assert_position_in_msg(msg: &str, n: usize) {
+    let needle = format!("position {n}");
+    let mut found = false;
+    let mut search_from = 0;
+    while let Some(idx) = msg[search_from..].find(&needle) {
+        let abs = search_from + idx;
+        let after = abs + needle.len();
+        // Boundary: next char must not be an ASCII digit (or be EOS).
+        let next_is_digit = msg[after..]
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_digit());
+        if !next_is_digit {
+            found = true;
+            break;
+        }
+        search_from = abs + needle.len();
+    }
+    assert!(
+        found,
+        "expected `{needle}` (word-bounded) in error message: {msg}"
+    );
+}
+
 /// Kills `src/lexer.rs:319` — `replace - with +|/` on `self.pos - 2`
 /// inside the `|>` reserved-operator error path. The error span MUST
 /// begin at the `|` character (pos-2 after consuming `|` then `>`),
@@ -581,12 +608,8 @@ fn pipe_gt_reserved_error_span_starts_at_pipe() {
     let err = Lexer::new("$x |> $y")
         .tokenize()
         .expect_err("`|>` must be a reserved-operator error");
-    let msg = err.to_string();
     // `|>` begins at byte offset 3 (after "$x ").
-    assert!(
-        msg.contains("position 3"),
-        "`|>` error must report position 3 (start of `|`), got: {msg}"
-    );
+    assert_position_in_msg(&err.to_string(), 3);
 }
 
 /// Kills `src/lexer.rs:325` — `replace - with +|/` on `self.pos - 1`
@@ -597,12 +620,8 @@ fn bare_pipe_error_span_starts_at_pipe() {
     let err = Lexer::new("$x | $y")
         .tokenize()
         .expect_err("bare `|` must be an unexpected-character error");
-    let msg = err.to_string();
     // `|` is at byte offset 3.
-    assert!(
-        msg.contains("position 3"),
-        "bare `|` error must report position 3, got: {msg}"
-    );
+    assert_position_in_msg(&err.to_string(), 3);
 }
 
 /// Kills `src/lexer.rs:333` — `replace - with +|/` on `self.pos - 1`
@@ -613,12 +632,8 @@ fn unexpected_char_error_span_starts_at_char() {
     let err = Lexer::new("$x ` $y")
         .tokenize()
         .expect_err("backtick must be unexpected-character error");
-    let msg = err.to_string();
     // `\`` is at byte offset 3.
-    assert!(
-        msg.contains("position 3"),
-        "unexpected `` ` `` must report position 3, got: {msg}"
-    );
+    assert_position_in_msg(&err.to_string(), 3);
 }
 
 /// Kills `src/lexer.rs:448` — `replace - with +|/` on `self.pos - 1`
@@ -630,9 +645,5 @@ fn invalid_string_escape_error_reports_backslash_position() {
     let err = Lexer::new(r#"'\X'"#)
         .tokenize()
         .expect_err("`\\X` must be an unrecognized-escape error");
-    let msg = err.to_string();
-    assert!(
-        msg.contains("position 1"),
-        "escape error must report backslash position 1, got: {msg}"
-    );
+    assert_position_in_msg(&err.to_string(), 1);
 }

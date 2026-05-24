@@ -40,3 +40,4 @@
 {"file": "src/iso_duration.rs", "total": 50, "killed": 46, "missed": 0, "timeout": 0, "unviable": 4, "kill_rate": 1.0, "sha": "ba41e68"}
 {"file": "src/lexer.rs", "total": 184, "killed": 163, "missed": 1, "timeout": 13, "unviable": 7, "kill_rate": 0.9209, "sha": "ba41e68"}
 {"file": "src/dependencies.rs", "total": 24, "killed": 21, "missed": 2, "timeout": 0, "unviable": 1, "kill_rate": 0.913, "sha": "ba41e68"}
+{"file": "src/dependencies.rs", "total": 24, "killed": 23, "missed": 0, "timeout": 0, "unviable": 1, "kill_rate": 1.0, "sha": "d61ac4f"}
