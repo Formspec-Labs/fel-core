@@ -7,15 +7,12 @@
 //!
 //! ## Status
 //!
-//! `#[ignore]`'d in this commit. Activated in Phase 3c (separate commit) so
-//! the manifest can land for review without blocking CI on transient gaps.
-//! See `thoughts/2026-05-23-phase-3-ci-gate-design.md` §Implementation plan
-//! for the activation hand-off.
-//!
-//! The activation commit will use the subject line
-//! `test(gate): activate lib_reexport_coverage_gate` so the activation point
-//! can be located via `git log --grep=...` without scanning diffs (design
-//! §Implementation plan — Commit message convention).
+//! Activated in Phase 3c — runs by default under `cargo test`. The
+//! manifest carries one row per `pub use` symbol in `src/lib.rs`; every
+//! row is either GREEN (cites a resolving proptest) or EXEMPT (E1..E8
+//! with the citations the design requires). See
+//! `thoughts/2026-05-23-phase-3-ci-gate-design.md` §Implementation plan
+//! for the rollout history.
 
 #![allow(clippy::missing_docs_in_private_items)]
 
@@ -239,11 +236,11 @@ const CONSUMER_CITE_REQUIRED: &[&str] = &["E3", "E4", "E5", "E6", "E7"];
 /// Categories that REQUIRE `example_tests = [...]` per design §Exemption.
 const EXAMPLE_CITE_REQUIRED: &[&str] = &["E5", "E8"];
 
-/// The gate proper. Activation: remove `#[ignore]` in Phase 3c. The commit
-/// that activates uses subject `test(gate): activate lib_reexport_coverage_gate`
-/// per design §Implementation plan — Commit message convention.
+/// The gate proper. Activated in Phase 3c — runs by default under
+/// `cargo test`. Activation commit subject:
+/// `test(gate): activate lib_reexport_coverage_gate` per design
+/// §Implementation plan — Commit message convention.
 #[test]
-#[ignore = "Phase 3c activation pending — see thoughts/2026-05-23-phase-3-ci-gate-design.md"]
 fn lib_reexport_coverage_gate() {
     let manifest = load_manifest();
     let lib_symbols = enumerate_lib_rs_pub_use_symbols();
