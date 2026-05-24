@@ -59,3 +59,8 @@ proptest-strategies = ["proptest"]
 name = "fel_proptest"
 path = "tests/fel_proptest.rs"
 required-features = ["proptest-strategies"]
+
+[[test]]
+name = "evaluate_siblings_proptest"
+path = "tests/evaluate_siblings_proptest.rs"
+required-features = ["proptest-strategies"]
