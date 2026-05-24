@@ -64,3 +64,18 @@ required-features = ["proptest-strategies"]
 name = "evaluate_siblings_proptest"
 path = "tests/evaluate_siblings_proptest.rs"
 required-features = ["proptest-strategies"]
+
+[[test]]
+name = "env_catalog_inputs_proptest"
+path = "tests/env_catalog_inputs_proptest.rs"
+required-features = ["proptest-strategies"]
+
+[[test]]
+name = "json_exports_proptest"
+path = "tests/json_exports_proptest.rs"
+required-features = ["proptest-strategies"]
+
+[[test]]
+name = "interpolation_trace_proptest"
+path = "tests/interpolation_trace_proptest.rs"
+required-features = ["proptest-strategies"]
