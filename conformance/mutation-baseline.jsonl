@@ -42,3 +42,4 @@
 {"file": "src/dependencies.rs", "total": 24, "killed": 21, "missed": 2, "timeout": 0, "unviable": 1, "kill_rate": 0.913, "sha": "ba41e68"}
 {"file": "src/dependencies.rs", "total": 24, "killed": 23, "missed": 0, "timeout": 0, "unviable": 1, "kill_rate": 1.0, "sha": "d61ac4f"}
 {"file": "src/parser.rs", "total": 147, "killed": 92, "missed": 23, "timeout": 1, "unviable": 31, "kill_rate": 0.7931, "sha": "cdb6fe8"}
+{"file": "src/parser.rs", "total": 147, "killed": 93, "missed": 9, "timeout": 14, "unviable": 31, "kill_rate": 0.8017, "sha": "7726f86"}

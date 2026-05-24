@@ -237,7 +237,7 @@ Phase 2 closure is achievable by completing items 1-7. Phase 3 covers 8.
 | `error.rs` | ✓ 92.5% (sha 3b7d483) | Arity-boundary + severity-discrimination + name-filter tests; 3 equivalent `<`↔`<=` mutants on unreachable-by-callsite paths |
 | `lexer.rs` | ✓ 92.1% (sha ba41e68+) | 7 new kills (block-comment, datetime-tz, json-value, error-spans); 1 residual missed (read_number minus check, Category A strict-equivalent: `start` is captured BEFORE the optional advance so the resulting `chars[start..pos]` slice is identical); 13 timeout classified as kills-by-timeout. Floor met |
 | `evaluator/core.rs` | ✓ 83% (recalibrated ≥80%) | 42 survivors pending follow-up triage (FUT-2); mix of diag-message variants and rare-branch coverage gaps |
-| `parser.rs` | ✓ 79.3% (sha cdb6fe8; awaits +1 kill re-baseline) | 6 new kills (5 via clamp test + 1 via let-body-in-membership test); 22 of 23 residual survivors reclassified Category A with explicit per-mutant rationale (strict + test-coverage flavors). Inline `#[cfg(test)] mod tests` covers positive parse shapes |
+| `parser.rs` | ✓ 80.2% (sha 7726f86) | 6 new kills (5 via clamp test + 1 via let-body-in-membership test); the let-body-in test also pushed 13 prior-missed mutants into timeout-kill territory (sketch: mutants that prevent counter reset cause infinite-loop parses of nested let bodies). Final state: 93 caught, 9 missed (all documented Category A), 14 timeout. Inline `#[cfg(test)] mod tests` covers positive parse shapes |
 | `prepare_host.rs` | ✓ Phase 3 proptest landed (FUT-4) | 33 missed + 20 timeout residual; further investigation deferred |
 | `dependencies.rs` | ✓ 91.3% (sha ba41e68+) | 5 new kills (parent, instance, postfix-tighten, let-bound-var-MIP, nested-postfix); 0 residual missed expected after re-baseline. Floor met |
 
@@ -397,7 +397,7 @@ The Sonnet triage subagents over-classified into "behavior-diff kill" (estimated
 
 ### Updated FUT-1/2/3 status
 
-- **FUT-1 (parser.rs)**: 6 mutants killed across two batches: 5 via `parser_clamps_pos_past_eof_without_panic` (current/advance clamp invariant) + 1 via `test_parse_let_body_in_membership_after_value` (let-value no_in_depth reset). 22 reclassified as Category A (mix of strict + test-coverage equivalence). All 23 post-fix survivors documented; zero unclassified. Re-baseline at sha cdb6fe8 shows 79.3% kill rate (was 76.7% at 9394ff1); next re-run after the :153 kill should yield 80.2%.
+- **FUT-1 (parser.rs)**: 6 mutants killed across two batches: 5 via `parser_clamps_pos_past_eof_without_panic` (current/advance clamp invariant) + 1 via `test_parse_let_body_in_membership_after_value` (let-value no_in_depth reset). The let-body-in test also pushed 13 prior-missed mutants into timeout-kill territory (mutants that block the counter reset cause infinite-loop parses of nested let bodies). 9 residual missed all documented as Category A defensive-coding equivalents (is_if_then_else cluster + parse_unary not-in defer + advance line 91). Final re-baseline at sha `7726f86`: **80.2% kill rate** (was 76.7% at 9394ff1; +3.5pp).
 - **FUT-2 (evaluator/core.rs)**: unchanged — 42 still Category B; deferred.
 - **FUT-3 (lexer.rs)**: 7 missed killed (this batch); 1 residual missed reclassified Category A (read_number `start`-captured-before-advance strict-equivalent); 13 timeout (kills-by-timeout). Re-baseline at ba41e68 shows 92.1% kill rate. Floor met.
 
