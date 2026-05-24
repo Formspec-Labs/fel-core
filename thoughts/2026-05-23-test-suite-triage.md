@@ -290,10 +290,10 @@ Today, `extract_dependencies` and `prepare_host` lack proptests despite being P0
 - [x] Post-Phase-2 code review (sha `898a23e`): **APPROVE WITH MINOR FIXES** — 2 MED in `mutation_baseline.py` (idempotence + malformed-JSON guard). Both remediated in sha `ef1ab02`. Five NITs: helper-dedup, Money proptest, config pivot accepted as KEEP. Kill tests verified as real (not theater).
 
 **Phase 3 — Leverage policy in CI**:
-- [ ] Proptest for `extract_dependencies` (P0 seam, currently uncovered) — **FUT-5** (Phase 2 mutation gate confirmed at 56% kill rate)
-- [ ] Proptest for `prepare` / `prepare_for_host` (P0 seam, currently uncovered) — **FUT-4** (Phase 2 mutation gate confirmed at 69% kill rate)
-- [ ] CI gate: each public `lib.rs` re-export requires ≥1 proptest before example tests count
-- [ ] Post-Phase-3 architecture review
+- [x] Proptest for `extract_dependencies` (P0 seam) — **FUT-5** addressed in sha `f628348` (`tests/dependencies_proptest.rs` — 3 proptests + spec-anchored example tests). Dependencies kill rate now 100%.
+- [x] Proptest for `prepare` / `prepare_for_host` (P0 seam) — **FUT-4** addressed in sha `f628348` (`tests/prepare_host_proptest.rs` — 5 property tests including idempotence + termination + parseability). prepare_host kill rate uplift in baseline.jsonl.
+- [ ] CI gate: each public `lib.rs` re-export requires ≥1 proptest before example tests count — open (Phase 3 policy work, separate ticket)
+- [ ] Post-Phase-3 architecture review — open (deferred until policy gate above lands)
 
 **Closeout**:
 - [x] Parent-repo (`formspec-stack/`) submodule pointer bump prepared — HELD for owner-approved push (per directive). fel-core `main` at sha `0e0d80d` (post-review remediation complete; all four P0 files re-baselined; Category A fully documented with strict/test-coverage flavors; cross-stack-scout architecture review BLOCKER F1 + HIGH F2/F3/F4/F6/F7 + MEDIUM F5/F6 all addressed; formspec-scout code review HIGH F1/F2 + MEDIUM F3/F4/F5/F6 + NIT F7/F8 all addressed; 12 mutants killed in initial batch + 6 in post-review batch = 18 total this Phase-2 sub-pass).
