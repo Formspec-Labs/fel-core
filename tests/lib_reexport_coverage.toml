@@ -1,0 +1,580 @@
+# Phase 3 lib.rs re-export coverage manifest.
+#
+# Each [[entries]] table represents one public re-export from `src/lib.rs`.
+# The companion gate test (`tests/lib_reexport_coverage_gate.rs`) enumerates
+# every `pub use` symbol in `src/lib.rs` and asserts:
+#
+#   1. Every symbol has a manifest entry.
+#   2. Each `proptests = [...]` cite (`tests/file.rs::fn_name`) resolves to a
+#      real test function.
+#   3. Each `exempt` value is one of E1..E8 (per design §Exemption categories).
+#   4. `exempt = "E3" | "E4" | "E5"` entries carry the required
+#      `consumer_proptests = [...]` citation (E5 additionally requires
+#      `example_tests = ["file.rs:Lstart-Lend"]`).
+#
+# See `thoughts/2026-05-23-phase-3-ci-gate-design.md` for the full design,
+# the audited symbol table, and the exemption-category taxonomy (E1..E8).
+#
+# audited_at_sha pins the `src/lib.rs` snapshot the audit table was prepared
+# against; audited_against_lib_rs_lines pins the byte range of the audited
+# `pub use` block. Drift detection: if `src/lib.rs` changes inside this
+# range, the gate's enumeration-vs-manifest equality check fails.
+
+audited_at_sha = "ce224d8"
+audited_against_lib_rs_lines = "35-78"
+
+# ── ast ──────────────────────────────────────────────────────────────────────
+
+[[entries]]
+symbol = "ast::Expr"
+proptests = [
+    "tests/ast_proptest.rs::parse_print_identity",
+    "tests/ast_proptest.rs::parse_print_eval_equivalence",
+    "tests/dependencies_proptest.rs::extract_is_idempotent",
+    "tests/fel_proptest.rs::parse_print_roundtrip_decimal_integer",
+]
+notes = "AST is the central data type; every parse/print/eval proptest exercises it."
+
+# ── context_json ─────────────────────────────────────────────────────────────
+
+[[entries]]
+symbol = "context_json::formspec_environment_from_json_map"
+proptests = []
+notes = "Phase 3b-pending: JSON-input parser; convenience surface (design §Gap item 13). No proptest yet."
+
+# ── convert ──────────────────────────────────────────────────────────────────
+
+[[entries]]
+symbol = "convert::fel_to_json"
+proptests = [
+    "tests/fel_proptest.rs::json_scalar_roundtrip",
+    "tests/fel_proptest.rs::value_encoder_invariant_holds_for_all_encoders",
+]
+notes = "Back-compat alias for fel_to_ui_json; the `Alias` arm of value_encoder_invariant pins both the alias contract and the round-trip."
+
+[[entries]]
+symbol = "convert::fel_to_ui_json"
+proptests = ["tests/fel_proptest.rs::value_encoder_invariant_holds_for_all_encoders"]
+notes = "Phase 3a P0 #5 — closed by 4aa6ac6. `Ui` arm asserts re-encode idempotency."
+
+[[entries]]
+symbol = "convert::fel_to_wire_json"
+proptests = ["tests/fel_proptest.rs::value_encoder_invariant_holds_for_all_encoders"]
+notes = "Phase 3a P0 #5 — closed by 4aa6ac6. `Wire` arm asserts full round-trip via json_to_fel."
+
+[[entries]]
+symbol = "convert::field_map_from_json_str"
+proptests = []
+notes = "Phase 3b-pending: JSON-input parser; convenience surface (design §Gap item 13)."
+
+[[entries]]
+symbol = "convert::json_object_to_field_map"
+proptests = []
+notes = "Phase 3b-pending: convenience surface; used in public_conformance_corpus.rs example tests only (design §Gap item 13)."
+
+[[entries]]
+symbol = "convert::json_to_fel"
+proptests = [
+    "tests/fel_proptest.rs::json_object_order_roundtrip",
+    "tests/fel_proptest.rs::json_scalar_roundtrip",
+    "tests/fel_proptest.rs::value_encoder_invariant_holds_for_all_encoders",
+]
+notes = "Reverse of fel_to_json; round-trip pinned by three proptests."
+
+# ── dependencies ─────────────────────────────────────────────────────────────
+
+[[entries]]
+symbol = "dependencies::Dependencies"
+proptests = [
+    "tests/dependencies_proptest.rs::extract_is_idempotent",
+    "tests/dependencies_proptest.rs::fields_union_under_binary_add",
+    "tests/dependencies_proptest.rs::wildcard_propagates_through_binary_op",
+]
+notes = "Return type of extract_dependencies; every dependencies proptest asserts on its fields."
+
+[[entries]]
+symbol = "dependencies::dependencies_to_json_value"
+proptests = []
+notes = "MIXED (design audit): example test exists at tests/dependencies_proptest.rs:274 (dependencies_to_json_value_reflects_actual_deps) but is not inside a proptest! block. Phase 3b-pending: parameterize over JsonWireStyle alongside dependencies_to_json_value_styled (design §Gap item 10)."
+
+[[entries]]
+symbol = "dependencies::dependencies_to_json_value_styled"
+proptests = []
+notes = "Phase 3b-pending: JSON-export sibling; one proptest parameterized over JsonWireStyle closes both styled/unstyled (design §Gap item 10)."
+
+[[entries]]
+symbol = "dependencies::extract_dependencies"
+proptests = [
+    "tests/dependencies_proptest.rs::extract_is_idempotent",
+    "tests/dependencies_proptest.rs::fields_union_under_binary_add",
+    "tests/dependencies_proptest.rs::wildcard_propagates_through_binary_op",
+]
+notes = "P0 seam; Phase 2 FUT-5 lifted mutation kill rate 56% → 100%."
+
+# ── environment ──────────────────────────────────────────────────────────────
+
+[[entries]]
+symbol = "environment::FormspecEnvironment"
+proptests = []
+notes = "Phase 3b-pending: example-only in env_mip_tests.rs / locale_fel_functions.rs (design §Gap)."
+
+[[entries]]
+symbol = "environment::MipState"
+proptests = []
+notes = "E3-eligible (data-shape struct) but consumer is example-only (env_mip_tests.rs); exemption blocked per design §Exemption (E3 requires consumer_proptests). Phase 3b-pending."
+
+[[entries]]
+symbol = "environment::RepeatContext"
+proptests = []
+notes = "E3-eligible (data-shape struct); consumer (FormspecEnvironment repeat machinery) is example-only in env_repeat_tests.rs. Exemption blocked per design §Exemption. Phase 3b-pending."
+
+# ── error ────────────────────────────────────────────────────────────────────
+
+[[entries]]
+symbol = "error::Diagnostic"
+proptests = [
+    "tests/diagnostic_proptest.rs::json_roundtrip_kind_key_matches_variant",
+    "tests/diagnostic_proptest.rs::has_error_diagnostics_matches_filter",
+    "tests/diagnostic_proptest.rs::undefined_function_names_match_oracle",
+]
+notes = "Phase 3a P0 #3 — closed by 48f9280. Diagnostic shape pinned via arb_diagnostic strategy."
+
+[[entries]]
+symbol = "error::DiagnosticKind"
+proptests = [
+    "tests/diagnostic_proptest.rs::json_roundtrip_kind_key_matches_variant",
+    "tests/diagnostic_proptest.rs::undefined_function_names_match_oracle",
+]
+notes = "Phase 3a P0 #3 — closed by 48f9280. Closed-enumeration discriminator pinned via JSON-key-vs-variant round-trip."
+
+[[entries]]
+symbol = "error::Error"
+exemption = "E5"
+consumer_proptests = ["tests/fel_proptest.rs::parse_print_roundtrip_decimal_integer"]
+example_tests = ["tests/parser_rejection_tests.rs:L225-L263"]
+notes = "Result::Err shape for parse(). Ok branch covered by parse-round-trip proptests; Err branch by parse_error_span_* example tests."
+
+[[entries]]
+symbol = "error::ParseError"
+exemption = "E5"
+consumer_proptests = ["tests/fel_proptest.rs::parse_print_roundtrip_decimal_integer"]
+example_tests = ["tests/parser_rejection_tests.rs:L225-L263"]
+notes = "Inner variant of Error::Parse; same shape and same Ok/Err coverage rationale."
+
+[[entries]]
+symbol = "error::Severity"
+exemption = "E4"
+consumer_proptests = ["tests/diagnostic_proptest.rs::has_error_diagnostics_matches_filter"]
+notes = "Tag enum; consumer (Diagnostic filter helpers) pinned by Phase 3a P0 #3 proptest (48f9280)."
+
+[[entries]]
+symbol = "error::fel_diagnostics_to_json_value"
+proptests = ["tests/diagnostic_proptest.rs::json_roundtrip_kind_key_matches_variant"]
+notes = "JSON-export of diagnostics; round-trip pinned via Phase 3a P0 #3 (48f9280). _styled sibling remains GAP."
+
+[[entries]]
+symbol = "error::fel_diagnostics_to_json_value_styled"
+proptests = []
+notes = "Phase 3b-pending: JSON-export sibling; one proptest parameterized over JsonWireStyle closes both styled/unstyled (design §Gap item 10)."
+
+[[entries]]
+symbol = "error::has_error_diagnostics"
+proptests = ["tests/diagnostic_proptest.rs::has_error_diagnostics_matches_filter"]
+notes = "Phase 3a P0 #3 — closed by 48f9280."
+
+[[entries]]
+symbol = "error::reject_undefined_functions"
+proptests = [
+    "tests/diagnostic_proptest.rs::reject_ok_when_no_undefined_function",
+    "tests/diagnostic_proptest.rs::reject_err_when_undefined_function_present",
+]
+notes = "Phase 3a P0 #3 — closed by 48f9280. Both Ok and Err branches pinned."
+
+[[entries]]
+symbol = "error::undefined_function_names_from_diagnostics"
+proptests = ["tests/diagnostic_proptest.rs::undefined_function_names_match_oracle"]
+notes = "Phase 3a P0 #3 — closed by 48f9280. Compared against hand-rolled oracle."
+
+# ── evaluator ────────────────────────────────────────────────────────────────
+
+[[entries]]
+symbol = "evaluator::BudgetExceededKind"
+proptests = ["tests/eval_budget_proptest.rs::budget_exceeded_kind_is_distinct_per_metric"]
+notes = "Phase 3a P0 #1 — closed by a4e95bf. Exhaustive match without wildcards enforces structural compile-time guard."
+
+[[entries]]
+symbol = "evaluator::ContextBinding"
+proptests = []
+notes = "E3-eligible (data-shape struct); consumer is example-only in host_bindings.rs. Exemption blocked per design §Exemption. Phase 3b-pending."
+
+[[entries]]
+symbol = "evaluator::ContextBindingCatalog"
+exemption = "E6"
+consumer_proptests = ["tests/extension_registry_proptest.rs::lookup_is_closed_under_registered_name_set"]
+notes = "Trait surface; canonical impls are EmptyCatalog (sentinel) and ExtensionRegistry (proptest-covered via Phase 3a P0 #2). The trait dispatch via ExtensionRegistry is what the lookup-closure proptest exercises."
+
+[[entries]]
+symbol = "evaluator::ContextBindingKind"
+proptests = []
+notes = "E4-eligible (tag enum); consumer (ContextBinding) is example-only in host_bindings.rs. Exemption blocked per design §Exemption (consumer cite required). Phase 3b-pending."
+
+[[entries]]
+symbol = "evaluator::EmptyCatalog"
+proptests = []
+notes = "E7-eligible (ZST sentinel impl of ContextBindingCatalog); consumer surface is the trait dispatch in host_bindings.rs example tests only. Exemption blocked until a proptest covers the EmptyCatalog branch."
+
+[[entries]]
+symbol = "evaluator::Environment"
+exemption = "E6"
+consumer_proptests = [
+    "tests/ast_proptest.rs::parse_print_eval_equivalence",
+    "tests/fel_proptest.rs::null_propagates_through_binary_numeric",
+]
+notes = "Trait surface; canonical impl is MapEnvironment which is heavily proptest-covered (see MapEnvironment entry)."
+
+[[entries]]
+symbol = "evaluator::EvalBudget"
+proptests = [
+    "tests/eval_budget_proptest.rs::budget_check_monotone_under_increasing_steps",
+    "tests/eval_budget_proptest.rs::budget_check_monotone_under_increasing_alloc",
+    "tests/eval_budget_proptest.rs::default_budget_admits_trivial_literal_evaluation",
+]
+notes = "Phase 3a P0 #1 — closed by a4e95bf. Monotonicity per-metric plus unlimited()-as-default proptest."
+
+[[entries]]
+symbol = "evaluator::EvalResult"
+proptests = [
+    "tests/ast_proptest.rs::parse_print_eval_equivalence",
+    "tests/ast_proptest.rs::eval_determinism",
+    "tests/fel_proptest.rs::null_propagates_through_binary_numeric",
+]
+notes = "Result type of evaluate(); carried through every eval proptest."
+
+[[entries]]
+symbol = "evaluator::Evaluator"
+proptests = []
+notes = "Phase 3b-pending: internal driver type with no direct test surface; the public entry is evaluate() (proptest-covered). Awaits Phase 3e exemption review for E7-style classification (no behavior; consumer surface IS the public API)."
+
+[[entries]]
+symbol = "evaluator::EvaluatorOptions"
+proptests = []
+notes = "Phase 3b-pending: example-only in budget_tests.rs and host_bindings.rs; sibling of evaluate_with* GAPs (design §Gap item 8). One proptest covers evaluate_with + evaluate_with_catalog + eval_with_fields siblings."
+
+[[entries]]
+symbol = "evaluator::MapEnvironment"
+proptests = [
+    "tests/ast_proptest.rs::parse_print_eval_equivalence",
+    "tests/fel_proptest.rs::null_propagates_through_binary_numeric",
+    "tests/semantic_invariants.rs::null_prop_binary_ops_null_left",
+    "tests/fel_chaos_proptest.rs::nested_parens_never_panic",
+]
+notes = "Canonical Environment impl; constructed in every eval proptest."
+
+[[entries]]
+symbol = "evaluator::UNBOUND_CONTEXT_REF_CODE"
+exemption = "E8"
+example_tests = ["tests/host_bindings.rs:L1-L388"]
+notes = "Error-code constant string; snapshot/example test in host_bindings.rs is the right artifact (not a property)."
+
+[[entries]]
+symbol = "evaluator::eval_with_fields"
+proptests = []
+notes = "Phase 3b-pending: example-only in evaluator_tests.rs; sibling of evaluate (design §Gap item 8)."
+
+[[entries]]
+symbol = "evaluator::evaluate"
+proptests = [
+    "tests/ast_proptest.rs::parse_print_eval_equivalence",
+    "tests/ast_proptest.rs::eval_determinism",
+    "tests/ast_proptest.rs::no_panic_on_full_pipeline",
+    "tests/fel_proptest.rs::null_propagates_through_binary_numeric",
+    "tests/semantic_invariants.rs::null_prop_binary_ops_null_left",
+]
+notes = "P0 evaluator entry; covered by every eval proptest."
+
+[[entries]]
+symbol = "evaluator::evaluate_with"
+proptests = []
+notes = "Phase 3b-pending: example-only in trace_tests.rs; sibling of evaluate (design §Gap item 8)."
+
+[[entries]]
+symbol = "evaluator::evaluate_with_catalog"
+proptests = []
+notes = "Phase 3b-pending: example-only in host_bindings.rs; sibling of evaluate (design §Gap item 8)."
+
+# ── extensions ───────────────────────────────────────────────────────────────
+
+[[entries]]
+symbol = "extensions::ExtensionCallOutcome"
+exemption = "E4"
+consumer_proptests = ["tests/extension_registry_proptest.rs::lookup_is_closed_under_registered_name_set"]
+notes = "Tag enum returned by ExtensionRegistry::call (Ok / NotFound / ArityMismatch); consumer (ExtensionRegistry) pinned by Phase 3a P0 #2 (1f3d93f)."
+
+[[entries]]
+symbol = "extensions::ExtensionError"
+proptests = []
+notes = "E5-eligible (error enum returned by register()); Ok branch covered by Phase 3a P0 #2 (extension_registry_proptest), but no example test exists for NameConflict Err branch. Exemption blocked per design §Exemption (E5 requires BOTH consumer_proptests AND example_tests). Phase 3b-pending: add an example test asserting Err(ExtensionError::NameConflict) on duplicate register()."
+
+[[entries]]
+symbol = "extensions::ExtensionFn"
+exemption = "E7"
+consumer_proptests = ["tests/extension_registry_proptest.rs::lookup_is_closed_under_registered_name_set"]
+notes = "Function-pointer typedef; consumer surface is ExtensionRegistry (Phase 3a P0 #2)."
+
+[[entries]]
+symbol = "extensions::ExtensionFunc"
+exemption = "E7"
+consumer_proptests = ["tests/extension_registry_proptest.rs::lookup_is_closed_under_registered_name_set"]
+notes = "Struct holding ExtensionFn + arity bounds; consumer surface is ExtensionRegistry (Phase 3a P0 #2)."
+
+[[entries]]
+symbol = "extensions::ExtensionRegistry"
+proptests = [
+    "tests/extension_registry_proptest.rs::lookup_is_closed_under_registered_name_set",
+    "tests/extension_registry_proptest.rs::re_registration_is_idempotent",
+    "tests/extension_registry_proptest.rs::disjoint_packages_compose_to_union",
+]
+notes = "Phase 3a P0 #2 — closed by 1f3d93f. Lookup closure, idempotence, disjoint-package union."
+
+[[entries]]
+symbol = "extensions::Package"
+exemption = "E7"
+consumer_proptests = ["tests/extension_registry_proptest.rs::disjoint_packages_compose_to_union"]
+notes = "Registry-grouping enum; directly constructed (Package::Universal / Package::Formspec) in disjoint-package proptest."
+
+[[entries]]
+symbol = "extensions::builtin_arity"
+proptests = []
+notes = "Discovered post-design-audit (added in commit 700e89b FUT-7); classify in Phase 3e review. Likely a query helper for the builtin catalog; sibling of builtin_function_catalog. Phase 3b-pending."
+
+[[entries]]
+symbol = "extensions::builtin_function_catalog"
+proptests = [
+    "tests/ast_proptest.rs::parse_print_eval_equivalence",
+    "tests/dependencies_proptest.rs::extract_is_idempotent",
+    "tests/fel_proptest.rs::null_propagates_through_binary_numeric",
+]
+notes = "Catalog passed to every arb_expr(_, catalog) call across the proptest suite."
+
+[[entries]]
+symbol = "extensions::builtin_function_catalog_for"
+proptests = []
+notes = "Phase 3b-pending: catalog-export helper; convenience surface (design §Gap item 13)."
+
+[[entries]]
+symbol = "extensions::builtin_function_catalog_json_value"
+proptests = []
+notes = "Phase 3b-pending: catalog-export helper; convenience surface (design §Gap item 13)."
+
+[[entries]]
+symbol = "extensions::builtin_function_catalog_json_value_for"
+proptests = []
+notes = "Phase 3b-pending: catalog-export helper; convenience surface (design §Gap item 13)."
+
+# ── indexmap (third-party) ───────────────────────────────────────────────────
+
+[[entries]]
+symbol = "indexmap::IndexMap"
+exemption = "E1"
+notes = "Third-party re-export; upstream owns the property surface."
+
+# ── interpolation ────────────────────────────────────────────────────────────
+
+[[entries]]
+symbol = "interpolation::expr_is_interpolation_static_literal"
+proptests = []
+notes = "Phase 3b-pending: pure AST predicate; one proptest checking closure under arb_expr inputs closes this (design §Gap item 7). Example test in interpolation_static_literal.rs."
+
+# ── iso_duration ─────────────────────────────────────────────────────────────
+
+[[entries]]
+symbol = "iso_duration::IsoDurationParse"
+proptests = []
+notes = "Phase 3b-pending: E5-eligible (Result-like enum returned by parser) but parsers themselves are GAP (parse_iso8601_duration{,_ms}). Exempt once parser proptest lands and an example covers the parse-fail Err variants."
+
+[[entries]]
+symbol = "iso_duration::parse_iso8601_duration"
+proptests = []
+notes = "Phase 3b-pending: Tier-2 in mutation gate; one round-trip proptest (duration → format → parse) closes both _duration and _ms (design §Gap item 6)."
+
+[[entries]]
+symbol = "iso_duration::parse_iso8601_duration_ms"
+proptests = []
+notes = "Phase 3b-pending: Tier-2 sibling of parse_iso8601_duration; same proptest closes both (design §Gap item 6)."
+
+# ── lexer ────────────────────────────────────────────────────────────────────
+
+[[entries]]
+symbol = "lexer::PositionedToken"
+exemption = "E3"
+consumer_proptests = [
+    "tests/ast_proptest.rs::no_panic_on_full_pipeline",
+    "tests/fel_chaos_proptest.rs::nested_parens_never_panic",
+]
+notes = "Plain data-shape struct returned by tokenize(); consumer (tokenize) pinned by both proptests above."
+
+[[entries]]
+symbol = "lexer::is_valid_fel_identifier"
+proptests = []
+notes = "Phase 3b-pending: round-trip property sanitize(s) ⇒ is_valid(sanitize(s)) closes both is_valid + sanitize (design §Gap item 11)."
+
+[[entries]]
+symbol = "lexer::sanitize_fel_identifier"
+proptests = []
+notes = "Phase 3b-pending: paired with is_valid_fel_identifier in a round-trip proptest (design §Gap item 11)."
+
+[[entries]]
+symbol = "lexer::tokenize"
+proptests = [
+    "tests/ast_proptest.rs::no_panic_on_full_pipeline",
+    "tests/fel_chaos_proptest.rs::nested_parens_never_panic",
+]
+notes = "Tokenizer entry; exercised across the AST and chaos proptests."
+
+[[entries]]
+symbol = "lexer::tokenize_to_json_value"
+proptests = []
+notes = "Phase 3b-pending: JSON-export of tokens; one proptest parameterized over JsonWireStyle closes both styled/unstyled (design §Gap item 10)."
+
+[[entries]]
+symbol = "lexer::tokenize_to_json_value_styled"
+proptests = []
+notes = "Phase 3b-pending: JSON-export sibling (design §Gap item 10)."
+
+# ── parser ───────────────────────────────────────────────────────────────────
+
+[[entries]]
+symbol = "parser::parse"
+proptests = [
+    "tests/ast_proptest.rs::parse_print_identity",
+    "tests/ast_proptest.rs::parse_print_eval_equivalence",
+    "tests/parser_parse_proptest.rs::parse_random_lossy_utf8_does_not_panic",
+    "tests/fel_chaos_proptest.rs::nested_parens_never_panic",
+]
+notes = "P0 parser entry; covered by parse-round-trip plus adversarial chaos proptests."
+
+# ── prepare_host ─────────────────────────────────────────────────────────────
+
+[[entries]]
+symbol = "prepare_host::PrepareHostInput"
+proptests = [
+    "tests/prepare_host_proptest.rs::prepare_is_idempotent",
+    "tests/prepare_host_proptest.rs::self_ref_replacement_eliminates_bare_dollar",
+    "tests/prepare_host_proptest.rs::prepared_output_parses",
+]
+notes = "Borrowed-input shape fed to prepare_for_host; pinned by Phase 2 FUT-4."
+
+[[entries]]
+symbol = "prepare_host::PrepareHostOptions"
+exemption = "E3"
+consumer_proptests = [
+    "tests/prepare_host_proptest.rs::prepare_owned_is_idempotent",
+    "tests/prepare_host_proptest.rs::prepare_equivalent_to_prepare_for_host",
+]
+notes = "Owned-options struct fed to prepare(); consumer pinned by Phase 3a P0 #4 (ba30c81)."
+
+[[entries]]
+symbol = "prepare_host::host_options_from_json"
+proptests = []
+notes = "Phase 3b-pending: JSON-input parser; convenience surface (design §Gap item 13)."
+
+[[entries]]
+symbol = "prepare_host::prepare"
+proptests = [
+    "tests/prepare_host_proptest.rs::prepare_equivalent_to_prepare_for_host",
+    "tests/prepare_host_proptest.rs::prepare_owned_is_idempotent",
+    "tests/prepare_host_proptest.rs::prepare_owned_terminates_on_arbitrary_input",
+    "tests/prepare_host_proptest.rs::prepare_owned_output_parses",
+]
+notes = "Phase 3a P0 #4 — closed by ba30c81. Owned-options shape adapter over prepare_for_host with equivalence pin."
+
+[[entries]]
+symbol = "prepare_host::prepare_for_host"
+proptests = [
+    "tests/prepare_host_proptest.rs::prepare_is_idempotent",
+    "tests/prepare_host_proptest.rs::self_ref_replacement_eliminates_bare_dollar",
+    "tests/prepare_host_proptest.rs::prepared_output_parses",
+    "tests/prepare_host_proptest.rs::prepare_terminates_on_arbitrary_input",
+]
+notes = "Phase 2 FUT-4; canonical prepare entry point."
+
+# ── printer ──────────────────────────────────────────────────────────────────
+
+[[entries]]
+symbol = "printer::print_expr"
+proptests = [
+    "tests/ast_proptest.rs::parse_print_identity",
+    "tests/fel_proptest.rs::parse_print_roundtrip_decimal_integer",
+]
+notes = "Pinned by parse/print round-trip proptests at the AST and decimal-integer surfaces."
+
+# ── trace ────────────────────────────────────────────────────────────────────
+
+[[entries]]
+symbol = "trace::Trace"
+proptests = []
+notes = "Phase 3b-pending: non-trivial mutable accumulator; proptest on monotonicity (length never decreases) is a real invariant (design §Gap item 9). Example-only in trace_tests.rs today."
+
+[[entries]]
+symbol = "trace::TraceStep"
+proptests = []
+notes = "E3-eligible (enum returned via Trace); consumer (Trace) is GAP. Exemption blocked per design §Exemption. Phase 3b-pending."
+
+# ── types ────────────────────────────────────────────────────────────────────
+
+[[entries]]
+symbol = "types::CurrencyCode"
+exemption = "E3"
+consumer_proptests = [
+    "tests/fel_proptest.rs::json_object_order_roundtrip",
+    "tests/fel_proptest.rs::value_encoder_invariant_holds_for_all_encoders",
+]
+notes = "Newtype wrapper around currency-code string; CurrencyCode::parse exercised via arb_currency_code → arb_money → arb_value in every proptest using arb_value."
+
+[[entries]]
+symbol = "types::Date"
+proptests = [
+    "tests/fel_proptest.rs::json_object_order_roundtrip",
+    "tests/fel_proptest.rs::value_encoder_invariant_holds_for_all_encoders",
+    "tests/semantic_invariants.rs::null_prop_binary_ops_null_left",
+]
+notes = "Pinned via arb_value strategy and value-encoder round-trip."
+
+[[entries]]
+symbol = "types::Money"
+proptests = [
+    "tests/fel_proptest.rs::json_object_order_roundtrip",
+    "tests/fel_proptest.rs::value_encoder_invariant_holds_for_all_encoders",
+]
+notes = "Pinned via arb_money / arb_value strategies."
+
+[[entries]]
+symbol = "types::Value"
+proptests = [
+    "tests/ast_proptest.rs::eval_determinism",
+    "tests/fel_proptest.rs::null_propagates_through_binary_numeric",
+    "tests/semantic_invariants.rs::null_prop_binary_ops_null_left",
+]
+notes = "Universal value type; exercised by every eval proptest."
+
+[[entries]]
+symbol = "types::parse_date_literal"
+proptests = []
+notes = "Phase 3b-pending: indirectly exercised via arb_expr DateLiteral round-trip; needs explicit proptest (design §Gap item 13)."
+
+[[entries]]
+symbol = "types::parse_datetime_literal"
+proptests = []
+notes = "Phase 3b-pending: sibling of parse_date_literal (design §Gap item 13)."
+
+[[entries]]
+symbol = "types::value_size_estimate"
+proptests = []
+notes = "Phase 3b-pending: budget-accounting helper; one proptest on monotonicity (size(container) >= sum of children) closes this (design §Gap item 13)."
+
+# ── wire_style ───────────────────────────────────────────────────────────────
+
+[[entries]]
+symbol = "wire_style::JsonWireStyle"
+proptests = []
+notes = "E4-eligible (tag enum: JsCamel / PythonSnake); consumer surface is the *_styled sibling of every json_value export (tokenize_to_json_value_styled, fel_diagnostics_to_json_value_styled, dependencies_to_json_value_styled). All consumers are GAP. Exemption blocked per design §Exemption. Phase 3b-pending: closes once any _styled sibling proptest lands."
