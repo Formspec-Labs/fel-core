@@ -13,6 +13,23 @@
 //! with the citations the design requires). See
 //! `thoughts/2026-05-23-phase-3-ci-gate-design.md` §Implementation plan
 //! for the rollout history.
+//!
+//! ## Cite-resolution hardening (Phase 3e)
+//!
+//! `resolve_example_cite` rejects two fake-pass shapes the audit caught:
+//!
+//! 1. **Whole-file cites** — `:L1-L<EOF>` patterns evade scrutiny by
+//!    "citing the file" without pinning an assertion block. The resolver
+//!    rejects ranges spanning more than [`MAX_EXAMPLE_CITE_LINES`] lines.
+//! 2. **Assertion-free cites** — a range that contains no `assert!`,
+//!    `assert_eq!`, `assert_ne!`, or `panic!` macro invocation is not an
+//!    example test; the resolver rejects it.
+//!
+//! These checks are structural — they cannot verify that the assertions
+//! actually pin the cited symbol's behavior (that remains reviewer
+//! judgment, encoded in the `notes` field). But they raise the floor:
+//! a cite that satisfies the resolver carries a focused assertion block,
+//! not a placeholder.
 
 #![allow(clippy::missing_docs_in_private_items)]
 
@@ -30,8 +47,8 @@ fn crate_root() -> &'static Path {
 
 /// One row in `tests/lib_reexport_coverage.toml`. Exactly one of
 /// `exemption = "E..."` or non-empty `proptests` is the COVERED state; an
-/// empty `proptests` with no exemption is a GAP (allowed to land, gated by
-/// `#[ignore]` until Phase 3c activation).
+/// empty `proptests` with no exemption is a GAP. The gate is active
+/// (Phase 3c activated; no `#[ignore]`), so any GAP entry fails the build.
 #[derive(Debug, Deserialize)]
 struct ManifestEntry {
     /// `module::symbol` exactly as it appears under `pub use module::{...}`
@@ -90,11 +107,11 @@ fn load_manifest() -> Manifest {
 /// Returns a sorted `Vec<String>` of `module::symbol` strings, matching the
 /// shape used by the manifest's `symbol` field.
 ///
-/// Parser approach: scan for `pub use ` (note trailing space — distinguishes
-/// from `pub use(crate)` etc), then read until the matching `;`. Inside that
-/// slice, split off the module path (everything before the FIRST `::` chain
-/// terminator — either `{` or symbol-name end), then parse the brace-list or
-/// single symbol.
+/// Parser approach: strip line- and block-comments from the source, then scan
+/// for `pub use ` anchored at start-of-line (the previous char must be `\n`
+/// or position 0; this rejects doc-comment occurrences and `re-pub use` style
+/// false matches). For each match, read until the matching `;`, then parse
+/// the brace-list or single symbol.
 ///
 /// Intentionally hand-rolled — using `syn` would pull a proc-macro-grade
 /// dependency for what is structurally `pub use foo::{a, b};` blocks. The
@@ -102,12 +119,23 @@ fn load_manifest() -> Manifest {
 /// detect drift, not to handle arbitrary Rust grammar.
 fn enumerate_lib_rs_pub_use_symbols() -> Vec<String> {
     let path = crate_root().join("src/lib.rs");
-    let src = fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+    let raw = fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+    let src = strip_comments(&raw);
 
     let mut out = Vec::new();
     let mut cursor = 0;
     while let Some(start) = src[cursor..].find("pub use ") {
-        let abs_start = cursor + start + "pub use ".len();
+        let abs_match = cursor + start;
+        // Anchor at start-of-line: char before `pub` must be `\n` or this is
+        // position 0. Rejects matches inside doc-comment text, string
+        // literals (already stripped), or any non-item-level occurrence.
+        let at_line_start = abs_match == 0 || src.as_bytes()[abs_match - 1] == b'\n';
+        if !at_line_start {
+            cursor = abs_match + "pub use ".len();
+            continue;
+        }
+
+        let abs_start = abs_match + "pub use ".len();
         let end_rel = src[abs_start..]
             .find(';')
             .unwrap_or_else(|| panic!("unterminated `pub use` near byte {abs_start}"));
@@ -122,12 +150,56 @@ fn enumerate_lib_rs_pub_use_symbols() -> Vec<String> {
     out
 }
 
+/// Strips Rust line-comments (`//...\n`) and block-comments (`/* ... */`)
+/// from `src`, preserving newlines so byte offsets land near their original
+/// lines. String-literal contents are NOT scanned (lib.rs has no string
+/// literals embedding `pub use ...;` and the gate's scope is `pub use`
+/// re-exports only).
+///
+/// Block comments are not nested per Rust grammar (`/* /* */ */` IS nested
+/// in Rust, but lib.rs has none and the gate fails loudly on unterminated
+/// blocks rather than silently mis-parsing).
+fn strip_comments(src: &str) -> String {
+    let bytes = src.as_bytes();
+    let mut out = String::with_capacity(src.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if i + 1 < bytes.len() && bytes[i] == b'/' && bytes[i + 1] == b'/' {
+            // Line comment — skip to (but not including) the newline.
+            while i < bytes.len() && bytes[i] != b'\n' {
+                i += 1;
+            }
+            // Let the newline through so line numbers/anchoring stay sane.
+        } else if i + 1 < bytes.len() && bytes[i] == b'/' && bytes[i + 1] == b'*' {
+            // Block comment — skip to `*/`. Replace internal newlines with
+            // themselves (preserve line count) but drop all other bytes.
+            i += 2;
+            while i + 1 < bytes.len() && !(bytes[i] == b'*' && bytes[i + 1] == b'/') {
+                if bytes[i] == b'\n' {
+                    out.push('\n');
+                }
+                i += 1;
+            }
+            if i + 1 >= bytes.len() {
+                panic!("unterminated block comment in source");
+            }
+            i += 2; // consume `*/`
+        } else {
+            out.push(bytes[i] as char);
+            i += 1;
+        }
+    }
+    out
+}
+
 /// Parses one `pub use ...` block into `module::symbol` strings, appended to
-/// `out`. Handles three shapes:
+/// `out`. Handles three shapes plus alias-stripping:
 ///
 /// * `module::symbol` (single).
 /// * `module::{a, b, c}` (brace-list, single-line).
 /// * `module::{\n    a, b,\n    c,\n}` (brace-list, multi-line).
+/// * `module::Foo as Bar` and `module::{Foo as Bar, Baz}` — the alias
+///   (post-`as` ident) is what consumers see; the gate records the alias.
 fn parse_pub_use_block(block: &str, out: &mut Vec<String>) {
     let block = block.trim();
     if let Some(brace_open) = block.find('{') {
@@ -139,17 +211,35 @@ fn parse_pub_use_block(block: &str, out: &mut Vec<String>) {
             .unwrap_or_else(|| panic!("unterminated brace-list in `pub use {module} {{...`"));
         let inner = &block[brace_open + 1..brace_close];
         for raw in inner.split(',') {
-            let sym = raw.trim();
+            let sym = strip_alias(raw.trim());
             if sym.is_empty() {
                 continue;
             }
             out.push(format!("{module}::{sym}"));
         }
     } else {
-        // Single-symbol shape. The whole block is `module::symbol`.
-        // (No nested braces; the `if let Some(brace_open)` branch above
-        // catches every multi-symbol case.)
-        out.push(block.to_string());
+        // Single-symbol shape. The whole block is `module::symbol` or
+        // `module::Foo as Bar`. Split off the module path, strip the alias
+        // off the symbol tail.
+        if let Some(last_sep) = block.rfind("::") {
+            let module = &block[..last_sep];
+            let tail = strip_alias(block[last_sep + 2..].trim());
+            out.push(format!("{module}::{tail}"));
+        } else {
+            // Bare ident (no `::`) — shouldn't appear in lib.rs but record
+            // it so the parser is total.
+            out.push(strip_alias(block).to_string());
+        }
+    }
+}
+
+/// Strips a `Foo as Bar` alias to its consumer-visible name (`Bar`). If `s`
+/// contains no ` as `, returns `s` unchanged.
+fn strip_alias(s: &str) -> &str {
+    if let Some(pos) = s.rfind(" as ") {
+        s[pos + " as ".len()..].trim()
+    } else {
+        s
     }
 }
 
@@ -159,6 +249,16 @@ fn parse_pub_use_block(block: &str, out: &mut Vec<String>) {
 /// Returns `Ok(())` on resolve, `Err(msg)` on miss with a contributor-readable
 /// reason. Failure messages are the gate's contributor experience — they're
 /// the first thing a CI failure shows.
+///
+/// ## Known limitation (TODO: future tightening)
+///
+/// The resolver substring-matches `fn <fn_name>(` against the WHOLE file. If
+/// a file defines two functions of the same name in different modules (e.g.
+/// `mod a { fn foo(...) }` + `mod b { fn foo(...) }`), the resolver will
+/// match either and not detect the collision. Today no `tests/*.rs` file in
+/// the crate exhibits this shape; if a manifest cite ever uses the full
+/// `tests/file.rs::mod::fn_name` path, the module segment is currently
+/// stripped and ignored. Tighten when a real collision appears.
 fn resolve_proptest_cite(cite: &str) -> Result<(), String> {
     let (file_rel, fn_name) = cite
         .split_once("::")
@@ -186,10 +286,27 @@ fn resolve_proptest_cite(cite: &str) -> Result<(), String> {
     }
 }
 
-/// Resolves an `<file>.rs:L<start>-L<end>` example-test cite by checking the
-/// file exists and the line range is within the file's line count. Does NOT
-/// verify the lines contain assertions — that's reviewer judgment, encoded in
-/// the manifest's `notes` field.
+/// Upper bound on the line-span of an `example_tests` cite. A focused
+/// assertion block fits well under this; a cite that spans more lines is
+/// almost certainly a "cite the whole file" placeholder rather than a
+/// pinned assertion block. Per Phase 3e audit (BLOCKER ARCH-H1).
+const MAX_EXAMPLE_CITE_LINES: usize = 80;
+
+/// Macro tokens whose presence is treated as evidence the cited range
+/// contains an assertion. `panic!` is included because some example tests
+/// assert via `match ... { _ => panic!(...) }` rather than `assert!`.
+const ASSERT_TOKENS: &[&str] = &["assert!", "assert_eq!", "assert_ne!", "panic!"];
+
+/// Resolves an `<file>.rs:L<start>-L<end>` example-test cite by checking:
+///
+/// 1. The file exists and the range is within the file's line count.
+/// 2. The range spans no more than [`MAX_EXAMPLE_CITE_LINES`] lines
+///    (rejects whole-file `:L1-L<EOF>` placeholders).
+/// 3. The cited line slice contains at least one assertion-shaped token
+///    (`assert!`, `assert_eq!`, `assert_ne!`, or `panic!`).
+///
+/// Does NOT verify the assertions actually pin the cited symbol's behavior
+/// — that's reviewer judgment, encoded in the manifest's `notes` field.
 fn resolve_example_cite(cite: &str) -> Result<(), String> {
     let (file_rel, range) = cite.split_once(':').ok_or_else(|| {
         format!("malformed example_tests cite `{cite}` — expected `file.rs:Lstart-Lend`")
@@ -209,6 +326,16 @@ fn resolve_example_cite(cite: &str) -> Result<(), String> {
             "example_tests cite `{cite}` — start L{start} > end L{end}"
         ));
     }
+    // Span check — reject whole-file cites BEFORE doing file I/O. Bounds
+    // failures already point the reviewer at the manifest, not the file.
+    let span = end - start + 1;
+    if span > MAX_EXAMPLE_CITE_LINES {
+        return Err(format!(
+            "example_tests cite `{cite}` — span {span} lines exceeds max {MAX_EXAMPLE_CITE_LINES}; \
+             example cites must pin a focused assertion block, not a whole file. \
+             Narrow the range to the assertions that pin the symbol's behavior."
+        ));
+    }
     let abs = crate_root().join(file_rel);
     let src = fs::read_to_string(&abs).map_err(|e| {
         format!(
@@ -216,11 +343,26 @@ fn resolve_example_cite(cite: &str) -> Result<(), String> {
             abs.display()
         )
     })?;
-    let line_count = src.lines().count();
+    let lines: Vec<&str> = src.lines().collect();
+    let line_count = lines.len();
     if end > line_count {
         return Err(format!(
             "example_tests cite `{cite}` — end L{end} exceeds file line count {line_count} in `{}`",
             abs.display()
+        ));
+    }
+    // Assertion-content check — the cited slice must contain at least one
+    // assertion macro invocation. Lines are 1-indexed in cites; slice
+    // accordingly (`start..=end`).
+    let cited_slice = lines[start - 1..end].join("\n");
+    let has_assert = ASSERT_TOKENS
+        .iter()
+        .any(|token| cited_slice.contains(token));
+    if !has_assert {
+        return Err(format!(
+            "example_tests cite `{cite}` — cited slice L{start}-L{end} contains no assertion \
+             macro (one of {ASSERT_TOKENS:?}). A range that contains no assertion is not an \
+             example test. Either tighten the range or fix the cited tests."
         ));
     }
     Ok(())
@@ -400,8 +542,17 @@ fn parser_handles_multi_line_brace_list_with_trailing_comma() {
 #[test]
 fn enumerate_picks_up_every_lib_rs_symbol() {
     // Smoke-test: the enumeration must return a non-empty, sorted, deduplicated
-    // set covering known anchors. Failures here mean the parser broke, not the
-    // manifest.
+    // set covering known anchors across every `pub use` shape in lib.rs.
+    // Failures here mean the parser broke, not the manifest.
+    //
+    // Anchors deliberately cover:
+    //   - single-symbol `pub use ast::Expr;`                  (line 35)
+    //   - single-symbol `pub use parser::parse;`              (line 68)
+    //   - third-party single `pub use indexmap::IndexMap;`    (line 61)
+    //   - single-line brace-list (none currently in lib.rs)
+    //   - multi-line brace-list `pub use convert::{...};`     (line 37-40)
+    //   - multi-line brace-list `pub use error::{...};`       (line 46-50)
+    //   - single-segment brace-list element `evaluator::evaluate` (line 51-55)
     let symbols = enumerate_lib_rs_pub_use_symbols();
     assert!(!symbols.is_empty(), "lib.rs has zero pub use symbols?");
     let set: HashSet<&str> = symbols.iter().map(String::as_str).collect();
@@ -410,12 +561,117 @@ fn enumerate_picks_up_every_lib_rs_symbol() {
         "parser::parse",
         "evaluator::evaluate",
         "indexmap::IndexMap",
+        // Brace-list anchors (CODE-M3 — Phase 3e remediation).
+        "convert::fel_to_json",
+        "error::Error",
     ] {
         assert!(
             set.contains(anchor),
             "enumeration missed anchor `{anchor}` — parser regressed"
         );
     }
+}
+
+// ── Phase 3e parser hardening self-tests ────────────────────────────────────
+
+#[test]
+fn parser_strips_alias_in_single_symbol_pub_use() {
+    // `pub use foo::Bar as Baz;` — the consumer-visible name is `Baz`,
+    // so the parser must record `foo::Baz` (not `foo::Bar as Baz`).
+    let mut out = Vec::new();
+    parse_pub_use_block("foo::Bar as Baz", &mut out);
+    assert_eq!(out, vec!["foo::Baz".to_string()]);
+}
+
+#[test]
+fn parser_strips_alias_in_brace_list() {
+    let mut out = Vec::new();
+    parse_pub_use_block("foo::{Bar as Baz, Qux}", &mut out);
+    assert_eq!(out, vec!["foo::Baz".to_string(), "foo::Qux".to_string()]);
+}
+
+#[test]
+fn strip_comments_drops_line_comments() {
+    // Doc-comments containing `pub use` literal must not survive the strip,
+    // so they can never reach the `pub use ` scanner. Verify by scanning
+    // the stripped output for the comment marker.
+    let src = "// pub use foo::Bar;\npub use foo::Baz;\n";
+    let stripped = strip_comments(src);
+    assert!(
+        !stripped.contains("//"),
+        "line-comment marker must be stripped"
+    );
+    // The doc-comment payload is gone but the real `pub use` survives.
+    assert!(
+        stripped.contains("pub use foo::Baz;"),
+        "real pub use must survive comment stripping"
+    );
+}
+
+#[test]
+fn strip_comments_drops_block_comments() {
+    let src = "/* pub use phony::Ghost; */\npub use real::Symbol;\n";
+    let stripped = strip_comments(src);
+    assert!(
+        !stripped.contains("phony"),
+        "block-comment contents must be stripped"
+    );
+    assert!(
+        stripped.contains("pub use real::Symbol;"),
+        "real pub use after block comment must survive"
+    );
+}
+
+#[test]
+fn enumerate_ignores_pub_use_in_line_comment() {
+    // Surgical test for the doc-comment false-positive ARCH-H2/CODE-H1
+    // closed: the parser scans STRIPPED source, so a `pub use` literal
+    // inside a `//` comment cannot inject a phantom symbol.
+    //
+    // We exercise this through `strip_comments` + `parse_pub_use_block`
+    // directly rather than mutating lib.rs. The real lib.rs assertion is
+    // `enumerate_picks_up_every_lib_rs_symbol` above, which would FAIL if
+    // the parser invented `module::Symbol` entries the manifest does not
+    // declare (the gate enforces equality).
+    let stripped = strip_comments("// pub use ghost::Phantom;\npub use real::Anchor;\n");
+    let mut out = Vec::new();
+    // Anchor-at-line-start emulation: the stripped source has the comment
+    // line as whitespace-only (the `//...` removed, newline kept), so the
+    // brace-list parser sees only the real `pub use`. We feed the BLOCK
+    // (post-`pub use ` strip) to confirm the inner parsing also doesn't
+    // get confused by surrounding whitespace.
+    parse_pub_use_block("real::Anchor", &mut out);
+    assert_eq!(out, vec!["real::Anchor".to_string()]);
+    // The stripped form should not contain `ghost`.
+    assert!(!stripped.contains("ghost"));
+}
+
+// ── Phase 3e example-cite hardening self-tests ──────────────────────────────
+
+#[test]
+fn example_resolver_rejects_whole_file_cite() {
+    // `:L1-L<EOF>` patterns evade scrutiny. The resolver rejects ranges
+    // wider than MAX_EXAMPLE_CITE_LINES regardless of file content
+    // (ARCH-H1 — Phase 3e remediation).
+    let err = resolve_example_cite("tests/parser_rejection_tests.rs:L1-L263")
+        .expect_err("whole-file cite must be rejected by the span check");
+    assert!(
+        err.contains("span 263 lines exceeds max"),
+        "error must name the span violation, got: {err}"
+    );
+}
+
+#[test]
+fn example_resolver_rejects_assertion_free_cite() {
+    // A focused range that contains no assert/panic macro is not an
+    // example test. parser_rejection_tests.rs lines 1-20 are the file
+    // header (`//!` docs + imports) — no assertions.
+    let err = resolve_example_cite("tests/parser_rejection_tests.rs:L1-L20")
+        .expect_err("assertion-free cite must be rejected");
+    assert!(
+        err.contains("contains no assertion macro"),
+        "error must name the missing-assertion violation, got: {err}"
+    );
 }
 
 #[test]
@@ -449,9 +705,14 @@ fn example_resolver_validates_line_range() {
 
 #[test]
 fn example_resolver_rejects_out_of_range() {
-    let err = resolve_example_cite("tests/parser_rejection_tests.rs:L1-L999999")
+    // Cite a small (within-span) range past the file's EOF. The file has
+    // 263 lines; cite L300-L320 (21 lines, well under the span cap).
+    let err = resolve_example_cite("tests/parser_rejection_tests.rs:L300-L320")
         .expect_err("out-of-range must not resolve");
-    assert!(err.contains("exceeds file line count"));
+    assert!(
+        err.contains("exceeds file line count"),
+        "error must name the line-count violation, got: {err}"
+    );
 }
 
 #[test]

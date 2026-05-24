@@ -8,9 +8,10 @@
 #   2. Each `proptests = [...]` cite (`tests/file.rs::fn_name`) resolves to a
 #      real test function.
 #   3. Each `exempt` value is one of E1..E8 (per design §Exemption categories).
-#   4. `exempt = "E3" | "E4" | "E5"` entries carry the required
+#   4. `exempt = "E3" | "E4" | "E5" | "E6" | "E7"` entries carry the required
 #      `consumer_proptests = [...]` citation (E5 additionally requires
-#      `example_tests = ["file.rs:Lstart-Lend"]`).
+#      `example_tests = ["file.rs:Lstart-Lend"]`; E8 requires `example_tests`
+#      only, no `consumer_proptests`).
 #
 # See `thoughts/2026-05-23-phase-3-ci-gate-design.md` for the full design,
 # the audited symbol table, and the exemption-category taxonomy (E1..E8).
@@ -20,7 +21,7 @@
 # `pub use` block. Drift detection: if `src/lib.rs` changes inside this
 # range, the gate's enumeration-vs-manifest equality check fails.
 
-audited_at_sha = "ff7e66d"
+audited_at_sha = "86d4bde"
 audited_against_lib_rs_lines = "35-78"
 
 # ── ast ──────────────────────────────────────────────────────────────────────
@@ -177,7 +178,7 @@ notes = "Inner variant of Error::Parse; same shape and same Ok/Err coverage rati
 symbol = "error::Severity"
 exemption = "E4"
 consumer_proptests = ["tests/diagnostic_proptest.rs::has_error_diagnostics_matches_filter"]
-notes = "Tag enum; consumer (Diagnostic filter helpers) pinned by Phase 3a P0 #3 proptest (48f9280)."
+notes = "Tag enum; consumer (Diagnostic filter helpers) pinned by Phase 3a P0 #3 proptest (48f9280). Warning and Info variants are conflated by has_error_diagnostics_matches_filter (both non-Error); discrimination is partial. Acceptable per E4 (tag enum) but future tightening welcome — add a Warning/Info-aware property if a new discriminator surface lands."
 
 [[entries]]
 symbol = "error::fel_diagnostics_to_json_value"
@@ -288,8 +289,8 @@ notes = "Canonical Environment impl; constructed in every eval proptest."
 [[entries]]
 symbol = "evaluator::UNBOUND_CONTEXT_REF_CODE"
 exemption = "E8"
-example_tests = ["tests/host_bindings.rs:L1-L388"]
-notes = "Error-code constant string; snapshot/example test in host_bindings.rs is the right artifact (not a property)."
+example_tests = ["tests/host_bindings.rs:L130-L154"]
+notes = "Error-code constant string; empty_catalog_rejects_unbound_context_ref + mapping_source_is_rejected_when_not_in_active_catalog assert on the constant directly (host_bindings.rs:130-154)."
 
 [[entries]]
 symbol = "evaluator::eval_with_fields"
@@ -329,8 +330,8 @@ notes = "Tag enum returned by ExtensionRegistry::call (Ok / NotFound / ArityMism
 symbol = "extensions::ExtensionError"
 exemption = "E5"
 consumer_proptests = ["tests/extension_registry_proptest.rs::lookup_is_closed_under_registered_name_set"]
-example_tests = ["tests/extension_registry_proptest.rs:L1-L173"]
-notes = "Single-variant tag enum (NameConflict). Err branch surfaces through registry conflict tests."
+example_tests = ["tests/extension_registry_proptest.rs:L188-L213"]
+notes = "Single-variant tag enum (NameConflict). Err branch pinned by register_reserved_word_returns_name_conflict_err + register_builtin_name_returns_name_conflict_err — direct assertion that registering 'if' (reserved) and 'sum' (builtin) returns Err(NameConflict(name)) carrying the offending name. The lookup_is_closed proptest only exercises the Ok branch (its arb_safe_name strategy prefixes 'ext_' to AVOID conflict)."
 
 [[entries]]
 symbol = "extensions::ExtensionFn"
@@ -614,5 +615,5 @@ notes = "Phase 3b closed: array-additivity and number-positivity proptests pin t
 [[entries]]
 symbol = "wire_style::JsonWireStyle"
 exemption = "E4"
-consumer_proptests = ["tests/fel_proptest.rs::value_encoder_invariant_holds_for_all_encoders"]
-notes = "Pure marker enum (JsCamel, PythonSnake) — no methods, no state; exhaustive-match parameterization in encoder proptest covers both variants."
+consumer_proptests = ["tests/json_exports_proptest.rs::lexer_json_parity_between_styles"]
+notes = "Pure marker enum (JsCamel, PythonSnake) — no methods, no state; lexer_json_parity_between_styles exhaustively probes BOTH variants via tokenize_to_json_value_styled (tests/json_exports_proptest.rs:213-226). Prior cite to fel_proptest's value_encoder proptest was wrong — that proptest's own header disclaims JsonWireStyle coverage (tests/fel_proptest.rs:13-18)."

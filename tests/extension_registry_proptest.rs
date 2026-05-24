@@ -19,7 +19,7 @@
 
 #![allow(clippy::missing_docs_in_private_items)]
 
-use fel_core::extensions::{ExtensionRegistry, Package};
+use fel_core::extensions::{ExtensionError, ExtensionRegistry, Package};
 use fel_core::types::Value as TypeValue;
 use proptest::prelude::*;
 use std::collections::HashSet;
@@ -169,5 +169,45 @@ proptest! {
                 "union-member {name:?} must resolve"
             );
         }
+    }
+}
+
+// ── ExtensionError::NameConflict example tests ──────────────────────────────
+//
+// The arb_safe_name proptest strategy above is engineered to AVOID the
+// NameConflict path (every generated name carries the `"ext_"` prefix, which
+// no reserved word or built-in shares). These example tests cover the Err
+// branch of `register` directly, pinning the only `ExtensionError` variant.
+//
+// Cited from the manifest entry for `extensions::ExtensionError`
+// (`tests/lib_reexport_coverage.toml`) as the E5 example_tests anchor.
+
+/// Registering a name that matches a FEL reserved word ("if") must return
+/// `Err(ExtensionError::NameConflict(_))` with the offending name carried in
+/// the error payload.
+#[test]
+fn register_reserved_word_returns_name_conflict_err() {
+    let mut registry = ExtensionRegistry::new();
+    let result = registry.register("if", 0, None, |_| TypeValue::Null);
+    match result {
+        Err(ExtensionError::NameConflict(name)) => {
+            assert_eq!(name, "if", "NameConflict must carry the offending name");
+        }
+        other => panic!("expected Err(NameConflict(\"if\")), got {other:?}"),
+    }
+}
+
+/// Registering a name that matches a built-in function ("sum") must return
+/// `Err(ExtensionError::NameConflict(_))`. Covers the second branch of the
+/// conflict check (built-ins, not reserved words).
+#[test]
+fn register_builtin_name_returns_name_conflict_err() {
+    let mut registry = ExtensionRegistry::new();
+    let result = registry.register("sum", 0, None, |_| TypeValue::Null);
+    match result {
+        Err(ExtensionError::NameConflict(name)) => {
+            assert_eq!(name, "sum", "NameConflict must carry the offending name");
+        }
+        other => panic!("expected Err(NameConflict(\"sum\")), got {other:?}"),
     }
 }
