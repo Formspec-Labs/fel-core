@@ -158,21 +158,20 @@ fn wildcard_propagates_through_let() {
     );
 }
 
-/// PostfixAccess match arm — `(expr).field` — should extract field
-/// references from the inner expr but NOT the postfix path (which
-/// belongs to the result type, not source data). This pins the arm
-/// that mutation gate flagged as missing coverage.
+/// PostfixAccess match arm — `(expr).field` — must extract the FULL
+/// path including the postfix segment. The previous assertion accepted
+/// either `"a.b"` OR `"a.b.c"` as success, which let the
+/// `extend_field_path -> Some(String::new())` mutation survive (an empty
+/// string in the set passes neither contains check but the inner
+/// `walk(expr, ...)` fallback still inserts `"a.b"`). Tighten to the
+/// strict expectation per FEL path-extension semantics.
 #[test]
-fn postfix_access_records_inner_fields_only() {
-    // `($a.b).c` — $a.b is a field-ref with postfix `.c` access on
-    // the result. Field set should include 'a.b' from the inner
-    // FieldRef; the postfix `.c` walks through PostfixAccess which
-    // must descend into the inner expr.
+fn postfix_access_records_full_extended_path() {
     let expr = parse("($a.b).c").expect("parse");
     let deps = extract_dependencies(&expr);
     assert!(
-        deps.fields.contains("a.b") || deps.fields.contains("a.b.c"),
-        "PostfixAccess must extract inner field; got {:?}",
+        deps.fields.contains("a.b.c"),
+        "PostfixAccess on ($a.b).c MUST record full path 'a.b.c'; got {:?}",
         deps.fields
     );
 }
@@ -190,6 +189,33 @@ fn var_ref_in_path_resolves() {
         !deps.fields.contains("x"),
         "let-bound VarRef must NOT escape as field dependency; got {:?}",
         deps.fields
+    );
+}
+
+/// `parent()` function-call sets `uses_prev_next` (alongside `prev`/`next`
+/// — `parent` is in the same temporal-navigation family per
+/// `src/dependencies.rs:129`). Kills the "parent" match-arm deletion.
+#[test]
+fn parent_function_call_marks_uses_prev_next() {
+    let expr = parse("parent()").expect("parse");
+    let deps = extract_dependencies(&expr);
+    assert!(
+        deps.uses_prev_next,
+        "parent() should mark uses_prev_next; got {:?}",
+        deps
+    );
+}
+
+/// `instance('name')` records the named instance in `instance_refs`.
+/// Kills the "instance" match-arm deletion at `src/dependencies.rs:132`.
+#[test]
+fn instance_function_call_records_instance_ref() {
+    let expr = parse("instance('foo')").expect("parse");
+    let deps = extract_dependencies(&expr);
+    assert!(
+        deps.instance_refs.contains("foo"),
+        "instance('foo') should record 'foo' in instance_refs; got {:?}",
+        deps.instance_refs
     );
 }
 

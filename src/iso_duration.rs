@@ -341,4 +341,39 @@ mod tests {
     fn parse_ms_wrapper_matches() {
         assert_eq!(parse_iso8601_duration_ms("PT1H"), Some(3_600_000));
     }
+
+    // ── W/M/Y duration components ──
+    //
+    // The MS_PER_WEEK/MONTH/YEAR constants at lines 33-35 were uncovered
+    // by tests — mutation gate flagged 6 survivors (× / and × + variants
+    // on each constant). These tests pin the nominal-length contract
+    // documented at fn_duration §6.3.2 (W/M/Y use nominal day counts,
+    // 7/30/365 respectively).
+
+    #[test]
+    fn p1w_is_seven_days_of_milliseconds() {
+        assert_eq!(
+            parse_iso8601_duration("P1W"),
+            IsoDurationParse::Milliseconds(7 * 24 * 60 * 60 * 1000)
+        );
+    }
+
+    #[test]
+    fn p1m_is_thirty_days_of_milliseconds_nominal() {
+        // Nominal 30-day month per the spec.
+        assert_eq!(
+            parse_iso8601_duration("P1M"),
+            IsoDurationParse::Milliseconds(30 * 24 * 60 * 60 * 1000)
+        );
+    }
+
+    #[test]
+    fn p1y_is_three_sixty_five_days_of_milliseconds_nominal() {
+        // Nominal 365-day year per the spec (does NOT account for leap years —
+        // calendar-aware arithmetic requires `dateAdd("years", ...)`).
+        assert_eq!(
+            parse_iso8601_duration("P1Y"),
+            IsoDurationParse::Milliseconds(365 * 24 * 60 * 60 * 1000)
+        );
+    }
 }
