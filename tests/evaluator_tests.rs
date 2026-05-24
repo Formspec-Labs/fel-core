@@ -350,6 +350,26 @@ fn test_let_binding_multi_level_property_access() {
     assert_eq!(eval("let x = {a: {b: {c: 3}}} in x.a.b.c"), num(3));
 }
 
+/// FUT-15 / cluster E5: PostfixAccess `!bound_in_let` guard on the
+/// FieldRef branch (`src/evaluator/core.rs:841`).
+///
+/// `($x).a` parses as PostfixAccess wrapping FieldRef("x", []), which
+/// reaches the FieldRef branch inside the PostfixAccess arm. When `x`
+/// is let-bound, the guard MUST skip the `env.resolve_field` shortcut
+/// so the inner `eval(expr)` can return the let-bound object before
+/// `.a` is accessed. Mutating `!bound_in_let` → `bound_in_let` would
+/// take the shortcut, call `resolve_field(["x", "a"])` against the
+/// empty MapEnvironment, and yield Null — losing the let binding.
+///
+/// The VarRef-twin path (`x.a`) is already covered by
+/// `test_let_binding_property_access_on_bound_object` above; this test
+/// closes the FieldRef-twin gap that the inline comment at
+/// `src/evaluator/core.rs:836-838` explicitly warned about.
+#[test]
+fn let_binding_property_access_via_parenthesized_field_ref() {
+    assert_eq!(eval("let x = {a: 1} in ($x).a"), num(1));
+}
+
 /// Let binding combined with ternary on the binding value.
 #[test]
 fn let_binding_with_ternary() {
@@ -438,6 +458,25 @@ fn test_index_out_of_bounds_is_null_with_diagnostic() {
         "expected OOB diagnostic, got {:?}",
         result.diagnostics
     );
+}
+
+/// FUT-15 / cluster E6: eval_field_ref flat-key fallback non-null hit
+/// path (`src/evaluator/core.rs:970`).
+///
+/// When the structured lookup `resolve_field(["rows"])` returns Null
+/// and the path contains an Index segment, the evaluator falls back to
+/// a flattened key like `["rows[0]"]` to support hosts that index
+/// repeats by composite key. If the flat lookup succeeds (non-null),
+/// the value MUST be returned. Mutating `if !matches!(flat, Null)` →
+/// `if matches!(flat, Null)` inverts the polarity, returning Null even
+/// when a registered flat-key value exists. Existing host_bindings
+/// tests cover the structured path but not this flat-key hit path.
+#[test]
+fn field_ref_index_fallback_returns_registered_flat_key_value() {
+    let mut fields = std::collections::HashMap::new();
+    fields.insert("rows[0]".to_string(), num(99));
+    let result = eval_with_fields("$rows[0]", fields).unwrap();
+    assert_eq!(result.value, num(99));
 }
 
 /// Postfix `.field` access works on the result of a function call /
@@ -1002,6 +1041,110 @@ fn money_arithmetic_table() {
             ),
         }
     }
+}
+
+// ── FUT-15 / cluster E11: num_op cross-shape money arithmetic ───
+//
+// The `(Money, Number)`, `(Number, Money)`, and `(Money, Money)`
+// arms in `num_op` (`src/evaluator/core.rs:1393-1444`) are guarded
+// by `sym == "+" || sym == "-"` and `sym == "*"` predicates. The
+// `money_arithmetic_table` above covers Money−Money same/diff and
+// Money×Number happy paths; the cross-shape interactions below
+// were the documented coverage gap. Each test pins one or more
+// kill candidates flagged in
+// `thoughts/2026-05-23-mutation-survivor-followups.md` §E11.
+
+/// E11: Money + Number → Money(amount + number). Spec §4.3 (`money ± number`).
+///
+/// Kills mutants that collapse the `sym == "+" || sym == "-"`
+/// guard on the Money+Number arm (`core.rs:1413`) to always-false,
+/// or that flip the inner `sym == "-"` disjunct's polarity. Either
+/// mutation routes `money + 5` through the `_` catch-all, returning
+/// Null instead of Money(15, USD). Also kills the
+/// Money×Number-guard-becomes-always-true mutant (`core.rs:1425`):
+/// that mutant routes `money + 5` through the `*` arm, yielding
+/// Money(50, USD) via `checked_mul` — a wrong-result kill, not a
+/// null-vs-value kill.
+#[test]
+fn money_plus_number_yields_money_with_summed_amount() {
+    let actual = eval("money(10, 'USD') + 5");
+    match actual {
+        Value::Money(m) => {
+            assert_eq!(m.amount, Decimal::from_str_exact("15").unwrap());
+            assert_eq!(m.currency.as_str(), "USD");
+        }
+        _ => panic!("expected Money(15, USD), got {actual:?}"),
+    }
+}
+
+/// E11: Money − Number → Money(amount − number). Spec §4.3.
+///
+/// Kills `:1443:70` (`sym == "-"` → `sym != "-"`) on the
+/// Money+Number arm guard: the inverted disjunct rejects `-` and
+/// routes `money - 3` to the `_` arm. Also kills the guard-collapse
+/// mutants that disable the entire `+/-` arm.
+#[test]
+fn money_minus_number_yields_money_with_difference() {
+    let actual = eval("money(10, 'USD') - 3");
+    match actual {
+        Value::Money(m) => {
+            assert_eq!(m.amount, Decimal::from_str_exact("7").unwrap());
+            assert_eq!(m.currency.as_str(), "USD");
+        }
+        _ => panic!("expected Money(7, USD), got {actual:?}"),
+    }
+}
+
+/// E11: Money + Money different-currency → Null + currency-mismatch
+/// diagnostic. Existing `money_arithmetic_table` covers Money−Money
+/// diff-currency only; this closes the addition gap.
+///
+/// Kills `:1443:56` (`!=` → `==`) twin on the addition path and
+/// guards against regression if a future refactor short-circuits the
+/// currency check on `+`. The diagnostic message-text assertion pins
+/// the contract surfaced in spec §4.3 ("Cross-currency money
+/// operations are rejected with a diagnostic").
+#[test]
+fn money_plus_money_different_currency_emits_currency_mismatch() {
+    let result = eval_result("money(10, 'USD') + money(5, 'EUR')");
+    assert_eq!(result.value, Value::Null);
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("currency mismatch")
+                && d.message.contains("USD")
+                && d.message.contains("EUR")),
+        "expected currency-mismatch diagnostic for USD+EUR, got {:?}",
+        result.diagnostics
+    );
+}
+
+/// E11: Money × Money → Null + "cannot apply" diagnostic. Spec §4.3
+/// lists no `money * money` row, so the operation must reject via
+/// the `_` catch-all in `num_op`.
+///
+/// Kills any guard-mutation on the Money+Money arm (`core.rs:1393`)
+/// that would let `*` slip past — either by widening the guard
+/// (e.g. `||` → `&&` collapsing the sym check) or by deleting the
+/// guard match arm body. The `currency` field on both operands is
+/// the same here to isolate the multiplication-rejection contract
+/// from currency-mismatch routing — without that isolation, a guard
+/// mutation that flips currency_check polarity could mask the
+/// multiplication kill by emitting a "currency mismatch USD vs USD"
+/// diagnostic instead.
+#[test]
+fn money_times_money_rejected_with_cannot_apply_diagnostic() {
+    let result = eval_result("money(10, 'USD') * money(2, 'USD')");
+    assert_eq!(result.value, Value::Null);
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("cannot apply '*'") && d.message.contains("money")),
+        "expected 'cannot apply' diagnostic for money*money, got {:?}",
+        result.diagnostics
+    );
 }
 
 #[test]
