@@ -242,13 +242,10 @@ Integration-style suites live under `tests/`. Notable:
 - `schema_round_trip.rs` — `emit_schema_json()` byte-equals the canonical `formspec/schemas/fel-functions.schema.json`.
 - `civil_calendar_proptest` — proptest harness validates Hinnant `days_from_civil` / `civil_from_days` / `days_in_month` against `chrono` over years `1900..=2200` (inline in [`src/types.rs`](src/types.rs)).
 - `parser_parse_proptest.rs` — random bytes (lossy UTF-8) fed to `parse()` (panic hunt).
-- `builtin_catalog_consistency.rs` — every entry in `BUILTIN_FUNCTIONS` is recognized by `eval_function` dispatch; survey asserts zero silent-on-too-few / silent-on-too-many calls (catalog arity uniformly enforced at dispatch).
-- `lib_reexport_coverage_gate.rs` + `lib_reexport_coverage.toml` — every `pub use` in `src/lib.rs` requires a proptest cite (or a documented E1–E8 exemption with consumer-citation). Runs on every `cargo test`. Adding a new public re-export without updating the manifest fails the gate with an actionable error. See [`thoughts/2026-05-23-phase-3-ci-gate-design.md`](thoughts/2026-05-23-phase-3-ci-gate-design.md) for the design rationale.
-- Property-based coverage for P0 surfaces — `eval_budget_proptest.rs`, `extension_registry_proptest.rs`, `diagnostic_proptest.rs`, `prepare_host_proptest.rs`, `dependencies_proptest.rs`, `evaluate_siblings_proptest.rs`, plus Tier-2 cluster files (`iso_duration_proptest.rs`, `json_exports_proptest.rs`, `interpolation_trace_proptest.rs`, `identifiers_types_proptest.rs`, `env_catalog_inputs_proptest.rs`).
+- `builtin_catalog_consistency.rs` — every entry in `BUILTIN_FUNCTIONS` is recognized by `eval_function` dispatch.
+- `lib_reexport_coverage_gate.rs` — coverage discipline gate; adding a `pub use` in `src/lib.rs` requires updating [`tests/lib_reexport_coverage.toml`](tests/lib_reexport_coverage.toml). See [`thoughts/2026-05-23-phase-3-ci-gate-design.md`](thoughts/2026-05-23-phase-3-ci-gate-design.md).
 
-### Mutation gate
-
-A weekly CI job (`.github/workflows/mutants.yml`) runs `cargo-mutants` across the P0 file set sharded 4-way; the audit trend lives in [`conformance/mutation-baseline.jsonl`](conformance/mutation-baseline.jsonl). Per-file Makefile targets (`mutants-parser`, `mutants-evaluator`, etc.) exist for local re-baselining. `kill_rate = (killed + timeout) / (killed + missed + timeout)` — timeout-kills count, per `scripts/mutation_baseline.py`. Survivor classification + closure tracking lives in [`thoughts/2026-05-23-mutation-survivor-followups.md`](thoughts/2026-05-23-mutation-survivor-followups.md).
+A weekly mutation-testing gate runs `cargo-mutants` across the P0 file set; trend artifact at [`conformance/mutation-baseline.jsonl`](conformance/mutation-baseline.jsonl), classification + closure tracking in [`thoughts/2026-05-23-mutation-survivor-followups.md`](thoughts/2026-05-23-mutation-survivor-followups.md).
 
 ## Regenerating the FEL function schema
 
