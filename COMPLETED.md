@@ -709,3 +709,60 @@ Prepared FEL as a W3C-style internally ratified specification/tool surface:
 - Verified `make ratify` and `make ratify-external` on 2026-05-17. The external
   gate required rebuilding the ignored sibling `formspec-engine` runtime WASM
   artifact so it reflected this checkout's `fel-core`.
+
+## 2026-05-23/24 — Phase 2 mutation gate + Phase 3 CI gate
+
+Full execution log: archived plan
+[`thoughts/archive/plans/2026-05-23-test-suite-triage.md`](thoughts/archive/plans/2026-05-23-test-suite-triage.md)
+(Deviations §1-§10) + active follow-up doc
+[`thoughts/2026-05-23-mutation-survivor-followups.md`](thoughts/2026-05-23-mutation-survivor-followups.md).
+
+**Phase 1 (test-suite consolidation)** — clusters A/A'/B/C/D/E + cluster F
+revert + topic-canonical redistribution of `evaluator_edge_cases.rs`.
+~500 LOC removed across the suite with no behavior loss; spec-citation
+audit corrections landed. Full review chain: pre-review (1 HIGH + 4 MED +
+3 NIT), 3 mid-phase reviewers, post-review, all remediated.
+
+**Phase 2 (mutation gate)** — installed `cargo-mutants 25.3.1`; built
+`scripts/mutation_baseline.py` + `conformance/mutation-baseline.jsonl`
+audit trend; per-file `Makefile` targets + weekly 4-shard CI workflow
+(`.github/workflows/mutants.yml`). Initial 152 P0 survivors triaged into
+Category A (per-mutant equivalent with strict/test-coverage flavor) vs
+Category B (pending). FUT-15/16/17 closed all remaining kill candidates
++ extended the kill-rate formula to credit timeout-kills.
+
+**Phase 3 (CI gate)** — designed + reviewed + revised the
+`lib_reexport_coverage_gate`: every `pub use` in `src/lib.rs` requires a
+proptest cite or normative E1-E8 exemption.
+[`tests/lib_reexport_coverage.toml`](tests/lib_reexport_coverage.toml)
+manifest (50 entries — 36 covered + 14 exempt);
+[`tests/lib_reexport_coverage_gate.rs`](tests/lib_reexport_coverage_gate.rs)
+runs every PR with 18 self-tests pinning parser/resolver behavior. Two
+review rounds; 2 BLOCKERs (fake-pass exemption cites caught by reviewers
+— 100% hit rate on audited targets) + 3 HIGHs + 5 MEDIUMs all remediated.
+
+**Final per-file P0 kill rates** (sha `66f2bba`, FUT-17 formula
+`(killed + timeout) / (killed + missed + timeout)`):
+
+| File | Was | Now |
+|---|---|---|
+| `iso_duration.rs` | 87% | **100%** |
+| `dependencies.rs` | 73.9% | **100%** |
+| `lexer.rs` | 85.9% | **99.4%** |
+| `prepare_host.rs` | 72.4% | **96.4%** |
+| `parser.rs` | 76.7% | **92.2%** |
+| `evaluator/core.rs` | 83.7% | **85.5%** |
+
+**Other ship-with notes:**
+
+- FUT-7: uniform catalog-driven arity enforcement at the top of
+  `eval_function`. Single source of truth (`extensions::builtin_arity`);
+  previously-silent over-arity / under-arity calls now emit structured
+  `ArityMismatch` diagnostic. Closed `tk:fs-1qcd` (M-006).
+- FUT-9 + FUT-10: cosmetic test-file splits.
+  `environment_integration_tests.rs` (378 lines, 24 tests) split into 3
+  topic-canonical files; `decimal_properties.rs` split coercion
+  examples from intrinsic-decimal property tests.
+- Cosmetic: archived 4 shipped docs to `thoughts/archive/`, slimmed
+  `TODO.md` to active-pointer form, rewrote `README.md` from scratch on
+  the cel-rust / evalexpr / fasteval expression-language pattern.
