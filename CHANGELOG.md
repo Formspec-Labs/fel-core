@@ -8,34 +8,6 @@ conformance corpus.
 
 ## [Unreleased]
 
-### Fixed
-- **Panic on non-ASCII input to `parse_datetime_literal`** (regression
-  found by libFuzzer): `&s[..19]` byte-slice could land inside a
-  multi-byte UTF-8 codepoint, panicking with "end byte index 19 is not
-  a char boundary". Datetime literals are pure ASCII per spec; added
-  an `is_ascii()` upfront guard. Pinned via
-  `parse_datetime_literal_rejects_non_ascii_without_panic`.
-- **Overflow panic in `timeDiff` on out-of-range clock components**
-  (libFuzzer): `parse_time_str` accepted any `i64` for hours/minutes/
-  seconds, so `timeDiff('18888888888888883:00:0', '14:33:0')` then
-  panicked on `h * 3600` i64 overflow. Added clock-time range
-  validation (0–23 / 0–59 / 0–59) in `parse_time_str`; out-of-range
-  components now route to the existing "invalid time strings"
-  diagnostic. Pinned via
-  `time_diff_rejects_out_of_range_components_without_panic`.
-- **Budget-exceeded evaluation must null partial values** (libFuzzer):
-  the evaluator emitted a `budget exceeded` diagnostic but could
-  surface a non-null partial subexpression value, attracting hosts
-  into trusting incomplete results. `evaluate_configured` now nulls
-  the final `Value` whenever the evaluator's budget was breached
-  during the run. Pinned via `budget_exceeded_nulls_partial_results`.
-
-### Added
-- **`make fuzz-run`** Makefile target for active fuzzing discovery loop
-  (defaults to `fel_pipeline`, 5-minute time-box; overridable via
-  `TARGET=…` / `DURATION=…`). Plus `fuzz-run-{pipeline,structured,budget}`
-  convenience aliases.
-
 ## [0.2.0] - 2026-05-25
 
 ### Changed (BREAKING)
@@ -57,6 +29,12 @@ conformance corpus.
 - **OSS Readiness**: Finalized public project governance files (LICENSE, SECURITY.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md).
 - **Documentation Tooling**: Integrated `cargo-doc-md` to produce the single-file `docs/rustdoc-md/API.md` mirror.
 - **`DiagnosticKind::MissingTimezoneContext { fn_name, reason }`** — closed-set append-only variant carrying the builtin name and a `MissingTimezoneContextReason` (`NotConfigured` / `MultiCalendarConflict { calendars }`). New re-exports: `MissingTimezoneContextError`, `MissingTimezoneContextReason`. Wire shape pinned via JSON-styled proptests; reason encodes as a stable string tag so camel/snake parity holds at value level. See [ADR 0069](../thoughts/adr/0069-stack-time-semantics.md).
+- **`make fuzz-run`** Makefile target for active fuzzing discovery loop (defaults to `fel_pipeline`, 5-minute time-box; overridable via `TARGET=…` / `DURATION=…`). Plus `fuzz-run-{pipeline,structured,budget,all}` convenience aliases.
+
+### Fixed
+- **Panic on non-ASCII input to `parse_datetime_literal`** (libFuzzer): `&s[..19]` byte-slice could land inside a multi-byte UTF-8 codepoint, panicking with "end byte index 19 is not a char boundary". Datetime literals are pure ASCII per spec; added an `is_ascii()` upfront guard. Pinned via `parse_datetime_literal_rejects_non_ascii_without_panic`.
+- **Overflow panic in `timeDiff` on out-of-range clock components** (libFuzzer): `parse_time_str` accepted any `i64` for hours/minutes/seconds, so `timeDiff('18888888888888883:00:0', '14:33:0')` then panicked on `h * 3600` i64 overflow. Added clock-time range validation (0–23 / 0–59 / 0–59) in `parse_time_str`; out-of-range components now route to the existing "invalid time strings" diagnostic. Pinned via `time_diff_rejects_out_of_range_components_without_panic`.
+- **Budget-exceeded evaluation must null partial values** (libFuzzer): the evaluator emitted a `budget exceeded` diagnostic but could surface a non-null partial subexpression value, attracting hosts into trusting incomplete results. `evaluate_configured` now nulls the final `Value` whenever the evaluator's budget was breached during the run. Pinned via `budget_exceeded_nulls_partial_results`.
 
 ## [0.1.0] - 2026-05-17
 
