@@ -7406,3 +7406,215 @@
 {"id":"24a7f351c7da","expression":"if(true, 1, 2)\n","mustParse":true,"displayOracle":"1"}
 {"id":"5a8100fa5833","expression":"1+2*3\n","mustParse":true,"displayOracle":"7"}
 {"id":"eea7cfbc369b","expression":"(((42)))\n","mustParse":true,"displayOracle":"42"}
+{"id":"74c56eb44318","expression":"sum([10, null, 20])","mustParse":true,"displayOracle":"30"}
+{"id":"fa17ca6e5f2d","expression":"sum([])","mustParse":true,"displayOracle":"0"}
+{"id":"8987d17e2af1","expression":"count([1, null, 3])","mustParse":true,"displayOracle":"2"}
+{"id":"b1d8a7cb8829","expression":"avg([10, 20, 30])","mustParse":true,"displayOracle":"20"}
+{"id":"5db30245becc","expression":"avg([10, null, 30])","mustParse":true,"displayOracle":"20"}
+{"id":"afbd7ff9db88","expression":"min([5, 2, 8])","mustParse":true,"displayOracle":"2"}
+{"id":"5e4056aa2067","expression":"min(5, 2, 8)","mustParse":true,"displayOracle":"2"}
+{"id":"f746b203d0ce","expression":"max([5, 2, 8])","mustParse":true,"displayOracle":"8"}
+{"id":"a70b8520f041","expression":"max(5, 2, 8)","mustParse":true,"displayOracle":"8"}
+{"id":"d77f2dc23caa","expression":"length('hello')","mustParse":true,"displayOracle":"5"}
+{"id":"633869cd7080","expression":"length(null)","mustParse":true,"displayOracle":"0"}
+{"id":"f940e411980c","expression":"contains('hello world', 'world')","mustParse":true,"displayOracle":"true"}
+{"id":"35111f6a7621","expression":"substring('abcdef', 2, 3)","mustParse":true,"displayOracle":"bcd"}
+{"id":"bcde5806b6ab","expression":"substring('abcdef', 4)","mustParse":true,"displayOracle":"def"}
+{"id":"6a036589ea1f","expression":"replace('hello world', 'world', 'there')","mustParse":true,"displayOracle":"hello there"}
+{"id":"8713d02930cc","expression":"upper('hello')","mustParse":true,"displayOracle":"HELLO"}
+{"id":"7ad76259c096","expression":"lower('HELLO')","mustParse":true,"displayOracle":"hello"}
+{"id":"d67d87bddeee","expression":"trim('  hello  ')","mustParse":true,"displayOracle":"hello"}
+{"id":"d52e446db44c","expression":"round(3.456, 2)","mustParse":true,"displayOracle":"3.46"}
+{"id":"534ec747869d","expression":"round(2.5)","mustParse":true,"displayOracle":"2"}
+{"id":"eb876afb9868","expression":"round(3.5)","mustParse":true,"displayOracle":"4"}
+{"id":"bb5a9ad993c4","expression":"floor(3.7)","mustParse":true,"displayOracle":"3"}
+{"id":"1a34e9078269","expression":"floor(-2.3)","mustParse":true,"displayOracle":"-3"}
+{"id":"35af92693191","expression":"ceil(3.2)","mustParse":true,"displayOracle":"4"}
+{"id":"33e82efe56ac","expression":"ceil(-2.7)","mustParse":true,"displayOracle":"-2"}
+{"id":"1d7e224f3be9","expression":"abs(-42)","mustParse":true,"displayOracle":"42"}
+{"id":"03c5e558547d","expression":"abs(42)","mustParse":true,"displayOracle":"42"}
+{"id":"4eb8e32e1a8f","expression":"power(2, 10)","mustParse":true,"displayOracle":"1024"}
+{"id":"cad904ff2919","expression":"power(10, 2)","mustParse":true,"displayOracle":"100"}
+{"id":"cb34c09d99b6","expression":"today()","mustParse":true,"displayOracle":"2026-03-20"}
+{"id":"28a4dae0461e","expression":"now()","mustParse":true,"displayOracle":"2026-03-20T00:00:00"}
+{"id":"60900d8b571b","expression":"year(@2025-07-10)","mustParse":true,"displayOracle":"2025"}
+{"id":"e029f5e4fea3","expression":"month(@2025-07-10)","mustParse":true,"displayOracle":"7"}
+{"id":"3e27302fa563","expression":"day(@2025-07-10)","mustParse":true,"displayOracle":"10"}
+{"id":"b67dde5260f4","expression":"hours(@2025-07-10T14:30:00Z)","mustParse":true,"displayOracle":"null"}
+{"id":"fb725aa7e605","expression":"minutes(@2025-07-10T14:30:00Z)","mustParse":true,"displayOracle":"null"}
+{"id":"cc2286034b81","expression":"seconds(@2025-07-10T14:30:45Z)","mustParse":true,"displayOracle":"null"}
+{"id":"3ee6f8c035b6","expression":"time(14, 30, 0)","mustParse":true,"displayOracle":"14:30:00"}
+{"id":"f78de1ca133b","expression":"time(9, 5, 30)","mustParse":true,"displayOracle":"09:05:30"}
+{"id":"6fa334ec337b","expression":"dateDiff(@2025-07-10, @2025-01-01, 'days')","mustParse":true,"displayOracle":"190"}
+{"id":"0886b41be7ea","expression":"dateAdd(@2025-01-15, 30, 'days')","mustParse":true,"displayOracle":"2025-02-14"}
+{"id":"e7a12aaa884a","expression":"dateAdd(today(), 1, 'years')","mustParse":true,"displayOracle":"2027-03-20"}
+{"id":"757e3424c9ea","expression":"timeDiff('14:30:00', '13:00:00')","mustParse":true,"displayOracle":"5400"}
+{"id":"3552c34b75f1","expression":"timeDiff('13:00:00', '14:30:00')","mustParse":true,"displayOracle":"-5400"}
+{"id":"0c4e7a9e3338","expression":"duration('PT1H')","mustParse":true,"displayOracle":"3600000"}
+{"id":"636796993a48","expression":"duration('P1D')","mustParse":true,"displayOracle":"86400000"}
+{"id":"0c2a716a7001","expression":"coalesce(null, '', 'fallback')","mustParse":true,"displayOracle":""}
+{"id":"1a0490b7754d","expression":"empty(null)","mustParse":true,"displayOracle":"true"}
+{"id":"b47f583d91b7","expression":"empty('')","mustParse":true,"displayOracle":"true"}
+{"id":"95f3d3c98af4","expression":"empty([])","mustParse":true,"displayOracle":"true"}
+{"id":"a563a4aafb36","expression":"empty('hello')","mustParse":true,"displayOracle":"false"}
+{"id":"bad4399c28f5","expression":"empty(0)","mustParse":true,"displayOracle":"false"}
+{"id":"823eec8a4fc9","expression":"present(null)","mustParse":true,"displayOracle":"false"}
+{"id":"588297f49f68","expression":"isNumber(42)","mustParse":true,"displayOracle":"true"}
+{"id":"1055197299ab","expression":"isNumber('42')","mustParse":true,"displayOracle":"false"}
+{"id":"83edbb1cefa4","expression":"isString('hello')","mustParse":true,"displayOracle":"true"}
+{"id":"1f677e5ffe2e","expression":"isString(42)","mustParse":true,"displayOracle":"false"}
+{"id":"28c35164845d","expression":"isDate('2025-07-10')","mustParse":true,"displayOracle":"false"}
+{"id":"e90e0c801e24","expression":"isDate('not-a-date')","mustParse":true,"displayOracle":"false"}
+{"id":"e647f2f4bb82","expression":"isNull(null)","mustParse":true,"displayOracle":"true"}
+{"id":"66ac62b8cc0c","expression":"isNull('')","mustParse":true,"displayOracle":"false"}
+{"id":"c54d6d27022f","expression":"isNull(0)","mustParse":true,"displayOracle":"false"}
+{"id":"f2707c33123d","expression":"typeOf(42)","mustParse":true,"displayOracle":"number"}
+{"id":"9a9109782a60","expression":"typeOf([1,2])","mustParse":true,"displayOracle":"array"}
+{"id":"ae83bb104337","expression":"typeOf(null)","mustParse":true,"displayOracle":"null"}
+{"id":"9d5000eef30f","expression":"number('42')","mustParse":true,"displayOracle":"42"}
+{"id":"d91191886f61","expression":"number('3.14')","mustParse":true,"displayOracle":"3.14"}
+{"id":"08ccd5c067e6","expression":"number('abc')","mustParse":true,"displayOracle":"null"}
+{"id":"1124a4f39561","expression":"string(42)","mustParse":true,"displayOracle":"42"}
+{"id":"921b61171bf3","expression":"string(true)","mustParse":true,"displayOracle":"true"}
+{"id":"2b18cadce2ee","expression":"string(null)","mustParse":true,"displayOracle":""}
+{"id":"a1d60794e12c","expression":"boolean(1)","mustParse":true,"displayOracle":"true"}
+{"id":"85f0bf0958f5","expression":"boolean(0)","mustParse":true,"displayOracle":"false"}
+{"id":"d8ab47839d83","expression":"boolean('true')","mustParse":true,"displayOracle":"true"}
+{"id":"c5f02b8ee1f2","expression":"boolean(null)","mustParse":true,"displayOracle":"false"}
+{"id":"0e18ebed159b","expression":"date('2025-07-10')","mustParse":true,"displayOracle":"2025-07-10"}
+{"id":"2757c6726b7c","expression":"money(50000, 'USD')","mustParse":true,"displayOracle":"50000 USD"}
+{"id":"1bedbd957c52","expression":"moneyAdd(money(100, 'USD'), money(250, 'USD'))","mustParse":true,"displayOracle":"350 USD"}
+{"id":"939a4e6479c3","expression":"locale()","mustParse":true,"displayOracle":"null"}
+{"id":"35e35ad8eed4","expression":"runtimeMeta('tenantId')","mustParse":true,"displayOracle":"null"}
+{"id":"84468f1fb633","expression":"pluralCategory(1)","mustParse":true,"displayOracle":"null"}
+{"id":"544a0f13da47","expression":"pluralCategory(2, 'en')","mustParse":true,"displayOracle":"other"}
+{"id":"443ef810dc09","expression":"formatNumber(1234.5, 'en')","mustParse":true,"displayOracle":"1,234.5"}
+{"id":"6b8c5b42c9ee","expression":"formatDate('2026-05-17', 'medium', 'en')","mustParse":true,"displayOracle":"May 17, 2026"}
+{"id":"583fc7e46af3","expression":"prev()","mustParse":true,"displayOracle":"null"}
+{"id":"faa91ee90040","expression":"next()","mustParse":true,"displayOracle":"null"}
+{"id":"240405c3f142","expression":"parent()","mustParse":true,"displayOracle":"null"}
+{"id":"2d1b0707738a","expression":"@instance('priorYear').totalExpenditure","mustParse":true,"displayOracle":"null"}
+{"id":"8d4057ff19a6","expression":"@instance('agencies')","mustParse":true,"displayOracle":"null"}
+{"id":"323c638aeda7","expression":"null + 1","mustParse":true,"displayOracle":"null"}
+{"id":"bda77c2539c7","expression":"1 + null","mustParse":true,"displayOracle":"null"}
+{"id":"5f01ab7bba44","expression":"null - 1","mustParse":true,"displayOracle":"null"}
+{"id":"917e035a888f","expression":"1 - null","mustParse":true,"displayOracle":"null"}
+{"id":"127971ee1adf","expression":"null * 5","mustParse":true,"displayOracle":"null"}
+{"id":"403254590f23","expression":"5 * null","mustParse":true,"displayOracle":"null"}
+{"id":"896c1b7bb553","expression":"null / 2","mustParse":true,"displayOracle":"null"}
+{"id":"b985c3f4fd7d","expression":"2 / null","mustParse":true,"displayOracle":"null"}
+{"id":"c48cef8b6c2b","expression":"null % 3","mustParse":true,"displayOracle":"null"}
+{"id":"65a835d43073","expression":"not null","mustParse":true,"displayOracle":"null"}
+{"id":"3dff81f4989f","expression":"-null","mustParse":true,"displayOracle":"null"}
+{"id":"31d4bd813ae0","expression":"null < 1","mustParse":true,"displayOracle":"null"}
+{"id":"f3acf30aecd8","expression":"1 < null","mustParse":true,"displayOracle":"null"}
+{"id":"ad133153869b","expression":"null > 1","mustParse":true,"displayOracle":"null"}
+{"id":"63ec5f92f745","expression":"null <= 1","mustParse":true,"displayOracle":"null"}
+{"id":"d9ba9c58c678","expression":"null >= 1","mustParse":true,"displayOracle":"null"}
+{"id":"99ef542ba16f","expression":"null and true","mustParse":true,"displayOracle":"null"}
+{"id":"c54f88f8f388","expression":"false and null","mustParse":true,"displayOracle":"false"}
+{"id":"f54d3b8b02a4","expression":"null or false","mustParse":true,"displayOracle":"null"}
+{"id":"2bed302445b9","expression":"true or null","mustParse":true,"displayOracle":"true"}
+{"id":"27d777d5b198","expression":"null ?? null","mustParse":true,"displayOracle":"null"}
+{"id":"0b6d98d89d58","expression":"let x = null in x + 1","mustParse":true,"displayOracle":"null"}
+{"id":"afd17618f684","expression":"null == null","mustParse":true,"displayOracle":"true"}
+{"id":"03392aba2c49","expression":"null != null","mustParse":true,"displayOracle":"false"}
+{"id":"1b071f9d4cd1","expression":"null == 0","mustParse":true,"displayOracle":"false"}
+{"id":"f214ddd90a74","expression":"null != 0","mustParse":true,"displayOracle":"true"}
+{"id":"ea6c66317e66","expression":"null == ''","mustParse":true,"displayOracle":"false"}
+{"id":"221d26963440","expression":"null == false","mustParse":true,"displayOracle":"false"}
+{"id":"93cb0d22b7bc","expression":"0 == 0","mustParse":true,"displayOracle":"true"}
+{"id":"b0b00b620279","expression":"0 != 0","mustParse":true,"displayOracle":"false"}
+{"id":"c7a335dccf98","expression":"0 != 1","mustParse":true,"displayOracle":"true"}
+{"id":"10b98da51f87","expression":"'abc' == 'abc'","mustParse":true,"displayOracle":"true"}
+{"id":"76213db4a8f0","expression":"'abc' != 'ABC'","mustParse":true,"displayOracle":"true"}
+{"id":"1fb9a270b773","expression":"true == true","mustParse":true,"displayOracle":"true"}
+{"id":"b48141f67ef5","expression":"true == false","mustParse":true,"displayOracle":"false"}
+{"id":"3814d64cca57","expression":"false != true","mustParse":true,"displayOracle":"true"}
+{"id":"bafceb218ea7","expression":"@2025-01-15 == @2025-01-15","mustParse":true,"displayOracle":"true"}
+{"id":"d5026505ecfd","expression":"@2025-01-15 != @2025-01-16","mustParse":true,"displayOracle":"true"}
+{"id":"1ce444cbf834","expression":"@2025-06-15T10:30:00 == @2025-06-15T10:30:00","mustParse":true,"displayOracle":"true"}
+{"id":"9bd9372add6e","expression":"[] == []","mustParse":true,"displayOracle":"true"}
+{"id":"4fc739f43d31","expression":"[1, 2] == [1, 2]","mustParse":true,"displayOracle":"true"}
+{"id":"94b7004eae75","expression":"[1, 2] != [2, 1]","mustParse":true,"displayOracle":"true"}
+{"id":"fc014080aa99","expression":"[null] == [null]","mustParse":true,"displayOracle":"true"}
+{"id":"9d67b5da62df","expression":"{} == {}","mustParse":true,"displayOracle":"true"}
+{"id":"9b28a1cd4277","expression":"{'a': 1} == {'a': 1}","mustParse":true,"displayOracle":"true"}
+{"id":"cea8881c1ba9","expression":"{'a': 1} != {'a': 2}","mustParse":true,"displayOracle":"true"}
+{"id":"dfa7aa260f68","expression":"true or (1 / 0)","mustParse":true,"displayOracle":"true"}
+{"id":"b6a3c439710a","expression":"false and (1 / 0)","mustParse":true,"displayOracle":"false"}
+{"id":"b5533792aded","expression":"if true then 42 else (1 / 0)","mustParse":true,"displayOracle":"42"}
+{"id":"c94200b373ea","expression":"if false then (1 / 0) else 99","mustParse":true,"displayOracle":"99"}
+{"id":"33a694beb982","expression":"dateAdd(@2025-01-15, 1, 'months')","mustParse":true,"displayOracle":"2025-02-15"}
+{"id":"fb19700eafba","expression":"dateAdd(@2025-01-15, 1, 'years')","mustParse":true,"displayOracle":"2026-01-15"}
+{"id":"d9795a2cab30","expression":"dateAdd(@2025-01-15, -7, 'days')","mustParse":true,"displayOracle":"2025-01-08"}
+{"id":"161265bb022c","expression":"dateDiff(@2025-12-31, @2025-01-01, 'months')","mustParse":true,"displayOracle":"11"}
+{"id":"0921f0eed8a8","expression":"dateDiff(@2026-01-01, @2020-01-01, 'years')","mustParse":true,"displayOracle":"6"}
+{"id":"3fa32c6b1452","expression":"dateDiff(@2025-01-01, @2025-07-10, 'days')","mustParse":true,"displayOracle":"-190"}
+{"id":"d216f67cefed","expression":"duration('PT30M')","mustParse":true,"displayOracle":"1800000"}
+{"id":"19f03b628c5d","expression":"money(12500, 'EUR')","mustParse":true,"displayOracle":"12500 EUR"}
+{"id":"facc5830b4d9","expression":"moneyAmount(money(50000, 'USD'))","mustParse":true,"displayOracle":"50000"}
+{"id":"0ada82998569","expression":"moneyCurrency(money(50000, 'USD'))","mustParse":true,"displayOracle":"USD"}
+{"id":"1eafe959fb7b","expression":"money(100, 'USD') + money(250, 'USD')","mustParse":true,"displayOracle":"350 USD"}
+{"id":"469a61d341f0","expression":"money(100, 'USD') - money(30, 'USD')","mustParse":true,"displayOracle":"70 USD"}
+{"id":"8b7f308d030e","expression":"money(100, 'USD') * 2","mustParse":true,"displayOracle":"200 USD"}
+{"id":"a038f789f9ba","expression":"2 * money(100, 'USD')","mustParse":true,"displayOracle":"200 USD"}
+{"id":"182ebb54f3a5","expression":"money(100, 'USD') / 4","mustParse":true,"displayOracle":"25 USD"}
+{"id":"ae3e662509b3","expression":"money(100, 'USD') / money(2, 'USD')","mustParse":true,"displayOracle":"50"}
+{"id":"34fcbbb328f2","expression":"money(100, 'USD') % 3","mustParse":true,"displayOracle":"1 USD"}
+{"id":"dbcefef07637","expression":"moneySum([money(100, 'USD'), money(200, 'USD'), money(50, 'USD')])","mustParse":true,"displayOracle":"350 USD"}
+{"id":"86ab4168cc19","expression":"moneySumWhere([money(10, 'USD'), money(100, 'USD'), money(20, 'USD')], moneyAmount($) > 50)","mustParse":true,"displayOracle":"100 USD"}
+{"id":"45ea54c895cf","expression":"money(100, 'USD') + money(100, 'EUR')","mustParse":true,"displayOracle":"null"}
+{"id":"d194b79e2b7f","expression":"moneyAdd(money(100, 'USD'), money(100, 'EUR'))","mustParse":true,"displayOracle":"null"}
+{"id":"d07ef6593d33","expression":"date('not-a-date')","mustParse":true,"displayOracle":"null"}
+{"id":"33a495159f27","expression":"typeOf([1, 2])","mustParse":true,"displayOracle":"array"}
+{"id":"b8d1755ba332","expression":"present('hello')","mustParse":true,"displayOracle":"true"}
+{"id":"4fc5e26ecef3","expression":"1 < 2","mustParse":true,"displayOracle":"true"}
+{"id":"01956a375e45","expression":"2 < 1","mustParse":true,"displayOracle":"false"}
+{"id":"3045762056e6","expression":"1 > 2","mustParse":true,"displayOracle":"false"}
+{"id":"bca7e69e5ca7","expression":"2 > 1","mustParse":true,"displayOracle":"true"}
+{"id":"80d9e1bf1be3","expression":"1 <= 1","mustParse":true,"displayOracle":"true"}
+{"id":"9560e41115ed","expression":"1 >= 1","mustParse":true,"displayOracle":"true"}
+{"id":"6d0ccbba2268","expression":"1 <= 2","mustParse":true,"displayOracle":"true"}
+{"id":"6dd38f4e1ae8","expression":"2 >= 1","mustParse":true,"displayOracle":"true"}
+{"id":"6bfdf01d9b2a","expression":"'a' < 'b'","mustParse":true,"displayOracle":"true"}
+{"id":"b543a723caba","expression":"'b' > 'a'","mustParse":true,"displayOracle":"true"}
+{"id":"88e3c9973a0e","expression":"@2025-01-01 < @2025-12-31","mustParse":true,"displayOracle":"true"}
+{"id":"14c60d4941e2","expression":"@2025-06-15T10:30:00 > @2025-06-15T09:00:00","mustParse":true,"displayOracle":"true"}
+{"id":"6212702c7a0d","expression":"1 + 2","mustParse":true,"displayOracle":"3"}
+{"id":"a88d6d27dab4","expression":"5 - 3","mustParse":true,"displayOracle":"2"}
+{"id":"7e6ba10e866c","expression":"4 * 7","mustParse":true,"displayOracle":"28"}
+{"id":"eff0e4154576","expression":"10 / 3","mustParse":true,"displayOracle":"3.3333333333333333333333333333"}
+{"id":"e33f06f0c5b1","expression":"10 / 0","mustParse":true,"displayOracle":"null"}
+{"id":"433bc12db45a","expression":"10 % 3","mustParse":true,"displayOracle":"1"}
+{"id":"c87aaa23b9fb","expression":"-5 + 3","mustParse":true,"displayOracle":"-2"}
+{"id":"58fab40159c2","expression":"'hello' & ' world'","mustParse":true,"displayOracle":"hello world"}
+{"id":"386f94d541b6","expression":"1 in [1, 2, 3]","mustParse":true,"displayOracle":"true"}
+{"id":"589adff38669","expression":"4 in [1, 2, 3]","mustParse":true,"displayOracle":"false"}
+{"id":"e9e2b6bf17a8","expression":"4 not in [1, 2, 3]","mustParse":true,"displayOracle":"true"}
+{"id":"01ea327f891e","expression":"'a' in ['a', 'b']","mustParse":true,"displayOracle":"true"}
+{"id":"97bfa7f4a8a6","expression":"null in [1, 2, 3]","mustParse":true,"displayOracle":"false"}
+{"id":"f86f11702564","expression":"1 in []","mustParse":true,"displayOracle":"false"}
+{"id":"12503611343c","expression":"nonexistent(1, 2)","mustParse":true,"displayOracle":"null"}
+{"id":"8a6e07f09774","expression":"notARealFunc()","mustParse":true,"displayOracle":"null"}
+{"id":"3d06708b957e","expression":"$x + $y","mustParse":true,"displayOracle":"null"}
+{"id":"38a30440f206","expression":"$name","mustParse":true,"displayOracle":"null"}
+{"id":"a640a37aaec5","expression":"$a > $b","mustParse":true,"displayOracle":"null"}
+{"id":"bc75281caca3","expression":"$nested.a","mustParse":true,"displayOracle":"null"}
+{"id":"40d37caafae4","expression":"$arr[1]","mustParse":true,"displayOracle":"null"}
+{"id":"ea71a56b46cb","expression":"sum([10, 20, 30])","mustParse":true,"displayOracle":"60"}
+{"id":"deb58dee5fd9","expression":"count([])","mustParse":true,"displayOracle":"0"}
+{"id":"c0f692a36440","expression":"countWhere([1, 2, 3, 4, 5], $ > 2)","mustParse":true,"displayOracle":"3"}
+{"id":"54638360ddaa","expression":"sumWhere([1, 2, 3, 4], $ > 2)","mustParse":true,"displayOracle":"7"}
+{"id":"9bcb9c8e0863","expression":"avgWhere([40, 50, 60], $ >= 50)","mustParse":true,"displayOracle":"55"}
+{"id":"c3b9742c2c3c","expression":"minWhere([3, 1, 4], $ > 0)","mustParse":true,"displayOracle":"1"}
+{"id":"655ef6b39cd9","expression":"maxWhere([3, 1, 4], $ < 4)","mustParse":true,"displayOracle":"3"}
+{"id":"d35c70f7779d","expression":"every([1, 2, 3], $ > 0)","mustParse":true,"displayOracle":"true"}
+{"id":"e2558a2f8eb0","expression":"every([], $ > 0)","mustParse":true,"displayOracle":"true"}
+{"id":"5a6d6c40cd87","expression":"some([0, 2, 4], $ > 3)","mustParse":true,"displayOracle":"true"}
+{"id":"ffa66b9c34c1","expression":"some([], $ > 0)","mustParse":true,"displayOracle":"false"}
+{"id":"64a992ab69f7","expression":"not 42","mustParse":true,"displayOracle":"null"}
+{"id":"ae3cf4b286a5","expression":"-'hello'","mustParse":true,"displayOracle":"null"}
+{"id":"708b4ef6f98e","expression":"'hello' + 1","mustParse":true,"displayOracle":"null"}
+{"id":"6fccf74cf49b","expression":"true and 'x'","mustParse":true,"displayOracle":"null"}
+{"id":"769a197eda7a","expression":"false or 1","mustParse":true,"displayOracle":"null"}
