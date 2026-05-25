@@ -7,7 +7,7 @@ All 2026-05 audit/review backlog rows are closed; see [`COMPLETED.md`](COMPLETED
 | Surface | Where tracked | Status |
 |---|---|---|
 | Mutation-survivor follow-ups | [`thoughts/2026-05-23-mutation-survivor-followups.md`](thoughts/2026-05-23-mutation-survivor-followups.md) | active — FUTs 1-17 closed; one strict-equivalent residual (`prepare_host.rs:289:25`) documented |
-| Code-smell epic `fs-aui0` | `tk` (project ticket system) — 17 open H/M refactors + L-017 (`fs-hd03`, blocked on `fs-w2ao`) | active |
+| Code-smell epic `fs-aui0` | `tk` (project ticket system) — 16 open H/M refactors + L-017 (`fs-hd03`, blocked on `fs-w2ao`) | active |
 | `lib.rs` re-export coverage gate | [`tests/lib_reexport_coverage.toml`](tests/lib_reexport_coverage.toml) — enforced every PR | active |
 
 ## Conventions
