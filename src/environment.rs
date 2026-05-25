@@ -397,14 +397,13 @@ impl Environment for FormspecEnvironment {
     }
 
     fn current_date(&self) -> Result<TypeDate, MissingTimezoneContextError> {
-        self.current_datetime
-            .as_ref()
-            .map(|dt| TypeDate::Date {
-                year: dt.year(),
-                month: dt.month(),
-                day: dt.day(),
-            })
-            .ok_or_else(MissingTimezoneContextError::not_configured)
+        // Delegate to current_datetime so the "is clock configured?" check
+        // has one source of truth (CODE-NIT N4 from fs-wbo9 review).
+        self.current_datetime().map(|dt| TypeDate::Date {
+            year: dt.year(),
+            month: dt.month(),
+            day: dt.day(),
+        })
     }
 
     fn current_datetime(&self) -> Result<TypeDate, MissingTimezoneContextError> {

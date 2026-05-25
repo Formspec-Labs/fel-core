@@ -195,9 +195,21 @@ impl MapEnvironment {
     }
 
     /// Override the environment clock used by `today()` and `now()`.
+    ///
+    /// Passing `None` removes the clock so calls to `today()` / `now()`
+    /// surface `MissingTimezoneContextError::NotConfigured`. Prefer the
+    /// readable [`MapEnvironment::without_clock`] constructor at call
+    /// sites that intend to exercise the no-clock contract.
     pub fn with_current_datetime(mut self, current_datetime: Option<Date>) -> Self {
         self.current_datetime = current_datetime;
         self
+    }
+
+    /// Remove the environment clock so `today()` / `now()` produce the
+    /// `MissingTimezoneContext` diagnostic. Read-aloud companion to
+    /// [`MapEnvironment::with_current_datetime`] for the `None` case.
+    pub fn without_clock(self) -> Self {
+        self.with_current_datetime(None)
     }
 }
 

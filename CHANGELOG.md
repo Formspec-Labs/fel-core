@@ -9,7 +9,7 @@ conformance corpus.
 ## [Unreleased]
 
 ### Changed (BREAKING)
-- **Temporal builtins refuse without a timezone context (ADR 0069 D-6, fs-wbo9).**
+- **Temporal builtins refuse without a timezone context ([ADR 0069 D-6](../thoughts/adr/0069-stack-time-semantics.md), `tk:fs-wbo9`).**
   `Environment::current_date()` and `Environment::current_datetime()` now return
   `Result<Date, MissingTimezoneContextError>` instead of `Option<Date>`. The
   silent-UTC / server-timezone fallback path is gone — hosts MUST supply a
@@ -26,7 +26,7 @@ conformance corpus.
 - **Host Context Bindings**: Added FEL grammar §6.3 for closed host-supplied `@name` catalogs, plus `ContextBindingCatalog`, `ContextBinding`, `EmptyCatalog`, and `evaluate_with_catalog`.
 - **OSS Readiness**: Finalized public project governance files (LICENSE, SECURITY.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md).
 - **Documentation Tooling**: Integrated `cargo-doc-md` to produce the single-file `docs/rustdoc-md/API.md` mirror.
-- **`DiagnosticKind::MissingTimezoneContext { fn_name, reason }`** — closed-set append-only variant carrying the builtin name and a `MissingTimezoneContextReason` (`NotConfigured` / `MultiCalendarConflict { calendars }`). New re-exports: `MissingTimezoneContextError`, `MissingTimezoneContextReason`. Wire shape pinned via JSON-styled proptests; reason encodes as a stable string tag so camel/snake parity holds at value level.
+- **`DiagnosticKind::MissingTimezoneContext { fn_name, reason }`** — closed-set append-only variant carrying the builtin name and a `MissingTimezoneContextReason` (`NotConfigured` / `MultiCalendarConflict { calendars }`). New re-exports: `MissingTimezoneContextError`, `MissingTimezoneContextReason`. Wire shape pinned via JSON-styled proptests; reason encodes as a stable string tag so camel/snake parity holds at value level. See [ADR 0069](../thoughts/adr/0069-stack-time-semantics.md).
 
 ## [0.1.0] - 2026-05-17
 
