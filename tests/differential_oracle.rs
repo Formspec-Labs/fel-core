@@ -8,7 +8,9 @@
 #![cfg(feature = "proptest-strategies")]
 
 use fel_core::testing::strategies::arb_expr;
-use fel_core::{MapEnvironment, builtin_function_catalog, evaluate, fel_to_json, print_expr};
+use fel_core::{
+    MapEnvironment, Severity, builtin_function_catalog, evaluate, fel_to_json, print_expr,
+};
 use proptest::prelude::*;
 use std::io::Write;
 use std::process::{Command, Stdio};
@@ -17,6 +19,30 @@ fn rust_val(expr: &fel_core::Expr) -> serde_json::Value {
     let env = MapEnvironment::new();
     let result = evaluate(expr, &env);
     fel_to_json(&result.value)
+}
+
+/// Cross-runtime envelope per Locale §3.3.1 rule 2 — `evalFEL` callers
+/// (the Locale interpolation processor in particular) MUST detect
+/// error-severity diagnostics even when the coerced value is `null`,
+/// because that decides whether the interpolation site renders the
+/// value or preserves the literal `{{…}}` source. The WASM bridge
+/// already exports this shape (`FelEvalResult` in
+/// `formspec/packages/formspec-engine/src/wasm-bridge-runtime.ts:103`).
+/// True parity therefore requires comparing both fields, not just
+/// `value`: a runtime that returns `value: null` with
+/// `hasErrorDiagnostics: false` is observably DIFFERENT from one that
+/// returns the same value with `hasErrorDiagnostics: true` (the former
+/// renders an empty string, the latter preserves `{{…}}`).
+fn rust_envelope(expr: &fel_core::Expr) -> serde_json::Value {
+    let env = MapEnvironment::new();
+    let result = evaluate(expr, &env);
+    serde_json::json!({
+        "value": fel_to_json(&result.value),
+        "hasErrorDiagnostics": result
+            .diagnostics
+            .iter()
+            .any(|d| d.severity == Severity::Error),
+    })
 }
 
 fn python_val(source: &str) -> Result<Option<serde_json::Value>, String> {
@@ -116,7 +142,12 @@ proptest! {
     fn rust_wasm_parity(
         expr in arb_expr(4, builtin_function_catalog())
     ) {
-        let rust = rust_val(&expr);
+        // Envelope parity per Locale §3.3.1 rule 2 — see rust_envelope().
+        // The WASM bridge returns `{value, hasErrorDiagnostics}`; Rust must
+        // shape its oracle output the same way so a runtime that drifts on
+        // EITHER field surfaces here instead of leaking to the Locale
+        // interpolation processor at runtime.
+        let rust = rust_envelope(&expr);
         let printed = print_expr(&expr);
         let fields = serde_json::Map::new();
         match wasm_val(&printed, &fields) {
