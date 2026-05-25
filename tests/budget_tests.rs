@@ -368,3 +368,39 @@ fn budget_check_alloc_one_past_limit_is_err() {
     };
     assert_eq!(budget.check(0, 1025), Err(BudgetExceededKind::Alloc));
 }
+
+/// Regression: when the evaluator breaches the budget, the final result
+/// MUST be `Value::Null`, never a partial value. libFuzzer surfaced an
+/// arithmetic chain (`fuzz/artifacts/fel_budget/
+/// crash-616156f9113e70f2446a4a26c3e2351e93835b07`) where the budget-
+/// exceeded diagnostic was emitted but the value was a non-null partial
+/// result. Hosts relying on "diagnostic present → don't trust value"
+/// would have read a plausible-but-incomplete number. The contract is
+/// now enforced at the top-level `EvalResult` assembly in
+/// `evaluator/core.rs::evaluate_configured`.
+#[test]
+fn budget_exceeded_nulls_partial_results() {
+    let budget = EvalBudget {
+        max_steps: 5, // very tight — most non-trivial expressions trip it
+        max_alloc_bytes: 1024,
+        deadline: None,
+    };
+    // Arithmetic chain that easily exceeds 5 evaluation steps but each
+    // subexpression on its own produces a non-null Number.
+    let result = eval_budget("1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10", &budget);
+    let has_budget_diag = result
+        .diagnostics
+        .iter()
+        .any(|d| d.message.contains("budget exceeded"));
+    assert!(
+        has_budget_diag,
+        "expected budget-exceeded diagnostic; got {:?}",
+        result.diagnostics
+    );
+    assert_eq!(
+        result.value,
+        Value::Null,
+        "budget-exceeded result MUST null out partial values; got {:?}",
+        result.value
+    );
+}

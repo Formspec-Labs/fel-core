@@ -15,6 +15,20 @@ conformance corpus.
   a char boundary". Datetime literals are pure ASCII per spec; added
   an `is_ascii()` upfront guard. Pinned via
   `parse_datetime_literal_rejects_non_ascii_without_panic`.
+- **Overflow panic in `timeDiff` on out-of-range clock components**
+  (libFuzzer): `parse_time_str` accepted any `i64` for hours/minutes/
+  seconds, so `timeDiff('18888888888888883:00:0', '14:33:0')` then
+  panicked on `h * 3600` i64 overflow. Added clock-time range
+  validation (0–23 / 0–59 / 0–59) in `parse_time_str`; out-of-range
+  components now route to the existing "invalid time strings"
+  diagnostic. Pinned via
+  `time_diff_rejects_out_of_range_components_without_panic`.
+- **Budget-exceeded evaluation must null partial values** (libFuzzer):
+  the evaluator emitted a `budget exceeded` diagnostic but could
+  surface a non-null partial subexpression value, attracting hosts
+  into trusting incomplete results. `evaluate_configured` now nulls
+  the final `Value` whenever the evaluator's budget was breached
+  during the run. Pinned via `budget_exceeded_nulls_partial_results`.
 
 ### Added
 - **`make fuzz-run`** Makefile target for active fuzzing discovery loop

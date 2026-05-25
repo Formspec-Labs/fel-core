@@ -421,10 +421,22 @@ fn evaluate_configured<'a>(
         alloc_bytes: 0,
         budget_breached: false,
     };
-    let value = evaluator.eval(expr);
+    let raw_value = evaluator.eval(expr);
     if let (Some(ev_trace), Some(caller)) = (evaluator.trace, caller_trace) {
         *caller = ev_trace;
     }
+    // When the budget was breached during evaluation, null out any partial
+    // result. Partial values alongside a "budget exceeded" diagnostic are
+    // an attractive nuisance — hosts looking only at value would see a
+    // plausible-but-incomplete number / array. The harness in
+    // fuzz/fuzz_targets/fel_budget.rs encodes this contract; libFuzzer
+    // surfaced inputs where the existing code leaked partial subexpression
+    // results past the budget breach.
+    let value = if evaluator.budget_breached {
+        Value::Null
+    } else {
+        raw_value
+    };
     EvalResult {
         value,
         diagnostics: evaluator.diagnostics,
