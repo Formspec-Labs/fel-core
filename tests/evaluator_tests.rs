@@ -838,6 +838,36 @@ fn time_diff_components_contribute_independently() {
     assert_eq!(eval("timeDiff('00:30:00', '00:15:00')"), num(900));
 }
 
+/// Regression: `timeDiff` MUST refuse out-of-range clock components
+/// without panicking. Originally surfaced by libFuzzer with
+/// `timeDiff('18888888888888883:00:-0', '14:330:0')` —
+/// `parse_time_str` returned `Some((18888888888888883, 0, 0))` and the
+/// arithmetic `h * 3600` overflowed i64 (artifact
+/// `fuzz/artifacts/fel_pipeline/crash-d1e6a104ac22b01be566ce9b1ab70bcf6b9f296d`).
+/// Fix: parse_time_str validates 0..24 / 0..60 / 0..60 upfront.
+#[test]
+fn time_diff_rejects_out_of_range_components_without_panic() {
+    // Original fuzz reproducer — hours wildly out of range.
+    let result = eval_result("timeDiff('18888888888888883:00:0', '14:33:0')");
+    assert_eq!(result.value, Value::Null);
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("invalid time strings")),
+        "expected 'invalid time strings' diagnostic; got {:?}",
+        result.diagnostics
+    );
+    // Minutes out of range (second-arg failure also rejects).
+    assert_eq!(eval("timeDiff('14:30:0', '14:330:0')"), Value::Null);
+    // Hours == 24 (off-by-one — clock hours are 0..=23).
+    assert_eq!(eval("timeDiff('24:00:00', '00:00:00')"), Value::Null);
+    // Negative components rejected (clock times are unsigned).
+    assert_eq!(eval("timeDiff('14:30:00', '-1:00:00')"), Value::Null);
+    // Negative control — valid clocks still work.
+    assert_eq!(eval("timeDiff('23:59:59', '00:00:00')"), num(86399));
+}
+
 /// `duration(...)` emits a nominal-length warning when the ISO string
 /// contains Y (year) or M (month-before-T) designators. Mutation gate
 /// flagged that the `||` → `&&` survives — meaning the warning was tested

@@ -142,11 +142,20 @@ pub(super) fn parse_time_str(s: &str) -> Option<(i64, i64, i64)> {
     if parts.len() != 3 {
         return None;
     }
-    Some((
-        parts[0].parse().ok()?,
-        parts[1].parse().ok()?,
-        parts[2].parse().ok()?,
-    ))
+    let h: i64 = parts[0].parse().ok()?;
+    let m: i64 = parts[1].parse().ok()?;
+    let s: i64 = parts[2].parse().ok()?;
+    // Clock-time range validation per spec: 0–23 hours, 0–59 minutes,
+    // 0–59 seconds. Without this guard, callers (e.g. fn_time_diff)
+    // perform `h * 3600 + m * 60 + s` arithmetic that overflows i64
+    // for huge inputs (regression: fuzz/artifacts/fel_pipeline/
+    // crash-d1e6a104ac22b01be566ce9b1ab70bcf6b9f296d —
+    // `timeDiff('18888888888888883:00:-0', '14:330:0')` panicked on
+    // `18888888888888883 * 3600` overflow).
+    if !(0..24).contains(&h) || !(0..60).contains(&m) || !(0..60).contains(&s) {
+        return None;
+    }
+    Some((h, m, s))
 }
 
 #[inline]
