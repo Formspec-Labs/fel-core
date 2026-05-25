@@ -41,9 +41,9 @@ const ALL_ENCODERS: &[ValueEncoder] = &[ValueEncoder::Wire, ValueEncoder::Ui, Va
 /// Asserts the round-trip / idempotency invariant appropriate to `encoder`.
 ///
 /// - `Wire`: full reverse-mappable round-trip — `v == json_to_fel(encode(v))`.
-/// - `Ui`:   re-encode idempotency — `encode(json_to_fel(encode(v))) == encode(v)`
-///           (Date / Money lose type identity through `json_to_fel`, so the
-///           round-trip is weaker than `Wire`).
+/// - `Ui`: re-encode idempotency — `encode(json_to_fel(encode(v))) == encode(v)`
+///   (Date / Money lose type identity through `json_to_fel`, so the round-trip
+///   is weaker than `Wire`).
 /// - `Alias`: byte-equal to `Ui` AND inherits the `Ui` idempotency invariant.
 fn assert_value_encoder_invariant(
     encoder: ValueEncoder,

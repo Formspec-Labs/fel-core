@@ -1,13 +1,13 @@
 //! Emits deterministic conformance fixtures for cross-runtime differential testing.
 //!
 //! Usage:
-//!   cargo run --features proptest-strategies --bin emit-conformance-fixtures -- [N] > fel-conformance.jsonl
+//!   cargo run --features proptest-strategies --bin emit-conformance-fixtures -- \[N\] > fel-conformance.jsonl
 //!
-//! Without `[N]` (or `[N]` ≧ base corpus size), emits the full semantic-rules corpus.
-//! When `[N]` > corpus size, pads with proptest-generated random expressions.
+//! Without `\[N\]` (or `\[N\]` ≧ base corpus size), emits the full semantic-rules corpus.
+//! When `\[N\]` > corpus size, pads with proptest-generated random expressions.
 //!
 //! Each line is a JSON object:
-//!   {"expression": "<FEL source>", "environment": {"field": <value>}, "expectedValue": <JSON>, "expectedDiagnosticKinds": ["UndefinedFunction", ...]}
+//!   `{"expression": "<FEL source>", "environment": {"field": <value>}, "expectedValue": <JSON>, "expectedDiagnosticKinds": ["UndefinedFunction", ...]}`
 
 use std::collections::BTreeMap;
 use std::io::Write;

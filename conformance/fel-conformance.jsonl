@@ -4,7 +4,9 @@
 {"environment":{},"expectedDiagnosticKinds":[],"expectedValue":20,"expression":"avg([10, 20, 30])"}
 {"environment":{},"expectedDiagnosticKinds":[],"expectedValue":20,"expression":"avg([10, null, 30])"}
 {"environment":{},"expectedDiagnosticKinds":[],"expectedValue":2,"expression":"min([5, 2, 8])"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":2,"expression":"min(5, 2, 8)"}
 {"environment":{},"expectedDiagnosticKinds":[],"expectedValue":8,"expression":"max([5, 2, 8])"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":8,"expression":"max(5, 2, 8)"}
 {"environment":{},"expectedDiagnosticKinds":[],"expectedValue":5,"expression":"length('hello')"}
 {"environment":{},"expectedDiagnosticKinds":[],"expectedValue":0,"expression":"length(null)"}
 {"environment":{},"expectedDiagnosticKinds":[],"expectedValue":true,"expression":"contains('hello world', 'world')"}
@@ -80,9 +82,9 @@
 {"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"other","expression":"pluralCategory(2, 'en')"}
 {"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"1,234.5","expression":"formatNumber(1234.5, 'en')"}
 {"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"May 17, 2026","expression":"formatDate('2026-05-17', 'medium', 'en')"}
-{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"prev('runningTotal')"}
-{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"next('amount')"}
-{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"parent('projectName')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"prev()"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"next()"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"parent()"}
 {"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"@instance('priorYear').totalExpenditure"}
 {"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"@instance('agencies')"}
 {"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"null + 1"}

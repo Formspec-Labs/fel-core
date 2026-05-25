@@ -27,7 +27,10 @@ indexmap = "2"
 intl_pluralrules = "~7.0"
 proptest = { version = "1", optional = true }
 regex = "1"
-rust_decimal = "1"
+# Pinned to ~1.41 (allow patch updates within 1.41.x) — 1.42.0 introduced a
+# Decimal stringification precision regression that broke
+# tests/fuzz_regression_corpus.rs. Re-evaluate when 1.42.x ships the fix.
+rust_decimal = "~1.41"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 unic-langid = { version = "0.9", features = ["macros"] }

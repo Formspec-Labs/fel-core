@@ -59,7 +59,13 @@ fn prep(
 #[test]
 fn qualified_group_ref_with_digit_after_dot_is_not_rewritten() {
     // path supplies repeat ancestor; expression has `$group.1foo` (digit-led).
-    let out = prep("$group.1foo + 1", "group[0].total", false, &[("group", 2)], &[]);
+    let out = prep(
+        "$group.1foo + 1",
+        "group[0].total",
+        false,
+        &[("group", 2)],
+        &[],
+    );
     // Original: 1foo is not a valid ident start, so the whole `$group.1foo`
     // tail is not consumed → leaves text as-is for the qualified-group pass
     // to skip; the `.` then prevents trailing rewrite. Expected: unchanged.
@@ -71,7 +77,13 @@ fn qualified_group_ref_with_digit_after_dot_is_not_rewritten() {
 /// `:50:5 → false` mutant by asserting the rewrite happens.
 #[test]
 fn qualified_group_ref_with_alpha_after_dot_is_rewritten() {
-    let out = prep("$group.foo + 1", "group[0].total", false, &[("group", 2)], &[]);
+    let out = prep(
+        "$group.foo + 1",
+        "group[0].total",
+        false,
+        &[("group", 2)],
+        &[],
+    );
     assert_eq!(out, "foo + 1");
 }
 
@@ -399,7 +411,10 @@ fn host_options_from_json_parses_realistic_repeat_counts() {
 fn host_options_from_json_repeat_counts_survive_downstream_rewrite() {
     let mut obj = Map::new();
     obj.insert("expression".into(), Value::String("$line_items.qty".into()));
-    obj.insert("currentItemPath".into(), Value::String("line_items[0].total".into()));
+    obj.insert(
+        "currentItemPath".into(),
+        Value::String("line_items[0].total".into()),
+    );
     obj.insert("repeatCounts".into(), json!({"line_items": 3}));
 
     let opts = host_options_from_json(&obj).expect("parse ok");
