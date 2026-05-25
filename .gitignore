@@ -22,3 +22,9 @@ tests/*.pending-snap
 /mutants.out
 /mutants.out.old
 **/mutants.out
+
+# proptest auto-saved regressions — regenerated locally, never committed
+tests/*.proptest-regressions
+
+# Claude Code session metadata
+.claude/

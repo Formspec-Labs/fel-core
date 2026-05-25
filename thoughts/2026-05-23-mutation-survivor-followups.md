@@ -1,6 +1,6 @@
 # Mutation survivor follow-ups
 
-**Origin:** Phase 2 of [`2026-05-23-test-suite-triage.md`](./2026-05-23-test-suite-triage.md).
+**Origin:** Phase 2 of [`archive/plans/2026-05-23-test-suite-triage.md`](./archive/plans/2026-05-23-test-suite-triage.md).
 **Baseline sha:** `7d0fd86` (full `make mutants-p0` run, 1060 mutants, 1h 7m wall-clock).
 **Updated:** swarm-review remediation landed at sha `1eee8b4`; subsequent re-baseline may shift these numbers.
 

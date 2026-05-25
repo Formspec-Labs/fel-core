@@ -247,6 +247,7 @@ fuzz-coverage: fuzz-setup
 	@test -x "$(NIGHTLY_LLVM_PROFDATA)" || (echo "missing llvm-profdata at $(NIGHTLY_LLVM_PROFDATA)" && exit 1)
 	$(CARGO_FUZZ) coverage fel_pipeline
 	$(CARGO_FUZZ) coverage fel_structured
+	$(CARGO_FUZZ) coverage fel_budget
 
 fuzz-all: seed-fuzz fuzz-coverage fuzz-extract
 

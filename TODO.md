@@ -9,7 +9,7 @@ No open ratification blockers remain. Last ratified baseline includes
 via catalog examples. Run `make check-ratification` after changing the corpus.
 
 The 2026-05-17 W3C-style audit follow-ups are tracked below. See
-[`thoughts/2026-05-17-open-source-w3c-architecture-audit.md`](thoughts/2026-05-17-open-source-w3c-architecture-audit.md).
+[`thoughts/archive/audits/2026-05-17-open-source-w3c-architecture-audit.md`](thoughts/archive/audits/2026-05-17-open-source-w3c-architecture-audit.md).
 
 ## Open audit findings
 
@@ -39,7 +39,7 @@ markers:
 
 ## Code smell audit (2026-05-17)
 
-Epic **`fs-aui0`** — validated findings in [`code-smell-audit.md`](code-smell-audit.md).
+Epic **`fs-aui0`** — validated findings in [`thoughts/archive/audits/2026-05-17-code-smell-audit.md`](thoughts/archive/audits/2026-05-17-code-smell-audit.md).
 
 | Slice | `tk` status |
 |-------|-------------|
