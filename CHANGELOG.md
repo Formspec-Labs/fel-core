@@ -8,6 +8,8 @@ conformance corpus.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-05-25
+
 ### Changed (BREAKING)
 - **Temporal builtins refuse without a timezone context ([ADR 0069 D-6](../thoughts/adr/0069-stack-time-semantics.md), `tk:fs-wbo9`).**
   `Environment::current_date()` and `Environment::current_datetime()` now return
