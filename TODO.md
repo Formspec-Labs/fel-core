@@ -1,74 +1,17 @@
 # fel-core — backlog status
 
-All backlog rows from the 2026-05-06 audit, 2026-05-07 chaos initiative (C1-C10), and 2026-05-08 multi-lens review (R21-R41) are **closed**. See [`COMPLETED.md`](COMPLETED.md) for full narratives.
+All 2026-05 audit/review backlog rows are closed; see [`COMPLETED.md`](COMPLETED.md) for narratives. Ratified baseline is current (`make ratify` is the local gate; `make ratify-external` runs cross-runtime parity).
 
-No open ratification blockers remain. Last ratified baseline includes
-`formatNumber` / `formatDate` (2026-05-17).
-`formatNumber` and `formatDate` are documented in `docs/SPEC.md`, covered by
-`tests/locale_fel_functions.rs`, and included in `conformance/fel-conformance.jsonl`
-via catalog examples. Run `make check-ratification` after changing the corpus.
+## Open work
 
-The 2026-05-17 W3C-style audit follow-ups are tracked below. See
-[`thoughts/archive/audits/2026-05-17-open-source-w3c-architecture-audit.md`](thoughts/archive/audits/2026-05-17-open-source-w3c-architecture-audit.md).
+| Surface | Where tracked | Status |
+|---|---|---|
+| Mutation-survivor follow-ups | [`thoughts/2026-05-23-mutation-survivor-followups.md`](thoughts/2026-05-23-mutation-survivor-followups.md) | active — FUTs 1-17 closed; one strict-equivalent residual (`prepare_host.rs:289:25`) documented |
+| Code-smell epic `fs-aui0` | `tk` (project ticket system) — 17 open H/M refactors + L-017 (`fs-hd03`, blocked on `fs-w2ao`) | active |
+| `lib.rs` re-export coverage gate | [`tests/lib_reexport_coverage.toml`](tests/lib_reexport_coverage.toml) — enforced every PR | active |
 
-## Open audit findings
+## Conventions
 
-- **FEL-OSS-AUDIT-001** - **Closed** (2026-05-17). Locale formatting builtins
-  ratified in spec, catalog, tests, and conformance corpus.
-- **FEL-OSS-AUDIT-002** - **Closed** (2026-05-17). Conformance classes and
-  implementation evidence are summarized in
-  [`conformance/IMPLEMENTATION-REPORT.md`](conformance/IMPLEMENTATION-REPORT.md).
-- **FEL-OSS-AUDIT-003** - **Closed** (2026-05-17). Locale-formatting i18n scope,
-  fallback behavior, supported subset, timezone boundary, and fixture posture
-  are documented in [`docs/SPEC.md`](docs/SPEC.md).
-
-The 2026-05-17 internal-ratification pass retired the stale monorepo-audit
-markers:
-
-- **FEL-DEPRECATED-EVALUATE-001** — no deprecated evaluate-family wrappers
-  remain in `src/`; `evaluate()` and `evaluate_with()` are the live entry
-  points.
-- **FEL-BACKWARD-ALIAS-001** — `fel_to_json()` remains a compatibility alias for
-  the pre-1.0 Rust API, not normative FEL language surface. The normative value
-  wire behavior is specified in [`docs/SPEC.md`](docs/SPEC.md) and covered by
-  conformance fixtures.
-- **FEL-DIFFERENTIAL-ORACLE-001** — the cross-runtime oracle remains ignored in
-  ordinary `cargo test` because it requires sibling Python and WASM runtimes.
-  The ratification posture is explicit: `make ratify` is the hermetic local
-  gate, and `make ratify-external` is the implementation-report gate.
-
-## Code smell audit (2026-05-17)
-
-Epic **`fs-aui0`** — validated findings in [`thoughts/archive/audits/2026-05-17-code-smell-audit.md`](thoughts/archive/audits/2026-05-17-code-smell-audit.md).
-
-| Slice | `tk` status |
-|-------|-------------|
-| Priority 4 (28 tickets) | **Closed** — DOC-001, H-006, L-001–L-016, L-018–L-025, M-013, M-014 |
-| Priority 4 remaining | **Open** — L-017 only (`fs-hd03`, blocked on `fs-w2ao`) |
-| Epic total (55 children) | **38 closed / 17 open** (H/M refactors) |
-
-**Scout validation (2026-05-17):** four `formspec-scout` passes — **PASS WITH NOTES**. No false closes; `fs-991y` / `fs-tzxb` closed with documented AC waivers (pointer cache, two-phase `format`).
-
-**Nit follow-up (same day, on `main`):** `eval_budget_with_extensions` in all `budget_tests`; H-006 index diagnostic tests; `fel_proptest` gated behind `proptest-strategies`; `FORMSPEC_ROOT` documented for `seed-fuzz`. Commits `98a2820`, `44f1cb3`.
-
-Internal-ratification artifacts:
-
-- [`docs/SPEC.md`](docs/SPEC.md)
-- [`specs/fel/fel-grammar.md`](specs/fel/fel-grammar.md)
-- [`conformance/manifest.json`](conformance/manifest.json)
-- [`conformance/fel-conformance.jsonl`](conformance/fel-conformance.jsonl)
-- `make ratify`
-- `make ratify-external` for sibling implementation-report evidence
-
----
-
-## Execution protocol
-
-For future behavioral changes:
-
-1. **Red** — Test fails and proves the gap.
-2. **Green** — Smallest fix.
-3. **Refactor** — Cleanup, same behavior.
-4. **Verify** — Focused tests, then full fel-core suite.
-
-Guardrails: one behavioral change per cycle; never ship without a test that demonstrated the bug or regression risk.
+- **Workflow** — see [`CONTRIBUTING.md`](CONTRIBUTING.md) for red-green-refactor and gate requirements.
+- **History** — closed rows live in [`COMPLETED.md`](COMPLETED.md); shipped plans + closed audits in [`thoughts/archive/`](thoughts/archive/).
+- **Spec** — normative semantics in [`docs/SPEC.md`](docs/SPEC.md) and [`specs/fel/fel-grammar.md`](specs/fel/fel-grammar.md); change those before code.
