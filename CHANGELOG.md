@@ -8,6 +8,20 @@ conformance corpus.
 
 ## [Unreleased]
 
+### Fixed
+- **Panic on non-ASCII input to `parse_datetime_literal`** (regression
+  found by libFuzzer): `&s[..19]` byte-slice could land inside a
+  multi-byte UTF-8 codepoint, panicking with "end byte index 19 is not
+  a char boundary". Datetime literals are pure ASCII per spec; added
+  an `is_ascii()` upfront guard. Pinned via
+  `parse_datetime_literal_rejects_non_ascii_without_panic`.
+
+### Added
+- **`make fuzz-run`** Makefile target for active fuzzing discovery loop
+  (defaults to `fel_pipeline`, 5-minute time-box; overridable via
+  `TARGET=…` / `DURATION=…`). Plus `fuzz-run-{pipeline,structured,budget}`
+  convenience aliases.
+
 ## [0.2.0] - 2026-05-25
 
 ### Changed (BREAKING)

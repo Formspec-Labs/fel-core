@@ -354,6 +354,14 @@ pub fn parse_date_literal(s: &str) -> Option<Date> {
 /// Stable public API — consumed by `formspec-py` and `formspec-eval`.
 pub fn parse_datetime_literal(s: &str) -> Option<Date> {
     let s = s.strip_prefix('@')?;
+    // Reject non-ASCII upfront. The spec datetime grammar is pure ASCII
+    // (`YYYY-MM-DDTHH:MM:SS[Z|±HH:MM]`); without this guard the `&s[..19]`
+    // byte-slice below would panic when byte index 19 falls inside a
+    // multi-byte UTF-8 codepoint (regression: fuzz/artifacts/fel_pipeline
+    // /crash-7b9cd056decff3dd0bc589982645f957e55b9a8f).
+    if !s.is_ascii() {
+        return None;
+    }
     // Strip timezone suffix
     let s = s.trim_end_matches('Z');
     let s = if s.len() > 19 { &s[..19] } else { s };
@@ -547,6 +555,32 @@ mod tests {
                 day: 15
             }
         );
+    }
+
+    /// Regression: parse_datetime_literal must NOT panic on non-ASCII
+    /// input where `&s[..19]` would slice across a multi-byte UTF-8
+    /// codepoint boundary. Originally surfaced by libFuzzer via the
+    /// `date('<garbage UTF-8>')` input
+    /// (`fuzz/artifacts/fel_pipeline/crash-7b9cd056decff…`). Spec datetime
+    /// literals are pure ASCII; any non-ASCII byte rejects with None.
+    #[test]
+    fn parse_datetime_literal_rejects_non_ascii_without_panic() {
+        // 18 ASCII bytes + 2-byte `é` straddling byte index 19 — would
+        // have hit "end byte index 19 is not a char boundary" panic in
+        // the byte-slice without the is_ascii guard.
+        let pre_guard_panic = "@xxxxxxxxxxxxxxxxxxé";
+        assert_eq!(parse_datetime_literal(pre_guard_panic), None);
+
+        // The fuzzer's actual reproducer: `date('<8 0xff bytes>…')`. The
+        // 0xff bytes get lossy-decoded to U+FFFD replacement chars (3
+        // UTF-8 bytes each), pushing the string well past 19 bytes with
+        // non-ASCII content.
+        let fuzz_repro =
+            "@\u{FFFD}\u{FFFD}\u{FFFD}\u{FFFD}\u{FFFD}\u{FFFD}\u{FFFD}\u{FFFD}\u{FFFD}";
+        assert_eq!(parse_datetime_literal(fuzz_repro), None);
+
+        // Negative control — ASCII garbage still safely returns None.
+        assert_eq!(parse_datetime_literal("@2024-13-99T99:99:99"), None);
     }
 
     /// Spec: core/spec.md §3.5.4 — round-trip: date → ordinal days → date

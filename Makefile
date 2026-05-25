@@ -12,7 +12,7 @@ RUST_TRIPLE = $(shell rustc -Vv | sed -n 's/^host: //p')
 RUSTUP_HOME ?= $(HOME)/.rustup
 NIGHTLY_LLVM_PROFDATA = $(RUSTUP_HOME)/toolchains/nightly-$(RUST_TRIPLE)/lib/rustlib/$(RUST_TRIPLE)/bin/llvm-profdata
 
-.PHONY: all help build test test-full test-differential test-differential-python test-differential-wasm test-all check-ratification ratify ratify-external conformance lint deny docs package ci fuzz-extract fuzz-regression-refresh fuzz-setup fuzz-coverage fuzz-all seed-fuzz clean \
+.PHONY: all help build test test-full test-differential test-differential-python test-differential-wasm test-all check-ratification ratify ratify-external conformance lint deny docs package ci fuzz-extract fuzz-regression-refresh fuzz-setup fuzz-coverage fuzz-all fuzz-run fuzz-run-pipeline fuzz-run-structured fuzz-run-budget seed-fuzz clean \
         mutants-install mutants-p0 mutants-parser mutants-lexer mutants-evaluator mutants-budget mutants-deps mutants-convert mutants-error mutants-prepare-host mutants-extensions mutants-money-dates \
         mutants-interpolation mutants-iso-duration mutants-tier2 \
         mutants-shard-1 mutants-shard-2 mutants-shard-3 mutants-shard-4
@@ -44,6 +44,9 @@ help:
 	@echo "  make fuzz-setup                  — install nightly + llvm-tools + cargo-fuzz"
 	@echo "  make fuzz-coverage               — generate HTML coverage from fuzz corpus"
 	@echo "  make fuzz-all                    — run all fuzz maintenance targets"
+	@echo "  make fuzz-run                    — active discovery loop (default fel_pipeline, 5 min)"
+	@echo "  make fuzz-run TARGET=… DURATION=…  — override target / time-box"
+	@echo "  make fuzz-run-{pipeline,structured,budget} — per-target convenience"
 	@echo "  make seed-fuzz                   — seed fuzz corpus (FORMSPEC_ROOT for monorepo layout)"
 	@echo "  make mutants-install             — install cargo-mutants $(CARGO_MUTANTS_VERSION) (pinned)"
 	@echo "  make mutants-p0                  — sequential mutation gate on all P0 seams (~6h)"
@@ -250,6 +253,19 @@ fuzz-coverage: fuzz-setup
 	$(CARGO_FUZZ) coverage fel_budget
 
 fuzz-all: seed-fuzz fuzz-coverage fuzz-extract
+
+# Active fuzzing (discovery loop). Bounded by DURATION seconds.
+#   make fuzz-run                              # fel_pipeline, 5 min
+#   make fuzz-run TARGET=fel_budget            # fel_budget,   5 min
+#   make fuzz-run TARGET=fel_structured DURATION=600
+FUZZ_TARGET   ?= fel_pipeline
+FUZZ_DURATION ?= 300
+fuzz-run: fuzz-setup
+	$(CARGO_FUZZ) run $(FUZZ_TARGET) -- -max_total_time=$(FUZZ_DURATION)
+
+fuzz-run-pipeline: ; @$(MAKE) fuzz-run FUZZ_TARGET=fel_pipeline
+fuzz-run-structured: ; @$(MAKE) fuzz-run FUZZ_TARGET=fel_structured
+fuzz-run-budget: ; @$(MAKE) fuzz-run FUZZ_TARGET=fel_budget
 
 seed-fuzz:
 	@echo "Copying conformance suite expressions into fuzz corpus..."
