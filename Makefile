@@ -12,7 +12,7 @@ RUST_TRIPLE = $(shell rustc -Vv | sed -n 's/^host: //p')
 RUSTUP_HOME ?= $(HOME)/.rustup
 NIGHTLY_LLVM_PROFDATA = $(RUSTUP_HOME)/toolchains/nightly-$(RUST_TRIPLE)/lib/rustlib/$(RUST_TRIPLE)/bin/llvm-profdata
 
-.PHONY: all help build test test-full test-differential test-differential-python test-differential-wasm test-all check-ratification ratify ratify-external conformance lint deny docs package ci fuzz-extract fuzz-regression-refresh fuzz-setup fuzz-coverage fuzz-all fuzz-run fuzz-run-pipeline fuzz-run-structured fuzz-run-budget seed-fuzz clean \
+.PHONY: all help build test test-full test-differential test-differential-python test-differential-wasm test-all check-ratification ratify ratify-external conformance lint deny docs package ci fuzz-extract fuzz-regression-refresh fuzz-setup fuzz-coverage fuzz-all fuzz-run fuzz-run-pipeline fuzz-run-structured fuzz-run-budget fuzz-run-all seed-fuzz clean \
         mutants-install mutants-p0 mutants-parser mutants-lexer mutants-evaluator mutants-budget mutants-deps mutants-convert mutants-error mutants-prepare-host mutants-extensions mutants-money-dates \
         mutants-interpolation mutants-iso-duration mutants-tier2 \
         mutants-shard-1 mutants-shard-2 mutants-shard-3 mutants-shard-4
@@ -266,6 +266,7 @@ fuzz-run: fuzz-setup
 fuzz-run-pipeline: ; @$(MAKE) fuzz-run FUZZ_TARGET=fel_pipeline
 fuzz-run-structured: ; @$(MAKE) fuzz-run FUZZ_TARGET=fel_structured
 fuzz-run-budget: ; @$(MAKE) fuzz-run FUZZ_TARGET=fel_budget
+fuzz-run-all: fuzz-run-pipeline fuzz-run-structured fuzz-run-budget
 
 seed-fuzz:
 	@echo "Copying conformance suite expressions into fuzz corpus..."
