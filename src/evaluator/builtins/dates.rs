@@ -19,18 +19,26 @@ enum DateOperand {
 impl<'a> Evaluator<'a> {
     // ── Date helpers ────────────────────────────────────────────
 
-    pub(in crate::evaluator) fn fn_today(&self) -> Value {
-        self.env
-            .current_date()
-            .map(Value::Date)
-            .unwrap_or(Value::Null)
+    pub(in crate::evaluator) fn fn_today(&mut self) -> Value {
+        match self.env.current_date() {
+            Ok(d) => Value::Date(d),
+            Err(err) => {
+                self.diagnostics
+                    .push(Diagnostic::missing_timezone_context("today", err));
+                Value::Null
+            }
+        }
     }
 
-    pub(in crate::evaluator) fn fn_now(&self) -> Value {
-        self.env
-            .current_datetime()
-            .map(Value::Date)
-            .unwrap_or(Value::Null)
+    pub(in crate::evaluator) fn fn_now(&mut self) -> Value {
+        match self.env.current_datetime() {
+            Ok(d) => Value::Date(d),
+            Err(err) => {
+                self.diagnostics
+                    .push(Diagnostic::missing_timezone_context("now", err));
+                Value::Null
+            }
+        }
     }
 
     pub(in crate::evaluator) fn fn_date_part(

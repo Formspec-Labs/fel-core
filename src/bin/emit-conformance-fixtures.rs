@@ -38,6 +38,7 @@ fn diagnostic_kind_name(kind: &DiagnosticKind) -> &'static str {
         DiagnosticKind::UndefinedFunction { .. } => "UndefinedFunction",
         DiagnosticKind::TypeMismatch { .. } => "TypeMismatch",
         DiagnosticKind::ArityMismatch { .. } => "ArityMismatch",
+        DiagnosticKind::MissingTimezoneContext { .. } => "MissingTimezoneContext",
     }
 }
 

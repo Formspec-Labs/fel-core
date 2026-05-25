@@ -4,7 +4,7 @@
 //! programs. They are the contract for the v0 trace API and the regression
 //! guard for the non-tracing hot path.
 use fel_core::{
-    Date, Environment, EvaluatorOptions, MapEnvironment, Trace, TraceStep, Value, evaluate,
+    Environment, EvaluatorOptions, MapEnvironment, Trace, TraceStep, Value, evaluate,
     evaluate_with, parse,
 };
 use rust_decimal::Decimal;
@@ -70,9 +70,8 @@ impl Environment for CountingEnv {
         Value::Null
     }
 
-    fn current_date(&self) -> Option<Date> {
-        None
-    }
+    // current_date / current_datetime fall back to the trait default
+    // (Err(MissingTimezoneContextError::NotConfigured)) per ADR 0069 D-6.
 }
 
 #[test]

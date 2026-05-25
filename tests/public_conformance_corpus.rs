@@ -22,6 +22,7 @@ fn diagnostic_kind_name(kind: &fel_core::DiagnosticKind) -> &'static str {
         fel_core::DiagnosticKind::UndefinedFunction { .. } => "UndefinedFunction",
         fel_core::DiagnosticKind::TypeMismatch { .. } => "TypeMismatch",
         fel_core::DiagnosticKind::ArityMismatch { .. } => "ArityMismatch",
+        fel_core::DiagnosticKind::MissingTimezoneContext { .. } => "MissingTimezoneContext",
     }
 }
 

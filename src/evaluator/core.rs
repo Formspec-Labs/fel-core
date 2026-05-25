@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 use crate::ast::*;
 use crate::convert::fel_to_json;
-use crate::error::Diagnostic;
+use crate::error::{Diagnostic, MissingTimezoneContextError};
 use crate::extensions::{ExtensionCallOutcome, ExtensionRegistry};
 use crate::trace::{Trace, TraceStep};
 use crate::types::*;
@@ -60,13 +60,22 @@ pub trait Environment {
     fn repeat_parent(&self) -> Value {
         Value::Null
     }
-    /// Calendar date for `today()` — default none (evaluator may still use literals).
-    fn current_date(&self) -> Option<Date> {
-        None
+    /// Calendar date for `today()` per ADR 0069 D-6 — hosts MUST configure a
+    /// timezone-equivalent clock or return [`MissingTimezoneContextError`].
+    ///
+    /// The default impl returns
+    /// [`MissingTimezoneContextError::not_configured`]; this is deliberate —
+    /// no implementation MAY return a silent UTC fallback. The evaluator
+    /// translates `Err(_)` into a [`crate::error::DiagnosticKind::MissingTimezoneContext`]
+    /// diagnostic on every call site.
+    fn current_date(&self) -> Result<Date, MissingTimezoneContextError> {
+        Err(MissingTimezoneContextError::not_configured())
     }
-    /// Date-time for `now()` — default none.
-    fn current_datetime(&self) -> Option<Date> {
-        None
+    /// Date-time for `now()` per ADR 0069 D-6 — see [`Self::current_date`] for
+    /// the contract. Hosts that override one method typically override both;
+    /// returning different timezone contexts from the two paths is a host bug.
+    fn current_datetime(&self) -> Result<Date, MissingTimezoneContextError> {
+        Err(MissingTimezoneContextError::not_configured())
     }
     /// Active locale code for `locale()` — default none (returns null).
     fn locale(&self) -> Option<&str> {
@@ -230,26 +239,28 @@ impl Environment for MapEnvironment {
         Value::Null
     }
 
-    fn current_date(&self) -> Option<Date> {
+    fn current_date(&self) -> Result<Date, MissingTimezoneContextError> {
         match &self.current_datetime {
-            Some(Date::Date { year, month, day }) => Some(Date::Date {
+            Some(Date::Date { year, month, day }) => Ok(Date::Date {
                 year: *year,
                 month: *month,
                 day: *day,
             }),
             Some(Date::DateTime {
                 year, month, day, ..
-            }) => Some(Date::Date {
+            }) => Ok(Date::Date {
                 year: *year,
                 month: *month,
                 day: *day,
             }),
-            None => None,
+            None => Err(MissingTimezoneContextError::not_configured()),
         }
     }
 
-    fn current_datetime(&self) -> Option<Date> {
-        self.current_datetime.clone()
+    fn current_datetime(&self) -> Result<Date, MissingTimezoneContextError> {
+        self.current_datetime
+            .clone()
+            .ok_or_else(MissingTimezoneContextError::not_configured)
     }
 }
 

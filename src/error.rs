@@ -83,6 +83,10 @@ pub enum Severity {
 }
 
 /// Machine-readable diagnostic categories.
+///
+/// Closed-set append-only per `README.md` (FEL 1.0 commitment): consumers may
+/// match exhaustively. Adding a variant is a non-breaking minor revision; removing
+/// or renaming is a breaking change.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DiagnosticKind {
     /// Function name could not be resolved in builtins or extension registry.
@@ -110,7 +114,92 @@ pub enum DiagnosticKind {
         /// Actual argument count supplied.
         got: usize,
     },
+    /// A FEL temporal builtin (`today()` / `now()`) was evaluated while the host
+    /// supplied no timezone context.
+    ///
+    /// Pins ADR 0069 D-6: silent UTC / server-timezone fallback is forbidden.
+    /// The host MUST configure a clock (timezone-equivalent context) before
+    /// invoking `today()` or `now()`; otherwise the evaluator returns
+    /// [`crate::Value::Null`] and surfaces this diagnostic.
+    MissingTimezoneContext {
+        /// FEL builtin that hard-refused (`"today"` or `"now"`).
+        fn_name: String,
+        /// Why the timezone context is missing.
+        reason: MissingTimezoneContextReason,
+    },
 }
+
+/// Why a host failed to supply a timezone context to a FEL temporal builtin.
+///
+/// Closed-set per ADR 0069 D-6. The default case is `NotConfigured` (host never
+/// set a clock); `MultiCalendarConflict` carries the conflicting calendar
+/// identifiers when business-calendar resolution (per
+/// `work-spec/specs/sidecars/business-calendar.md` §7.1) cannot pick a single
+/// timezone. Hosts surface their own variant from
+/// [`crate::evaluator::Environment::current_date`] /
+/// [`crate::evaluator::Environment::current_datetime`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MissingTimezoneContextReason {
+    /// No clock was configured on the [`crate::evaluator::Environment`].
+    NotConfigured,
+    /// Multiple applicable business calendars disagreed on which timezone
+    /// applies (per `business-calendar.md` §7.1).
+    MultiCalendarConflict {
+        /// Calendar identifiers whose timezones disagreed at the resolution
+        /// point. Order is host-defined.
+        calendars: Vec<String>,
+    },
+}
+
+/// Typed error returned by [`crate::evaluator::Environment::current_date`] and
+/// [`crate::evaluator::Environment::current_datetime`] when the host has no
+/// timezone context configured.
+///
+/// Per ADR 0069 D-6, this is the ONLY permissible failure mode — silent UTC
+/// fallback is forbidden. The evaluator translates this error into a structured
+/// [`DiagnosticKind::MissingTimezoneContext`] diagnostic so callers can detect
+/// the refusal without parsing message strings.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MissingTimezoneContextError {
+    /// Why the timezone context is missing.
+    pub reason: MissingTimezoneContextReason,
+}
+
+impl MissingTimezoneContextError {
+    /// Constructs the common `NotConfigured` case.
+    #[must_use]
+    pub fn not_configured() -> Self {
+        Self {
+            reason: MissingTimezoneContextReason::NotConfigured,
+        }
+    }
+
+    /// Constructs a `MultiCalendarConflict` case carrying the calendars whose
+    /// timezones disagreed.
+    #[must_use]
+    pub fn multi_calendar_conflict(calendars: Vec<String>) -> Self {
+        Self {
+            reason: MissingTimezoneContextReason::MultiCalendarConflict { calendars },
+        }
+    }
+}
+
+impl fmt::Display for MissingTimezoneContextError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.reason {
+            MissingTimezoneContextReason::NotConfigured => f.write_str(
+                "timezone context is required for today()/now() but none was configured",
+            ),
+            MissingTimezoneContextReason::MultiCalendarConflict { calendars } => write!(
+                f,
+                "timezone context is ambiguous: multiple business calendars disagreed ({})",
+                calendars.join(", ")
+            ),
+        }
+    }
+}
+
+impl std::error::Error for MissingTimezoneContextError {}
 
 /// Pluralizes the word `argument` for arity diagnostics.
 pub(crate) fn arity_argument_word(count: usize) -> &'static str {
@@ -263,6 +352,28 @@ impl Diagnostic {
         }
     }
 
+    /// Build a structured missing-timezone-context diagnostic (ADR 0069 D-6).
+    ///
+    /// The message is derived from the [`MissingTimezoneContextError`]
+    /// `Display` impl plus the builtin name; the structured [`Self::kind`]
+    /// carries the same data for programmatic dispatch.
+    pub fn missing_timezone_context(
+        fn_name: impl Into<String>,
+        err: MissingTimezoneContextError,
+    ) -> Self {
+        let fn_name = fn_name.into();
+        Diagnostic {
+            severity: Severity::Error,
+            message: format!("{fn_name}(): {err}"),
+            code: None,
+            kind: Some(DiagnosticKind::MissingTimezoneContext {
+                fn_name,
+                reason: err.reason,
+            }),
+            span: None,
+        }
+    }
+
     /// Attaches a source span (byte offsets into the FEL source string).
     #[must_use]
     pub fn with_span(mut self, span: Range<usize>) -> Self {
@@ -369,6 +480,56 @@ fn diagnostic_kind_to_json(
                 }
             }),
         },
+        DiagnosticKind::MissingTimezoneContext { fn_name, reason } => {
+            // Reason is a tagged-string + payload to keep value bytes identical
+            // across wire styles — only KEY casing differs between camel and
+            // snake (mirrors the contract enforced by
+            // `diagnostics_json_styled_matches_default_modulo_kind_key` in
+            // `tests/json_exports_proptest.rs`).
+            let (reason_tag, calendars) = missing_timezone_reason_to_tag(reason);
+            match style {
+                JsonWireStyle::JsCamel => {
+                    let mut inner = serde_json::Map::new();
+                    inner.insert("fnName".into(), serde_json::Value::String(fn_name.clone()));
+                    inner.insert(
+                        "reason".into(),
+                        serde_json::Value::String(reason_tag.to_string()),
+                    );
+                    if let Some(c) = calendars {
+                        inner.insert("calendars".into(), serde_json::json!(c));
+                    }
+                    serde_json::json!({ "missingTimezoneContext": serde_json::Value::Object(inner) })
+                }
+                JsonWireStyle::PythonSnake => {
+                    let mut inner = serde_json::Map::new();
+                    inner.insert("fn_name".into(), serde_json::Value::String(fn_name.clone()));
+                    inner.insert(
+                        "reason".into(),
+                        serde_json::Value::String(reason_tag.to_string()),
+                    );
+                    if let Some(c) = calendars {
+                        inner.insert("calendars".into(), serde_json::json!(c));
+                    }
+                    serde_json::json!({
+                        "missing_timezone_context": serde_json::Value::Object(inner)
+                    })
+                }
+            }
+        }
+    }
+}
+
+/// Reduces a [`MissingTimezoneContextReason`] to a stable string tag and the
+/// optional `calendars` payload. The tag string is byte-identical across wire
+/// styles (the camel/snake casing differs only at the surrounding KEYS).
+fn missing_timezone_reason_to_tag(
+    reason: &MissingTimezoneContextReason,
+) -> (&'static str, Option<&Vec<String>>) {
+    match reason {
+        MissingTimezoneContextReason::NotConfigured => ("not_configured", None),
+        MissingTimezoneContextReason::MultiCalendarConflict { calendars } => {
+            ("multi_calendar_conflict", Some(calendars))
+        }
     }
 }
 

@@ -32,10 +32,10 @@
 
 use fel_core::testing::strategies::arb_expr;
 use fel_core::{
-    Diagnostic, DiagnosticKind, JsonWireStyle, Severity, builtin_function_catalog,
-    dependencies_to_json_value, dependencies_to_json_value_styled, extract_dependencies,
-    fel_diagnostics_to_json_value, fel_diagnostics_to_json_value_styled, print_expr,
-    tokenize_to_json_value, tokenize_to_json_value_styled,
+    Diagnostic, DiagnosticKind, JsonWireStyle, MissingTimezoneContextReason, Severity,
+    builtin_function_catalog, dependencies_to_json_value, dependencies_to_json_value_styled,
+    extract_dependencies, fel_diagnostics_to_json_value, fel_diagnostics_to_json_value_styled,
+    print_expr, tokenize_to_json_value, tokenize_to_json_value_styled,
 };
 use proptest::prelude::*;
 
@@ -66,6 +66,12 @@ fn diagnostic_kind_variant_key(kind: &DiagnosticKind, style: JsonWireStyle) -> &
         (DiagnosticKind::TypeMismatch { .. }, JsonWireStyle::PythonSnake) => "type_mismatch",
         (DiagnosticKind::ArityMismatch { .. }, JsonWireStyle::JsCamel) => "arityMismatch",
         (DiagnosticKind::ArityMismatch { .. }, JsonWireStyle::PythonSnake) => "arity_mismatch",
+        (DiagnosticKind::MissingTimezoneContext { .. }, JsonWireStyle::JsCamel) => {
+            "missingTimezoneContext"
+        }
+        (DiagnosticKind::MissingTimezoneContext { .. }, JsonWireStyle::PythonSnake) => {
+            "missing_timezone_context"
+        }
     }
 }
 
@@ -158,11 +164,30 @@ prop_compose! {
     }
 }
 
+fn arb_missing_tz_reason() -> impl Strategy<Value = MissingTimezoneContextReason> {
+    prop_oneof![
+        Just(MissingTimezoneContextReason::NotConfigured),
+        proptest::collection::vec(arb_ident(), 1..4).prop_map(|calendars| {
+            MissingTimezoneContextReason::MultiCalendarConflict { calendars }
+        }),
+    ]
+}
+
+prop_compose! {
+    fn arb_missing_timezone_context()(
+        fn_name in prop_oneof![Just("today".to_string()), Just("now".to_string())],
+        reason in arb_missing_tz_reason(),
+    ) -> DiagnosticKind {
+        DiagnosticKind::MissingTimezoneContext { fn_name, reason }
+    }
+}
+
 fn arb_diagnostic_kind() -> impl Strategy<Value = DiagnosticKind> {
     prop_oneof![
         arb_undefined_function(),
         arb_type_mismatch(),
         arb_arity_mismatch(),
+        arb_missing_timezone_context(),
     ]
 }
 

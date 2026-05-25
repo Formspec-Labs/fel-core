@@ -158,7 +158,20 @@ proptests = [
     "tests/diagnostic_proptest.rs::json_roundtrip_kind_key_matches_variant",
     "tests/diagnostic_proptest.rs::undefined_function_names_match_oracle",
 ]
-notes = "Phase 3a P0 #3 — closed by 48f9280. Closed-enumeration discriminator pinned via JSON-key-vs-variant round-trip."
+notes = "Phase 3a P0 #3 — closed by 48f9280. Closed-enumeration discriminator pinned via JSON-key-vs-variant round-trip. MissingTimezoneContext variant added under ADR 0069 D-6 (fs-wbo9); coverage extended in the same proptest pair."
+
+[[entries]]
+symbol = "error::MissingTimezoneContextError"
+exemption = "E5"
+consumer_proptests = ["tests/diagnostic_proptest.rs::json_roundtrip_kind_key_matches_variant"]
+example_tests = ["tests/missing_timezone_context.rs:L28-L80"]
+notes = "ADR 0069 D-6 (fs-wbo9). Result::Err shape returned by Environment::current_date/current_datetime when the host supplies no timezone context. Consumer proptest covers the DiagnosticKind::MissingTimezoneContext that surfaces it; example tests prove the Err path produces Value::Null + the structured diagnostic for MapEnvironment and FormspecEnvironment."
+
+[[entries]]
+symbol = "error::MissingTimezoneContextReason"
+exemption = "E4"
+consumer_proptests = ["tests/diagnostic_proptest.rs::json_roundtrip_kind_key_matches_variant"]
+notes = "ADR 0069 D-6 (fs-wbo9). Closed tag enum (NotConfigured / MultiCalendarConflict); consumer (DiagnosticKind::MissingTimezoneContext) pinned by the JSON-key-vs-variant proptest. Discrimination is partial — proptest exercises both variants via arb_missing_timezone_context but the inner-payload bytes are only asserted via example_tests on the parent error type."
 
 [[entries]]
 symbol = "error::Error"

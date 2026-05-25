@@ -8,10 +8,25 @@ conformance corpus.
 
 ## [Unreleased]
 
+### Changed (BREAKING)
+- **Temporal builtins refuse without a timezone context (ADR 0069 D-6, fs-wbo9).**
+  `Environment::current_date()` and `Environment::current_datetime()` now return
+  `Result<Date, MissingTimezoneContextError>` instead of `Option<Date>`. The
+  silent-UTC / server-timezone fallback path is gone — hosts MUST supply a
+  timezone-equivalent clock or `today()`/`now()` evaluate to `Value::Null` and
+  surface a structured `DiagnosticKind::MissingTimezoneContext`. Downstream
+  consumers (`formspec-engine`, `formspec-py`, `wos-runtime` guard evaluator)
+  need migration: any `Environment` impl overriding these methods must change
+  the return type from `Option<_>` to `Result<_, _>`. Test fixtures that
+  exercised the no-clock path must either declare a clock or assert the new
+  error path (mechanical migration; the trait default returns the error so
+  no-op impls work automatically).
+
 ### Added
 - **Host Context Bindings**: Added FEL grammar §6.3 for closed host-supplied `@name` catalogs, plus `ContextBindingCatalog`, `ContextBinding`, `EmptyCatalog`, and `evaluate_with_catalog`.
 - **OSS Readiness**: Finalized public project governance files (LICENSE, SECURITY.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md).
 - **Documentation Tooling**: Integrated `cargo-doc-md` to produce the single-file `docs/rustdoc-md/API.md` mirror.
+- **`DiagnosticKind::MissingTimezoneContext { fn_name, reason }`** — closed-set append-only variant carrying the builtin name and a `MissingTimezoneContextReason` (`NotConfigured` / `MultiCalendarConflict { calendars }`). New re-exports: `MissingTimezoneContextError`, `MissingTimezoneContextReason`. Wire shape pinned via JSON-styled proptests; reason encodes as a stable string tag so camel/snake parity holds at value level.
 
 ## [0.1.0] - 2026-05-17
 

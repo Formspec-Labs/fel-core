@@ -2,8 +2,9 @@
 #![allow(clippy::missing_docs_in_private_items)]
 
 use fel_core::{
-    Diagnostic, DiagnosticKind, Severity, fel_diagnostics_to_json_value, has_error_diagnostics,
-    reject_undefined_functions, undefined_function_names_from_diagnostics,
+    Diagnostic, DiagnosticKind, MissingTimezoneContextReason, Severity,
+    fel_diagnostics_to_json_value, has_error_diagnostics, reject_undefined_functions,
+    undefined_function_names_from_diagnostics,
 };
 use proptest::prelude::*;
 
@@ -59,11 +60,30 @@ prop_compose! {
     }
 }
 
+fn arb_missing_tz_reason() -> impl Strategy<Value = MissingTimezoneContextReason> {
+    prop_oneof![
+        Just(MissingTimezoneContextReason::NotConfigured),
+        proptest::collection::vec(arb_ident(), 1..4).prop_map(|calendars| {
+            MissingTimezoneContextReason::MultiCalendarConflict { calendars }
+        }),
+    ]
+}
+
+prop_compose! {
+    fn arb_missing_timezone_context()(
+        fn_name in prop_oneof![Just("today".to_string()), Just("now".to_string())],
+        reason in arb_missing_tz_reason(),
+    ) -> DiagnosticKind {
+        DiagnosticKind::MissingTimezoneContext { fn_name, reason }
+    }
+}
+
 fn arb_diagnostic_kind() -> impl Strategy<Value = DiagnosticKind> {
     prop_oneof![
         arb_undefined_function(),
         arb_type_mismatch(),
         arb_arity_mismatch(),
+        arb_missing_timezone_context(),
     ]
 }
 
@@ -101,6 +121,7 @@ fn expected_kind_camel_key(kind: &DiagnosticKind) -> &'static str {
         DiagnosticKind::UndefinedFunction { .. } => "undefinedFunction",
         DiagnosticKind::TypeMismatch { .. } => "typeMismatch",
         DiagnosticKind::ArityMismatch { .. } => "arityMismatch",
+        DiagnosticKind::MissingTimezoneContext { .. } => "missingTimezoneContext",
     }
 }
 
@@ -117,9 +138,11 @@ fn structured_undefined_name(d: &Diagnostic) -> Option<String> {
                 Some(trimmed.to_string())
             }
         }
-        Some(DiagnosticKind::TypeMismatch { .. }) | Some(DiagnosticKind::ArityMismatch { .. }) => {
-            None
-        }
+        Some(
+            DiagnosticKind::TypeMismatch { .. }
+            | DiagnosticKind::ArityMismatch { .. }
+            | DiagnosticKind::MissingTimezoneContext { .. },
+        ) => None,
         None => None,
     }
 }

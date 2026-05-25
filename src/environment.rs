@@ -8,6 +8,7 @@
 use rust_decimal::Decimal;
 use std::collections::HashMap;
 
+use crate::error::MissingTimezoneContextError;
 use crate::evaluator::Environment;
 use crate::types::{Date as TypeDate, Value as TypeValue, parse_datetime_literal};
 
@@ -395,16 +396,21 @@ impl Environment for FormspecEnvironment {
         TypeValue::Null
     }
 
-    fn current_date(&self) -> Option<TypeDate> {
-        self.current_datetime.as_ref().map(|dt| TypeDate::Date {
-            year: dt.year(),
-            month: dt.month(),
-            day: dt.day(),
-        })
+    fn current_date(&self) -> Result<TypeDate, MissingTimezoneContextError> {
+        self.current_datetime
+            .as_ref()
+            .map(|dt| TypeDate::Date {
+                year: dt.year(),
+                month: dt.month(),
+                day: dt.day(),
+            })
+            .ok_or_else(MissingTimezoneContextError::not_configured)
     }
 
-    fn current_datetime(&self) -> Option<TypeDate> {
-        self.current_datetime.clone()
+    fn current_datetime(&self) -> Result<TypeDate, MissingTimezoneContextError> {
+        self.current_datetime
+            .clone()
+            .ok_or_else(MissingTimezoneContextError::not_configured)
     }
 
     fn locale(&self) -> Option<&str> {
