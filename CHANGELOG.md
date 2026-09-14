@@ -8,6 +8,13 @@ conformance corpus.
 
 ## [Unreleased]
 
+### Fixed
+- **dateTime strings without seconds parse.** `parse_datetime_literal` (and so
+  `date()`, the `{"$type":"date"}` JSON envelope, and date operand coercion)
+  accepts ISO 8601 `YYYY-MM-DDTHH:MM`, as HTML `datetime-local` inputs emit,
+  with seconds defaulting to zero. `DateTimeLiteral` tokens still require
+  seconds (grammar §3.6).
+
 ## [0.2.0] - 2026-05-25
 
 ### Changed (BREAKING)

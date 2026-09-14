@@ -349,7 +349,11 @@ pub fn parse_date_literal(s: &str) -> Option<Date> {
     Some(Date::Date { year, month, day })
 }
 
-/// Parse "@YYYY-MM-DDTHH:MM:SS..." into Date.
+/// Parse "@YYYY-MM-DDTHH:MM[:SS]..." into Date.
+///
+/// Seconds are optional (ISO 8601 `HH:MM`, as HTML `datetime-local` inputs
+/// emit) and default to zero. A trailing UTC offset or fraction is ignored:
+/// [`Date`] has no timezone model.
 ///
 /// Stable public API — consumed by `formspec-py` and `formspec-eval`.
 pub fn parse_datetime_literal(s: &str) -> Option<Date> {
@@ -367,16 +371,13 @@ pub fn parse_datetime_literal(s: &str) -> Option<Date> {
     let s = if s.len() > 19 { &s[..19] } else { s };
     let (date_part, time_part) = s.split_once('T')?;
     let dp: Vec<&str> = date_part.split('-').collect();
-    let tp: Vec<&str> = time_part.split(':').collect();
-    if dp.len() != 3 || tp.len() != 3 {
+    if dp.len() != 3 {
         return None;
     }
+    let (hour, minute, second) = parse_clock(time_part)?;
     let year: i32 = dp[0].parse().ok()?;
     let month: u32 = dp[1].parse().ok()?;
     let day: u32 = dp[2].parse().ok()?;
-    let hour: u32 = tp[0].parse().ok()?;
-    let minute: u32 = tp[1].parse().ok()?;
-    let second: u32 = tp[2].parse().ok()?;
     if !(1..=12).contains(&month) || day < 1 || day > days_in_month(year, month) {
         return None;
     }
@@ -391,6 +392,22 @@ pub fn parse_datetime_literal(s: &str) -> Option<Date> {
         minute,
         second,
     })
+}
+
+/// Split `HH:MM:SS`, or `HH:MM` with an optional `±HH…` offset, into clock fields.
+fn parse_clock(time_part: &str) -> Option<(u32, u32, u32)> {
+    match time_part.split(':').collect::<Vec<_>>().as_slice() {
+        [hour, minute, second] => Some((
+            hour.parse().ok()?,
+            minute.parse().ok()?,
+            second.parse().ok()?,
+        )),
+        [hour, minute_and_offset] => {
+            let minute = minute_and_offset.split(['+', '-']).next()?;
+            Some((hour.parse().ok()?, minute.parse().ok()?, 0))
+        }
+        _ => None,
+    }
 }
 
 /// Add days to a date.
@@ -581,6 +598,50 @@ mod tests {
 
         // Negative control — ASCII garbage still safely returns None.
         assert_eq!(parse_datetime_literal("@2024-13-99T99:99:99"), None);
+    }
+
+    /// ISO 8601 allows `YYYY-MM-DDTHH:MM`; HTML `datetime-local` inputs emit it.
+    /// Seconds default to zero, with or without a UTC offset.
+    #[test]
+    fn parse_datetime_literal_accepts_minutes_without_seconds() {
+        let expected = Date::DateTime {
+            year: 2025,
+            month: 3,
+            day: 1,
+            hour: 10,
+            minute: 30,
+            second: 0,
+        };
+        for text in [
+            "@2025-03-01T10:30",
+            "@2025-03-01T10:30Z",
+            "@2025-03-01T10:30+05:00",
+            "@2025-03-01T10:30-05:00",
+        ] {
+            assert_eq!(
+                parse_datetime_literal(text),
+                Some(expected.clone()),
+                "{text}"
+            );
+        }
+        assert_eq!(
+            parse_datetime_literal(&format!("@{}", expected.format_iso())),
+            Some(expected),
+            "format_iso output re-parses to the same value"
+        );
+    }
+
+    #[test]
+    fn parse_datetime_literal_rejects_malformed_clock() {
+        for text in [
+            "@2025-03-01T10",
+            "@2025-03-01T24:00",
+            "@2025-03-01T10:60",
+            "@2025-03-01T10:3x",
+            "@2025-03-01T",
+        ] {
+            assert_eq!(parse_datetime_literal(text), None, "{text}");
+        }
     }
 
     /// Spec: core/spec.md §3.5.4 — round-trip: date → ordinal days → date
