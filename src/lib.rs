@@ -54,9 +54,10 @@ pub use evaluator::{
     UNBOUND_CONTEXT_REF_CODE, eval_with_fields, evaluate, evaluate_with, evaluate_with_catalog,
 };
 pub use extensions::{
-    ExtensionCallOutcome, ExtensionError, ExtensionFn, ExtensionFunc, ExtensionRegistry, Package,
-    builtin_arity, builtin_function_catalog, builtin_function_catalog_for,
-    builtin_function_catalog_json_value, builtin_function_catalog_json_value_for,
+    ExtensionCallOutcome, ExtensionError, ExtensionFn, ExtensionFunc, ExtensionFunctions,
+    ExtensionRegistry, Package, builtin_arity, builtin_function_catalog,
+    builtin_function_catalog_for, builtin_function_catalog_json_value,
+    builtin_function_catalog_json_value_for, call_extension, check_extension_name,
 };
 pub use indexmap::IndexMap;
 pub use interpolation::expr_is_interpolation_static_literal;

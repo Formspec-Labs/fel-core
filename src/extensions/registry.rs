@@ -8,7 +8,76 @@ use crate::types::Value as TypeValue;
 use super::catalog::{BUILTIN_FUNCTIONS, RESERVED_WORDS};
 use super::types::ExtensionFunc;
 
-/// Registry of extension functions.
+/// Host-supplied FEL extension functions (Core §3.12), consulted for non-builtin names.
+///
+/// The port lets a host back extensions with what its runtime has: Rust closures
+/// ([`ExtensionRegistry`]), JavaScript functions across WASM, or Python callables.
+/// Implementations need not be `Send` or `Sync`. The evaluator owns the call contract
+/// through [`call_extension`] (arity bounds, null propagation, a failed call becoming
+/// a diagnostic), so an implementation only looks up and invokes.
+pub trait ExtensionFunctions {
+    /// Arity bounds `(min_args, max_args)` when `name` is registered; `None` otherwise.
+    fn arity(&self, name: &str) -> Option<(usize, Option<usize>)>;
+
+    /// Invokes extension `name` with arity-checked, non-null `args`.
+    ///
+    /// # Errors
+    ///
+    /// A message when the host implementation failed (threw, raised, or returned an
+    /// unrepresentable value). Core §3.12 forbids propagating it: the evaluator yields
+    /// `null` and records an error diagnostic.
+    fn invoke(&self, name: &str, args: &[TypeValue]) -> Result<TypeValue, String>;
+}
+
+/// Checks that `name` may be registered: neither a reserved word nor a built-in (Core §3.12).
+///
+/// # Errors
+///
+/// [`ExtensionError::NameConflict`] when `name` collides.
+pub fn check_extension_name(name: &str) -> Result<(), ExtensionError> {
+    if RESERVED_WORDS.contains(&name) || BUILTIN_FUNCTIONS.iter().any(|entry| entry.name == name) {
+        return Err(ExtensionError::NameConflict(name.to_string()));
+    }
+    Ok(())
+}
+
+/// Calls extension `name` under Core §3.12: arity bounds, null propagation, totality.
+///
+/// A `null` argument short-circuits to `null` without invoking the host; a host
+/// failure becomes [`ExtensionCallOutcome::Failed`], never a panic.
+pub fn call_extension(
+    functions: &dyn ExtensionFunctions,
+    name: &str,
+    args: &[TypeValue],
+) -> ExtensionCallOutcome {
+    let Some((min_args, max_args)) = functions.arity(name) else {
+        return ExtensionCallOutcome::NotFound;
+    };
+
+    let got = args.len();
+    if got < min_args || max_args.is_some_and(|max| got > max) {
+        return ExtensionCallOutcome::ArityMismatch {
+            name: name.to_string(),
+            min_args,
+            max_args,
+            got,
+        };
+    }
+
+    if args.iter().any(TypeValue::is_null) {
+        return ExtensionCallOutcome::Ok(TypeValue::Null);
+    }
+
+    match functions.invoke(name, args) {
+        Ok(value) => ExtensionCallOutcome::Ok(value),
+        Err(message) => ExtensionCallOutcome::Failed {
+            name: name.to_string(),
+            message,
+        },
+    }
+}
+
+/// Registry of extension functions backed by Rust closures.
 pub struct ExtensionRegistry {
     extensions: HashMap<String, ExtensionFunc>,
 }
@@ -37,6 +106,13 @@ pub enum ExtensionCallOutcome {
         max_args: Option<usize>,
         /// Supplied argument count.
         got: usize,
+    },
+    /// The host implementation failed; host should record a diagnostic and yield null.
+    Failed {
+        /// Extension name.
+        name: String,
+        /// Host failure message.
+        message: String,
     },
 }
 
@@ -74,14 +150,7 @@ impl ExtensionRegistry {
         func: impl Fn(&[TypeValue]) -> TypeValue + Send + Sync + 'static,
     ) -> Result<(), ExtensionError> {
         let name = name.into();
-
-        if RESERVED_WORDS.contains(&name.as_str())
-            || BUILTIN_FUNCTIONS
-                .iter()
-                .any(|entry| entry.name == name.as_str())
-        {
-            return Err(ExtensionError::NameConflict(name));
-        }
+        check_extension_name(&name)?;
 
         self.extensions.insert(
             name.clone(),
@@ -111,25 +180,22 @@ impl ExtensionRegistry {
     /// Returns [`ExtensionCallOutcome::ArityMismatch`] when `args.len()` is outside
     /// the bounds recorded at registration (caller should emit the message and yield null).
     pub fn call(&self, name: &str, args: &[TypeValue]) -> ExtensionCallOutcome {
-        let Some(ext) = self.extensions.get(name) else {
-            return ExtensionCallOutcome::NotFound;
-        };
+        call_extension(self, name, args)
+    }
+}
 
-        let len = args.len();
-        if len < ext.min_args || ext.max_args.is_some_and(|max| len > max) {
-            return ExtensionCallOutcome::ArityMismatch {
-                name: name.to_string(),
-                min_args: ext.min_args,
-                max_args: ext.max_args,
-                got: len,
-            };
-        }
+impl ExtensionFunctions for ExtensionRegistry {
+    fn arity(&self, name: &str) -> Option<(usize, Option<usize>)> {
+        self.extensions
+            .get(name)
+            .map(|ext| (ext.min_args, ext.max_args))
+    }
 
-        if args.iter().any(|a| a.is_null()) {
-            return ExtensionCallOutcome::Ok(TypeValue::Null);
-        }
-
-        ExtensionCallOutcome::Ok((ext.func)(args))
+    fn invoke(&self, name: &str, args: &[TypeValue]) -> Result<TypeValue, String> {
+        self.extensions
+            .get(name)
+            .map(|ext| (ext.func)(args))
+            .ok_or_else(|| format!("extension '{name}' is not registered"))
     }
 }
 

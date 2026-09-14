@@ -8,6 +8,24 @@ conformance corpus.
 
 ## [Unreleased]
 
+### Changed (BREAKING)
+- **Extension functions resolve through a host port.** `EvaluatorOptions::extensions`
+  is now `Option<&dyn ExtensionFunctions>` instead of `Option<&ExtensionRegistry>`.
+  `ExtensionRegistry` implements the trait, so `Some(&registry)` still compiles;
+  a variable or parameter typed `Option<&ExtensionRegistry>` must become
+  `Option<&dyn ExtensionFunctions>`. Hosts whose functions are not `Send + Sync`
+  closures (JavaScript over WASM, Python callables) implement the trait directly.
+  `ExtensionCallOutcome` gains `Failed { name, message }`.
+
+### Added
+- **`ExtensionFunctions`, `call_extension`, `check_extension_name`.** The trait is
+  lookup (`arity`) plus fallible `invoke`; `call_extension` keeps the Core §3.12
+  contract in the evaluator (arity bounds, null propagation without invoking the
+  host, a failed call yielding `null` plus an error diagnostic from
+  `Diagnostic::extension_failed`). `check_extension_name` is the reserved-word and
+  built-in collision rule `ExtensionRegistry::register` uses, for hosts that
+  register elsewhere.
+
 ### Fixed
 - **dateTime strings without seconds parse.** `parse_datetime_literal` (and so
   `date()`, the `{"$type":"date"}` JSON envelope, and date operand coercion)

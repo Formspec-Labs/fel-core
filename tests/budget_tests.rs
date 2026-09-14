@@ -6,8 +6,8 @@
 #![allow(clippy::missing_docs_in_private_items)]
 
 use fel_core::{
-    BudgetExceededKind, EvalBudget, EvaluatorOptions, ExtensionRegistry, MapEnvironment, Value,
-    evaluate_with, parse,
+    BudgetExceededKind, EvalBudget, EvaluatorOptions, ExtensionFunctions, ExtensionRegistry,
+    MapEnvironment, Value, evaluate_with, parse,
 };
 use std::time::Instant;
 
@@ -18,7 +18,7 @@ fn eval_budget(src: &str, budget: &EvalBudget) -> fel_core::EvalResult {
 fn eval_budget_with_extensions(
     src: &str,
     budget: &EvalBudget,
-    extensions: Option<&ExtensionRegistry>,
+    extensions: Option<&dyn ExtensionFunctions>,
 ) -> fel_core::EvalResult {
     let expr = parse(src).unwrap();
     let env = MapEnvironment::new();

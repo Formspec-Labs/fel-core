@@ -64,7 +64,7 @@ Uses `rust_decimal` for base-10 arithmetic per spec S3.4.1 (minimum 18 significa
 
 ### [`error`](error.md)
 
-*2 structs, 3 enums, 5 functions*
+*3 structs, 4 enums, 5 functions*
 
 ### [`evaluator`](evaluator.md)
 
@@ -80,11 +80,11 @@ Uses `rust_decimal` for base-10 arithmetic per spec S3.4.1 (minimum 18 significa
 
 ### [`extensions::catalog`](extensions/catalog.md)
 
-*2 functions*
+*3 functions*
 
 ### [`extensions::registry`](extensions/registry.md)
 
-*1 struct, 2 enums*
+*1 struct, 1 trait, 2 enums, 2 functions*
 
 ### [`extensions::schema`](extensions/schema.md)
 
@@ -328,12 +328,12 @@ Binary and logical operators (precedence enforced in the parser).
 
 **Trait Implementations:**
 
+- **Clone**
+  - `fn clone(self: &Self) -> BinaryOp`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **PartialEq**
   - `fn eq(self: &Self, other: &BinaryOp) -> bool`
-- **Clone**
-  - `fn clone(self: &Self) -> BinaryOp`
 
 
 
@@ -394,10 +394,10 @@ A path segment for field references and postfix access (`$a.b`, `$a[1]`, `$a[*]`
 
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
-- **PartialEq**
-  - `fn eq(self: &Self, other: &PathSegment) -> bool`
 - **Clone**
   - `fn clone(self: &Self) -> PathSegment`
+- **PartialEq**
+  - `fn eq(self: &Self, other: &PathSegment) -> bool`
 
 
 
@@ -615,10 +615,10 @@ Dependencies extracted from a FEL expression.
 
 - **Default**
   - `fn default() -> Dependencies`
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Clone**
   - `fn clone(self: &Self) -> Dependencies`
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 
 
 
@@ -715,6 +715,8 @@ Supports:
 
 **Trait Implementations:**
 
+- **Default**
+  - `fn default() -> Self`
 - **Environment**
   - `fn resolve_field(self: &Self, segments: &[String]) -> TypeValue`
   - `fn resolve_context(self: &Self, name: &str, arg: Option<&str>, tail: &[String]) -> TypeValue`
@@ -725,12 +727,10 @@ Supports:
   - `fn repeat_prev(self: &Self) -> TypeValue`
   - `fn repeat_next(self: &Self) -> TypeValue`
   - `fn repeat_parent(self: &Self) -> TypeValue`
-  - `fn current_date(self: &Self) -> Option<TypeDate>`
-  - `fn current_datetime(self: &Self) -> Option<TypeDate>`
+  - `fn current_date(self: &Self) -> Result<TypeDate, MissingTimezoneContextError>`
+  - `fn current_datetime(self: &Self) -> Result<TypeDate, MissingTimezoneContextError>`
   - `fn locale(self: &Self) -> Option<&str>`
   - `fn runtime_meta(self: &Self, key: &str) -> TypeValue`
-- **Default**
-  - `fn default() -> Self`
 
 
 
@@ -750,10 +750,10 @@ XForms Model Item Properties for a single field path.
 
 - **Default**
   - `fn default() -> Self`
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Clone**
   - `fn clone(self: &Self) -> MipState`
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 
 
 
@@ -790,12 +790,14 @@ Repeat-group iteration context (§4.3).
 **Structs**
 
 - [`Diagnostic`](#diagnostic) - A non-fatal diagnostic recorded during evaluation.
+- [`MissingTimezoneContextError`](#missingtimezonecontexterror) - Typed error returned by [`crate::evaluator::Environment::current_date`] and
 - [`ParseError`](#parseerror) - Lex or parse failure with optional source span (byte offsets into the expression).
 
 **Enums**
 
 - [`DiagnosticKind`](#diagnostickind) - Machine-readable diagnostic categories.
 - [`Error`](#error) - Failure from [`crate::parse`] or fatal-style evaluation errors surfaced as `Err`.
+- [`MissingTimezoneContextReason`](#missingtimezonecontextreason) - Why a host failed to supply a timezone context to a FEL temporal builtin.
 - [`Severity`](#severity) - Diagnostic severity for tooling and JSON wire format.
 
 **Functions**
@@ -828,7 +830,9 @@ A non-fatal diagnostic recorded during evaluation.
 - `fn warning<impl Into<String>>(msg: impl Trait) -> Self` - Build a warning-severity diagnostic.
 - `fn undefined_function<impl Into<String>>(name: impl Trait) -> Self` - Build a structured undefined-function diagnostic.
 - `fn arity_mismatch<impl Into<String>>(name: impl Trait, min_args: usize, max_args: Option<usize>, got: usize) -> Self` - Build a structured arity-mismatch diagnostic (builtin or extension).
+- `fn extension_failed<impl Into<String>, impl Into<String>>(name: impl Trait, message: impl Trait) -> Self` - Build the error diagnostic for a failed host extension call (Core §3.12 totality).
 - `fn type_mismatch<impl Into<String>, impl Into<String>, impl Into<String>>(fn_name: impl Trait, expected: impl Trait, got_type: impl Trait) -> Self` - Build a structured type-mismatch diagnostic (same message shape as runtime type errors).
+- `fn missing_timezone_context<impl Into<String>>(fn_name: impl Trait, err: MissingTimezoneContextError) -> Self` - Build a structured missing-timezone-context diagnostic (ADR 0069 D-6).
 - `fn with_span(self: Self, span: Range<usize>) -> Self` - Attaches a source span (byte offsets into the FEL source string).
 
 **Trait Implementations:**
@@ -846,10 +850,15 @@ A non-fatal diagnostic recorded during evaluation.
 
 Machine-readable diagnostic categories.
 
+Closed-set append-only per `README.md` (FEL 1.0 commitment): consumers may
+match exhaustively. Adding a variant is a non-breaking minor revision; removing
+or renaming is a breaking change.
+
 **Variants:**
 - `UndefinedFunction{ name: String }` - Function name could not be resolved in builtins or extension registry.
 - `TypeMismatch{ fn_name: String, expected: String, got: String }` - Builtin or expression context expected a different runtime type.
 - `ArityMismatch{ name: String, min_args: usize, max_args: Option<usize>, got: usize }` - Extension or builtin invoked with the wrong number of arguments.
+- `MissingTimezoneContext{ fn_name: String, reason: MissingTimezoneContextReason }` - A FEL temporal builtin (`today()` / `now()`) was evaluated while the host
 
 **Traits:** Eq
 
@@ -879,10 +888,77 @@ Failure from [`crate::parse`] or fatal-style evaluation errors surfaced as `Err`
 
 - **Display**
   - `fn fmt(self: &Self, f: & mut fmt::Formatter) -> fmt::Result`
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Clone**
   - `fn clone(self: &Self) -> Error`
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+
+
+
+## fel_core::error::MissingTimezoneContextError
+
+*Struct*
+
+Typed error returned by [`crate::evaluator::Environment::current_date`] and
+[`crate::evaluator::Environment::current_datetime`] when the host has no
+timezone context configured.
+
+Per ADR 0069 D-6, this is the ONLY permissible failure mode — silent UTC
+fallback is forbidden. The evaluator translates this error into a structured
+[`DiagnosticKind::MissingTimezoneContext`] diagnostic so callers can detect
+the refusal without parsing message strings.
+
+**Fields:**
+- `reason: MissingTimezoneContextReason` - Why the timezone context is missing.
+
+**Methods:**
+
+- `fn not_configured() -> Self` - Constructs the common `NotConfigured` case.
+- `fn multi_calendar_conflict(calendars: Vec<String>) -> Self` - Constructs a `MultiCalendarConflict` case carrying the calendars whose
+
+**Traits:** Eq, Error
+
+**Trait Implementations:**
+
+- **Clone**
+  - `fn clone(self: &Self) -> MissingTimezoneContextError`
+- **PartialEq**
+  - `fn eq(self: &Self, other: &MissingTimezoneContextError) -> bool`
+- **Display**
+  - `fn fmt(self: &Self, f: & mut fmt::Formatter) -> fmt::Result`
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+
+
+
+## fel_core::error::MissingTimezoneContextReason
+
+*Enum*
+
+Why a host failed to supply a timezone context to a FEL temporal builtin.
+
+Closed-set per ADR 0069 D-6. The default case is `NotConfigured` (host never
+set a clock); `MultiCalendarConflict` carries the conflicting calendar
+identifiers when business-calendar resolution (per
+`work-spec/specs/sidecars/business-calendar.md` §7.1) cannot pick a single
+timezone. Hosts surface their own variant from
+[`crate::evaluator::Environment::current_date`] /
+[`crate::evaluator::Environment::current_datetime`].
+
+**Variants:**
+- `NotConfigured` - No clock was configured on the [`crate::evaluator::Environment`].
+- `MultiCalendarConflict{ calendars: Vec<String> }` - Multiple applicable business calendars disagreed on which timezone
+
+**Traits:** Eq
+
+**Trait Implementations:**
+
+- **Clone**
+  - `fn clone(self: &Self) -> MissingTimezoneContextReason`
+- **PartialEq**
+  - `fn eq(self: &Self, other: &MissingTimezoneContextReason) -> bool`
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 
 
 
@@ -907,14 +983,14 @@ Lex or parse failure with optional source span (byte offsets into the expression
 
 **Trait Implementations:**
 
+- **Clone**
+  - `fn clone(self: &Self) -> ParseError`
 - **PartialEq**
   - `fn eq(self: &Self, other: &ParseError) -> bool`
 - **Display**
   - `fn fmt(self: &Self, f: & mut fmt::Formatter) -> fmt::Result`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
-- **Clone**
-  - `fn clone(self: &Self) -> ParseError`
 
 
 
@@ -933,7 +1009,7 @@ Diagnostic severity for tooling and JSON wire format.
 
 - `fn as_wire_str(self: Self) -> &'static str` - Wire string used in JSON diagnostics (`error` / `warning` / `info`).
 
-**Traits:** Eq, Copy
+**Traits:** Copy, Eq
 
 **Trait Implementations:**
 
@@ -1061,7 +1137,7 @@ Which resource limit was hit.
 - `Alloc` - Allocation exceeded [`EvalBudget::max_alloc_bytes`].
 - `Deadline` - Wall-clock deadline expired.
 
-**Traits:** Eq, Copy
+**Traits:** Copy, Eq
 
 **Trait Implementations:**
 
@@ -1158,12 +1234,12 @@ Materialized host context binding returned by a catalog.
 
 **Trait Implementations:**
 
+- **Clone**
+  - `fn clone(self: &Self) -> ContextBinding`
 - **PartialEq**
   - `fn eq(self: &Self, other: &ContextBinding) -> bool`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
-- **Clone**
-  - `fn clone(self: &Self) -> ContextBinding`
 
 
 
@@ -1194,16 +1270,16 @@ Classifies a host context binding root.
 - `Object` - Object-like root; the evaluator owns dot-segment traversal.
 - `Function` - Callable context binding; the catalog materializes its return value.
 
-**Traits:** Eq, Copy
+**Traits:** Copy, Eq
 
 **Trait Implementations:**
 
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **PartialEq**
   - `fn eq(self: &Self, other: &ContextBindingKind) -> bool`
 - **Clone**
   - `fn clone(self: &Self) -> ContextBindingKind`
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 
 
 
@@ -1219,15 +1295,15 @@ No-op host context binding catalog.
 
 **Trait Implementations:**
 
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **ContextBindingCatalog**
   - `fn binding_kind(self: &Self, _name: &str) -> Option<ContextBindingKind>`
   - `fn resolve(self: &Self, _name: &str, _arg: Option<&str>) -> Option<Value>`
-- **Clone**
-  - `fn clone(self: &Self) -> EmptyCatalog`
 - **Default**
   - `fn default() -> EmptyCatalog`
+- **Clone**
+  - `fn clone(self: &Self) -> EmptyCatalog`
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 
 
 
@@ -1248,8 +1324,8 @@ Resolves `$` field paths, `@` context, MIP queries, repeat navigation, and clock
 - `repeat_prev`: `prev()` in repeat scope — default null.
 - `repeat_next`: `next()` in repeat scope — default null.
 - `repeat_parent`: `parent()` in repeat scope — default null.
-- `current_date`: Calendar date for `today()` — default none (evaluator may still use literals).
-- `current_datetime`: Date-time for `now()` — default none.
+- `current_date`: Calendar date for `today()` per ADR 0069 D-6 — hosts MUST configure a
+- `current_datetime`: Date-time for `now()` per ADR 0069 D-6 — see [`Self::current_date`] for
 - `locale`: Active locale code for `locale()` — default none (returns null).
 - `runtime_meta`: Runtime metadata value for `runtimeMeta(key)` — default null.
 
@@ -1296,7 +1372,7 @@ Configuration for an evaluation run.
 
 **Fields:**
 - `trace: Option<&'a  mut crate::trace::Trace>` - Optional trace sink — when `Some`, the evaluator records structured steps into this trace.
-- `extensions: Option<&'a crate::extensions::ExtensionRegistry>` - Optional extension registry for resolving unknown function names.
+- `extensions: Option<&'a dyn ExtensionFunctions>` - Optional host extension functions (Core §3.12) for resolving unknown function names.
 - `budget: super::budget::EvalBudget` - Resource budget for this evaluation run.
 
 **Trait Implementations:**
@@ -1321,16 +1397,17 @@ Flat `HashMap` environment for tests and simple hosts (no `@` context; fixed clo
 - `fn new() -> Self` - Empty field map.
 - `fn with_fields(fields: HashMap<String, Value>) -> Self` - Pre-populated field map.
 - `fn with_current_datetime(self: Self, current_datetime: Option<Date>) -> Self` - Override the environment clock used by `today()` and `now()`.
+- `fn without_clock(self: Self) -> Self` - Remove the environment clock so `today()` / `now()` produce the
 
 **Trait Implementations:**
 
+- **Default**
+  - `fn default() -> Self`
 - **Environment**
   - `fn resolve_field(self: &Self, segments: &[String]) -> Value`
   - `fn resolve_context(self: &Self, _name: &str, _arg: Option<&str>, _tail: &[String]) -> Value`
-  - `fn current_date(self: &Self) -> Option<Date>`
-  - `fn current_datetime(self: &Self) -> Option<Date>`
-- **Default**
-  - `fn default() -> Self`
+  - `fn current_date(self: &Self) -> Result<Date, MissingTimezoneContextError>`
+  - `fn current_datetime(self: &Self) -> Result<Date, MissingTimezoneContextError>`
 
 
 
@@ -1391,10 +1468,27 @@ fn evaluate_with_catalog<'a>(expr: &Expr, env: &dyn Environment, options: Evalua
 
 **Functions**
 
+- [`builtin_arity`](#builtin_arity) - Look up the catalog-declared arity for `name` as `(min_args, max_args)`.
 - [`builtin_function_catalog`](#builtin_function_catalog) - Slice of all built-in functions.
 - [`builtin_function_catalog_for`](#builtin_function_catalog_for) - Catalog filtered to entries reachable from `package`.
 
 ---
+
+## fel_core::extensions::catalog::builtin_arity
+
+*Function*
+
+Look up the catalog-declared arity for `name` as `(min_args, max_args)`.
+
+Returns `None` when `name` is not a built-in. The evaluator uses this for the
+uniform pre-dispatch arity check so every catalog-declared signature is
+enforced consistently — see `Evaluator::eval_function`.
+
+```rust
+fn builtin_arity(name: &str) -> Option<(usize, Option<usize>)>
+```
+
+
 
 ## fel_core::extensions::catalog::builtin_function_catalog
 
@@ -1438,12 +1532,21 @@ fn builtin_function_catalog_for(package: Package) -> impl Trait
 
 **Structs**
 
-- [`ExtensionRegistry`](#extensionregistry) - Registry of extension functions.
+- [`ExtensionRegistry`](#extensionregistry) - Registry of extension functions backed by Rust closures.
 
 **Enums**
 
 - [`ExtensionCallOutcome`](#extensioncalloutcome) - Result of [`ExtensionRegistry::call`].
 - [`ExtensionError`](#extensionerror) - Error type for extension registration failures.
+
+**Functions**
+
+- [`call_extension`](#call_extension) - Calls extension `name` under Core §3.12: arity bounds, null propagation, totality.
+- [`check_extension_name`](#check_extension_name) - Checks that `name` may be registered: neither a reserved word nor a built-in (Core §3.12).
+
+**Traits**
+
+- [`ExtensionFunctions`](#extensionfunctions) - Host-supplied FEL extension functions (Core §3.12), consulted for non-builtin names.
 
 ---
 
@@ -1457,15 +1560,16 @@ Result of [`ExtensionRegistry::call`].
 - `NotFound` - No extension registered under this name.
 - `Ok(crate::types::Value)` - Extension invoked (or null-propagated without invoking).
 - `ArityMismatch{ name: String, min_args: usize, max_args: Option<usize>, got: usize }` - Argument count outside registered bounds; host should record a diagnostic and yield null.
+- `Failed{ name: String, message: String }` - The host implementation failed; host should record a diagnostic and yield null.
 
 **Trait Implementations:**
 
+- **Clone**
+  - `fn clone(self: &Self) -> ExtensionCallOutcome`
 - **PartialEq**
   - `fn eq(self: &Self, other: &ExtensionCallOutcome) -> bool`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
-- **Clone**
-  - `fn clone(self: &Self) -> ExtensionCallOutcome`
 
 
 
@@ -1484,10 +1588,29 @@ Error type for extension registration failures.
 
 - **Clone**
   - `fn clone(self: &Self) -> ExtensionError`
-- **Display**
-  - `fn fmt(self: &Self, f: & mut std::fmt::Formatter) -> std::fmt::Result`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **Display**
+  - `fn fmt(self: &Self, f: & mut std::fmt::Formatter) -> std::fmt::Result`
+
+
+
+## fel_core::extensions::registry::ExtensionFunctions
+
+*Trait*
+
+Host-supplied FEL extension functions (Core §3.12), consulted for non-builtin names.
+
+The port lets a host back extensions with what its runtime has: Rust closures
+([`ExtensionRegistry`]), JavaScript functions across WASM, or Python callables.
+Implementations need not be `Send` or `Sync`. The evaluator owns the call contract
+through [`call_extension`] (arity bounds, null propagation, a failed call becoming
+a diagnostic), so an implementation only looks up and invokes.
+
+**Methods:**
+
+- `arity`: Arity bounds `(min_args, max_args)` when `name` is registered; `None` otherwise.
+- `invoke`: Invokes extension `name` with arity-checked, non-null `args`.
 
 
 
@@ -1495,7 +1618,7 @@ Error type for extension registration failures.
 
 *Struct*
 
-Registry of extension functions.
+Registry of extension functions backed by Rust closures.
 
 **Methods:**
 
@@ -1507,8 +1630,42 @@ Registry of extension functions.
 
 **Trait Implementations:**
 
+- **ExtensionFunctions**
+  - `fn arity(self: &Self, name: &str) -> Option<(usize, Option<usize>)>`
+  - `fn invoke(self: &Self, name: &str, args: &[TypeValue]) -> Result<TypeValue, String>`
 - **Default**
   - `fn default() -> Self`
+
+
+
+## fel_core::extensions::registry::call_extension
+
+*Function*
+
+Calls extension `name` under Core §3.12: arity bounds, null propagation, totality.
+
+A `null` argument short-circuits to `null` without invoking the host; a host
+failure becomes [`ExtensionCallOutcome::Failed`], never a panic.
+
+```rust
+fn call_extension(functions: &dyn ExtensionFunctions, name: &str, args: &[crate::types::Value]) -> ExtensionCallOutcome
+```
+
+
+
+## fel_core::extensions::registry::check_extension_name
+
+*Function*
+
+Checks that `name` may be registered: neither a reserved word nor a built-in (Core §3.12).
+
+# Errors
+
+[`ExtensionError::NameConflict`] when `name` collides.
+
+```rust
+fn check_extension_name(name: &str) -> Result<(), ExtensionError>
+```
 
 ---
 
@@ -1623,6 +1780,10 @@ Emit [`crate::extensions::emit_schema_json`] to regenerate
 - `since_version: &'static str` - Spec version in which the function was introduced (default `"1.0"`).
 - `package: Package` - Host-package classification for filtering by tooling.
 
+**Methods:**
+
+- `fn arity(self: &Self) -> (usize, Option<usize>)` - Catalog-declared arity bounds: `(min_args, max_args)`.
+
 **Traits:** Copy
 
 **Trait Implementations:**
@@ -1700,12 +1861,12 @@ FEL type identifier used in structured catalog entries.
 
 **Trait Implementations:**
 
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **PartialEq**
   - `fn eq(self: &Self, other: &FelType) -> bool`
 - **Clone**
   - `fn clone(self: &Self) -> FelType`
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 
 
 
@@ -1728,12 +1889,12 @@ groups, instances, locale) and are no-ops against [`crate::MapEnvironment`].
 
 **Trait Implementations:**
 
+- **Clone**
+  - `fn clone(self: &Self) -> Package`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **PartialEq**
   - `fn eq(self: &Self, other: &Package) -> bool`
-- **Clone**
-  - `fn clone(self: &Self) -> Package`
 
 
 
@@ -1820,12 +1981,12 @@ Outcome of parsing an ISO 8601 duration for FEL.
 
 **Trait Implementations:**
 
+- **Clone**
+  - `fn clone(self: &Self) -> IsoDurationParse`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **PartialEq**
   - `fn eq(self: &Self, other: &IsoDurationParse) -> bool`
-- **Clone**
-  - `fn clone(self: &Self) -> IsoDurationParse`
 
 
 
@@ -1916,12 +2077,12 @@ One lexeme from [`tokenize`] for host bindings and tooling (stable type names + 
 
 **Trait Implementations:**
 
-- **PartialEq**
-  - `fn eq(self: &Self, other: &PositionedToken) -> bool`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Clone**
   - `fn clone(self: &Self) -> PositionedToken`
+- **PartialEq**
+  - `fn eq(self: &Self, other: &PositionedToken) -> bool`
 
 
 
@@ -1956,10 +2117,10 @@ A [`Token`] with its [`Span`].
 
 **Trait Implementations:**
 
-- **Clone**
-  - `fn clone(self: &Self) -> SpannedToken`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **Clone**
+  - `fn clone(self: &Self) -> SpannedToken`
 
 
 
@@ -2016,12 +2177,12 @@ Lexical token for FEL source (literals, keywords, operators, punctuation).
 
 **Trait Implementations:**
 
-- **PartialEq**
-  - `fn eq(self: &Self, other: &Token) -> bool`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Clone**
   - `fn clone(self: &Self) -> Token`
+- **PartialEq**
+  - `fn eq(self: &Self, other: &Token) -> bool`
 
 
 
@@ -2167,10 +2328,10 @@ Inputs for [`prepare_for_host`], mirroring the engine WASM prepass.
 
 **Trait Implementations:**
 
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Clone**
   - `fn clone(self: &Self) -> PrepareHostInput<'a>`
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 
 
 
@@ -2189,10 +2350,10 @@ Owned inputs for [`prepare`] after JSON / host parsing.
 
 **Trait Implementations:**
 
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Clone**
   - `fn clone(self: &Self) -> PrepareHostOptions`
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 
 
 
@@ -2298,14 +2459,14 @@ error-explainer) can render the sequence top-to-bottom to reconstruct
 
 **Trait Implementations:**
 
-- **Default**
-  - `fn default() -> Trace`
+- **Clone**
+  - `fn clone(self: &Self) -> Trace`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Serialize**
   - `fn serialize<__S>(self: &Self, __serializer: __S) -> _serde::__private228::Result<<__S as >::Ok, <__S as >::Error>`
-- **Clone**
-  - `fn clone(self: &Self) -> Trace`
+- **Default**
+  - `fn default() -> Trace`
 
 
 
@@ -2360,7 +2521,7 @@ rather than emitting noise — correctness over completeness.
 - [`date_add_days`](#date_add_days) - Add days to a date.
 - [`format_number`](#format_number) - Format a Decimal: strip trailing zeros, show as integer when possible.
 - [`parse_date_literal`](#parse_date_literal) - Parse "@YYYY-MM-DD" into Date.
-- [`parse_datetime_literal`](#parse_datetime_literal) - Parse "@YYYY-MM-DDTHH:MM:SS..." into Date.
+- [`parse_datetime_literal`](#parse_datetime_literal) - Parse "@YYYY-MM-DDTHH:MM\[:SS\]..." into Date.
 - [`value_size_estimate`](#value_size_estimate) - Best-effort estimate of the heap footprint of a [`Value`] in bytes.
 
 ---
@@ -2382,16 +2543,16 @@ ISO 4217 alphabetic currency code (three ASCII letters), normalized to uppercase
 
 **Trait Implementations:**
 
-- **PartialEq**
-  - `fn eq(self: &Self, other: &CurrencyCode) -> bool`
+- **Hash**
+  - `fn hash<__H>(self: &Self, state: & mut __H)`
 - **Clone**
   - `fn clone(self: &Self) -> CurrencyCode`
 - **Display**
   - `fn fmt(self: &Self, f: & mut fmt::Formatter) -> fmt::Result`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
-- **Hash**
-  - `fn hash<__H>(self: &Self, state: & mut __H)`
+- **PartialEq**
+  - `fn eq(self: &Self, other: &CurrencyCode) -> bool`
 
 
 
@@ -2483,12 +2644,12 @@ Runtime value for FEL evaluation (mirrors JSON + dates + money).
 
 - **PartialEq**
   - `fn eq(self: &Self, other: &Self) -> bool`
+- **Clone**
+  - `fn clone(self: &Self) -> Value`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Display**
   - `fn fmt(self: &Self, f: & mut fmt::Formatter) -> fmt::Result`
-- **Clone**
-  - `fn clone(self: &Self) -> Value`
 
 
 
@@ -2534,7 +2695,11 @@ fn parse_date_literal(s: &str) -> Option<Date>
 
 *Function*
 
-Parse "@YYYY-MM-DDTHH:MM:SS..." into Date.
+Parse "@YYYY-MM-DDTHH:MM\[:SS\]..." into Date.
+
+Seconds are optional (ISO 8601 `HH:MM`, as HTML `datetime-local` inputs
+emit) and default to zero. A trailing UTC offset or fraction is ignored:
+[`Date`] has no timezone model.
 
 Stable public API — consumed by `formspec-py` and `formspec-eval`.
 
@@ -2585,15 +2750,15 @@ JSON object key style for WASM (`camelCase`) vs Python (`snake_case`) bindings.
 - `JsCamel` - JavaScript / `wasm-bindgen` (camelCase keys).
 - `PythonSnake` - Python `formspec_rust` surface (snake_case keys).
 
-**Traits:** Eq, Copy
+**Traits:** Copy, Eq
 
 **Trait Implementations:**
 
-- **PartialEq**
-  - `fn eq(self: &Self, other: &JsonWireStyle) -> bool`
 - **Clone**
   - `fn clone(self: &Self) -> JsonWireStyle`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **PartialEq**
+  - `fn eq(self: &Self, other: &JsonWireStyle) -> bool`
 
 ---

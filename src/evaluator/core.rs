@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use crate::ast::*;
 use crate::convert::fel_to_json;
 use crate::error::{Diagnostic, MissingTimezoneContextError};
-use crate::extensions::{ExtensionCallOutcome, ExtensionRegistry};
+use crate::extensions::{ExtensionCallOutcome, ExtensionFunctions, call_extension};
 use crate::trace::{Trace, TraceStep};
 use crate::types::*;
 
@@ -288,7 +288,7 @@ pub struct EvalResult {
 /// Tree-walking evaluator with `let` scopes and diagnostic collection.
 pub struct Evaluator<'a> {
     pub(super) env: &'a dyn Environment,
-    pub(super) extensions: Option<&'a ExtensionRegistry>,
+    pub(super) extensions: Option<&'a dyn ExtensionFunctions>,
     pub(super) context_bindings: Option<&'a dyn ContextBindingCatalog>,
     pub(super) diagnostics: Vec<Diagnostic>,
     pub(super) let_scopes: Vec<HashMap<String, Value>>,
@@ -325,8 +325,8 @@ struct CallArgCache {
 pub struct EvaluatorOptions<'a> {
     /// Optional trace sink — when `Some`, the evaluator records structured steps into this trace.
     pub trace: Option<&'a mut Trace>,
-    /// Optional extension registry for resolving unknown function names.
-    pub extensions: Option<&'a ExtensionRegistry>,
+    /// Optional host extension functions (Core §3.12) for resolving unknown function names.
+    pub extensions: Option<&'a dyn ExtensionFunctions>,
     /// Resource budget for this evaluation run.
     pub budget: EvalBudget,
 }
@@ -1721,8 +1721,8 @@ impl<'a> Evaluator<'a> {
 
             _ => {
                 let evaluated_args: Vec<Value> = args.iter().map(|arg| self.eval(arg)).collect();
-                if let Some(registry) = self.extensions {
-                    match registry.call(name, &evaluated_args) {
+                if let Some(extensions) = self.extensions {
+                    match call_extension(extensions, name, &evaluated_args) {
                         ExtensionCallOutcome::Ok(result) => {
                             let result = match result {
                                 Value::String(s) => self.make_string(s),
@@ -1753,6 +1753,11 @@ impl<'a> Evaluator<'a> {
                         } => {
                             self.diagnostics
                                 .push(Diagnostic::arity_mismatch(name, min_args, max_args, got));
+                            return Value::Null;
+                        }
+                        ExtensionCallOutcome::Failed { name, message } => {
+                            self.diagnostics
+                                .push(Diagnostic::extension_failed(name, message));
                             return Value::Null;
                         }
                         ExtensionCallOutcome::NotFound => {}

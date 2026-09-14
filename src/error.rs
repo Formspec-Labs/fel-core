@@ -330,6 +330,15 @@ impl Diagnostic {
         }
     }
 
+    /// Build the error diagnostic for a failed host extension call (Core §3.12 totality).
+    pub fn extension_failed(name: impl Into<String>, message: impl Into<String>) -> Self {
+        Diagnostic::error(format!(
+            "{}: extension function failed: {}",
+            name.into(),
+            message.into()
+        ))
+    }
+
     /// Build a structured type-mismatch diagnostic (same message shape as runtime type errors).
     pub fn type_mismatch(
         fn_name: impl Into<String>,

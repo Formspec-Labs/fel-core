@@ -28,7 +28,10 @@ mod schema;
 mod types;
 
 pub use catalog::{builtin_arity, builtin_function_catalog, builtin_function_catalog_for};
-pub use registry::{ExtensionCallOutcome, ExtensionError, ExtensionRegistry};
+pub use registry::{
+    ExtensionCallOutcome, ExtensionError, ExtensionFunctions, ExtensionRegistry, call_extension,
+    check_extension_name,
+};
 pub use schema::{
     builtin_function_catalog_json_value, builtin_function_catalog_json_value_for, emit_schema_json,
 };

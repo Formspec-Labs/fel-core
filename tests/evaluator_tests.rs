@@ -1535,6 +1535,92 @@ fn extension_variadic_arity_mismatch_below_min_emits_diagnostic() {
     }));
 }
 
+/// Host-backed extensions (a JS or Python bridge): not `Send`/`Sync`, fallible, stateful.
+struct HostExtensions {
+    calls: std::cell::RefCell<Vec<String>>,
+}
+
+impl ExtensionFunctions for HostExtensions {
+    fn arity(&self, name: &str) -> Option<(usize, Option<usize>)> {
+        match name {
+            "bmi" => Some((2, Some(2))),
+            "explode" => Some((0, None)),
+            _ => None,
+        }
+    }
+
+    fn invoke(&self, name: &str, args: &[Value]) -> Result<Value, String> {
+        self.calls.borrow_mut().push(name.to_string());
+        match (name, args) {
+            ("bmi", [Value::Number(kg), Value::Number(cm)]) => {
+                let m = *cm / Decimal::from(100);
+                Ok(Value::Number(*kg / (m * m)))
+            }
+            _ => Err("host threw: boom".to_string()),
+        }
+    }
+}
+
+fn eval_with_host(source: &str, host: &HostExtensions) -> EvalResult {
+    evaluate_with(
+        &parse(source).unwrap(),
+        &MapEnvironment::new(),
+        EvaluatorOptions {
+            extensions: Some(host),
+            ..EvaluatorOptions::default()
+        },
+    )
+}
+
+/// Core §3.12: any host backs extensions through the `ExtensionFunctions` port.
+#[test]
+fn host_extension_functions_resolve_through_port() {
+    let host = HostExtensions {
+        calls: std::cell::RefCell::new(Vec::new()),
+    };
+    let result = eval_with_host("bmi(81, 180)", &host);
+    assert_eq!(result.value, num(25));
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+
+    // Arity and null propagation stay evaluator-owned: the host is never invoked.
+    let arity = eval_with_host("bmi(81)", &host);
+    assert_eq!(arity.value, Value::Null);
+    assert!(matches!(
+        arity.diagnostics[0].kind,
+        Some(DiagnosticKind::ArityMismatch { got: 1, .. })
+    ));
+    assert_eq!(eval_with_host("bmi(null, 180)", &host).value, Value::Null);
+    assert_eq!(*host.calls.borrow(), vec!["bmi".to_string()]);
+}
+
+/// Core §3.12 totality: a failing host call yields `null` plus an error diagnostic.
+#[test]
+fn host_extension_failure_yields_null_and_error_diagnostic() {
+    let host = HostExtensions {
+        calls: std::cell::RefCell::new(Vec::new()),
+    };
+    let result = eval_with_host("explode() + 1", &host);
+    assert_eq!(result.value, Value::Null);
+    let failure = &result.diagnostics[0];
+    assert_eq!(failure.severity, Severity::Error);
+    assert_eq!(
+        failure.message,
+        "explode: extension function failed: host threw: boom"
+    );
+    assert!(undefined_function_names_from_diagnostics(&result.diagnostics).is_empty());
+}
+
+/// Hosts that validate at registration share the registry's name rule (Core §3.12 rule 1).
+#[test]
+fn check_extension_name_rejects_builtins_and_reserved_words() {
+    assert!(check_extension_name("bmi").is_ok());
+    assert!(matches!(
+        check_extension_name("sum"),
+        Err(ExtensionError::NameConflict(name)) if name == "sum"
+    ));
+    assert!(check_extension_name("true").is_err());
+}
+
 /// `has_error_diagnostics` boundary: returns true iff ANY diagnostic has
 /// `Severity::Error`. Mutations that flip `==` to `!=` or that hardcode
 /// `true` survive when no test exercises a mixed-severity vector.

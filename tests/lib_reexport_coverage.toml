@@ -359,6 +359,25 @@ consumer_proptests = ["tests/extension_registry_proptest.rs::lookup_is_closed_un
 notes = "Struct holding ExtensionFn + arity bounds; consumer surface is ExtensionRegistry (Phase 3a P0 #2)."
 
 [[entries]]
+symbol = "extensions::ExtensionFunctions"
+exemption = "E6"
+consumer_proptests = ["tests/extension_registry_proptest.rs::lookup_is_closed_under_registered_name_set"]
+example_tests = ["tests/evaluator_tests.rs:L1577-L1611"]
+notes = "Host port for Core §3.12 extension functions; canonical impl ExtensionRegistry (Phase 3a P0 #2). A non-Send, fallible host impl is pinned by host_extension_functions_resolve_through_port + host_extension_failure_yields_null_and_error_diagnostic."
+
+[[entries]]
+symbol = "extensions::call_extension"
+exemption = "E8"
+example_tests = ["tests/evaluator_tests.rs:L1577-L1611"]
+notes = "Evaluator-owned call contract (arity, null propagation, Failed); ExtensionRegistry::call delegates. Host-port tests assert the arity diagnostic, the uninvoked null short-circuit, and the failure diagnostic."
+
+[[entries]]
+symbol = "extensions::check_extension_name"
+exemption = "E8"
+example_tests = ["tests/evaluator_tests.rs:L1615-L1622"]
+notes = "Registration name rule shared by ExtensionRegistry::register and host bridges; asserts builtin (sum) and reserved (true) conflicts."
+
+[[entries]]
 symbol = "extensions::ExtensionRegistry"
 proptests = [
     "tests/extension_registry_proptest.rs::lookup_is_closed_under_registered_name_set",
