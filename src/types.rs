@@ -349,7 +349,7 @@ pub fn parse_date_literal(s: &str) -> Option<Date> {
     Some(Date::Date { year, month, day })
 }
 
-/// Parse "@YYYY-MM-DDTHH:MM[:SS]..." into Date.
+/// Parse "@YYYY-MM-DDTHH:MM\[:SS\]..." into Date.
 ///
 /// Seconds are optional (ISO 8601 `HH:MM`, as HTML `datetime-local` inputs
 /// emit) and default to zero. A trailing UTC offset or fraction is ignored:
