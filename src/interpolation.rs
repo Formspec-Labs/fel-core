@@ -4,10 +4,10 @@
 
 use crate::ast::{Expr, UnaryOp};
 
-/// The repeat-context navigation functions. Each reads a row of the collection the expression is being
-/// evaluated in — the row before, the row after, the enclosing row — so an expression that calls one reads
-/// instance data even though it carries no `$` or `@` sigil.
-pub const REPEAT_NAVIGATION_FUNCTIONS: [&str; 3] = ["prev", "next", "parent"];
+/// Functions that read response or instance data while spelling no `$` or `@` sigil: the row before, the
+/// row after, the enclosing row, and a named secondary instance. An expression that calls one reads data,
+/// so a `null` from it is an absence to render, not an author's typo (locale §3.3.1 rule 3a).
+const DATA_READING_FUNCTIONS: [&str; 4] = ["prev", "next", "parent", "instance"];
 
 /// True when the AST reads instance data: a `$field`, an `@context`, or a repeat navigation call
 /// (locale §3.3.1 rule 3a).
@@ -20,7 +20,7 @@ pub fn expr_references_instance_data(expr: &Expr) -> bool {
     match expr {
         Expr::FieldRef { .. } | Expr::ContextRef { .. } => true,
         Expr::FunctionCall { name, args } => {
-            REPEAT_NAVIGATION_FUNCTIONS.contains(&name.as_str())
+            DATA_READING_FUNCTIONS.contains(&name.as_str())
                 || args.iter().any(expr_references_instance_data)
         }
         Expr::Null

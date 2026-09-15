@@ -128,6 +128,7 @@ fn repeat_navigation_counts_as_reading_instance_data() {
     assert!(reads("prev().qty"));
     assert!(reads("next().qty"));
     assert!(reads("parent().label"));
+    assert!(reads("instance('claimant').name"));
     assert!(reads("coalesce(prev().qty, 0)"));
     assert!(reads("$qty"));
     assert!(reads("@index"));
