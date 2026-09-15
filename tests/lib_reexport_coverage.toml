@@ -141,6 +141,13 @@ proptests = [
 ]
 notes = "Phase 3b closed: push/pop round-trip and nested-chain proptests pin the repeat-context machinery (design §Gap)."
 
+[[entries]]
+symbol = "environment::resolve_value_path"
+proptests = [
+    "tests/env_catalog_inputs_proptest.rs::resolve_value_path_walks_objects_and_projects_arrays",
+]
+notes = "Nested-value walk shared with host environments (formspec-eval HostFelContext): object keys, array projection, missing key → Null."
+
 # ── error ────────────────────────────────────────────────────────────────────
 
 [[entries]]
@@ -564,6 +571,21 @@ proptests = [
     "tests/prepare_host_proptest.rs::prepare_terminates_on_arbitrary_input",
 ]
 notes = "Phase 2 FUT-4; canonical prepare entry point."
+
+[[entries]]
+symbol = "prepare_host::RepeatAliases"
+proptests = [
+    "tests/prepare_host_proptest.rs::repeat_aliases_are_distinct_and_longest_first",
+    "tests/prepare_host_proptest.rs::prepare_with_aliases_equivalent_to_prepare_for_host",
+]
+notes = "Prebuilt repeat alias set for hosts that prepare many expressions against one field set: distinct, longest first, equivalent to per-call inference."
+
+[[entries]]
+symbol = "prepare_host::prepare_with_aliases"
+proptests = [
+    "tests/prepare_host_proptest.rs::prepare_with_aliases_equivalent_to_prepare_for_host",
+]
+notes = "Byte-for-byte equivalent to prepare_for_host on the same field paths; idempotence, termination, and parseability follow transitively."
 
 # ── printer ──────────────────────────────────────────────────────────────────
 

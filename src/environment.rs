@@ -174,8 +174,10 @@ impl Default for FormspecEnvironment {
     }
 }
 
-/// Walk a nested value by string path segments.
-fn resolve_path(val: &TypeValue, segments: &[String]) -> TypeValue {
+/// Walks a nested value by string path segments; on an array, projects each element (`rows.score`).
+///
+/// A missing key or a scalar in the middle of the path resolves to `Null`.
+pub fn resolve_value_path(val: &TypeValue, segments: &[String]) -> TypeValue {
     let mut current = val.clone();
     for seg in segments {
         match &current {
@@ -275,7 +277,7 @@ impl Environment for FormspecEnvironment {
             if segments.len() == 1 {
                 return val.clone();
             }
-            return resolve_path(val, &segments[1..]);
+            return resolve_value_path(val, &segments[1..]);
         }
         if let Some(projected) = project_repeat_field(&self.data, segments) {
             return projected;
@@ -291,7 +293,7 @@ impl Environment for FormspecEnvironment {
                     if tail.is_empty() {
                         base
                     } else {
-                        resolve_path(&base, tail)
+                        resolve_value_path(&base, tail)
                     }
                 } else {
                     TypeValue::Null
@@ -317,7 +319,7 @@ impl Environment for FormspecEnvironment {
                         if tail.is_empty() {
                             val.clone()
                         } else {
-                            resolve_path(val, tail)
+                            resolve_value_path(val, tail)
                         }
                     } else {
                         TypeValue::Null
@@ -332,7 +334,7 @@ impl Environment for FormspecEnvironment {
                     if tail.is_empty() {
                         val.clone()
                     } else {
-                        resolve_path(val, tail)
+                        resolve_value_path(val, tail)
                     }
                 } else {
                     TypeValue::Null

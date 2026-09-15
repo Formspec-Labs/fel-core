@@ -181,21 +181,40 @@ fn to_repeat_wildcard_path(alias: &str) -> String {
     }
 }
 
-fn build_repeat_aliases_sorted(paths: &[String]) -> Vec<String> {
-    let mut seen = HashSet::new();
-    let mut aliases = Vec::new();
-    for p in paths {
-        if let Some(caps) = RE_REPEAT_ALIAS.captures(p) {
-            let base = caps.get(1).expect("base").as_str();
-            let field = caps.get(3).expect("field").as_str();
-            let alias = format!("{base}.{field}");
-            if seen.insert(alias.clone()) {
-                aliases.push(alias);
+/// Repeat row aliases inferred from flat field paths: `rows[0].score` yields `rows.score`,
+/// which [`prepare_with_aliases`] rewrites to the wildcard path `$rows[*].score`.
+///
+/// Building the set is O(paths); a host that evaluates many expressions against one
+/// field set builds it once and reuses it, so each prepare costs O(aliases × expression).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RepeatAliases {
+    /// Distinct aliases, longest first so a longer alias is never shadowed by its prefix.
+    aliases: Vec<String>,
+}
+
+impl RepeatAliases {
+    /// Aliases for every `<group>[<n>].<field>` path in `paths` (duplicates ignored).
+    pub fn from_field_paths<'a>(paths: impl IntoIterator<Item = &'a str>) -> Self {
+        let mut seen = HashSet::new();
+        let mut aliases = Vec::new();
+        for p in paths {
+            if let Some(caps) = RE_REPEAT_ALIAS.captures(p) {
+                let base = caps.get(1).expect("base").as_str();
+                let field = caps.get(3).expect("field").as_str();
+                let alias = format!("{base}.{field}");
+                if seen.insert(alias.clone()) {
+                    aliases.push(alias);
+                }
             }
         }
+        aliases.sort_by_key(|a| std::cmp::Reverse(a.len()));
+        Self { aliases }
     }
-    aliases.sort_by_key(|a| std::cmp::Reverse(a.len()));
-    aliases
+
+    /// The aliases, longest first.
+    pub fn as_slice(&self) -> &[String] {
+        &self.aliases
+    }
 }
 
 fn replace_bare_current_field_refs(expr: &str, current_field: &str) -> String {
@@ -465,17 +484,33 @@ pub fn prepare(opts: &PrepareHostOptions) -> String {
 
 /// Applies the same normalization pass the TypeScript engine runs before WASM FEL evaluation.
 pub fn prepare_for_host(input: PrepareHostInput<'_>) -> String {
-    let leaf = current_field_leaf(input.current_item_path);
-    let mut normalized = input.expression.to_string();
-    if input.replace_self_ref && !leaf.is_empty() {
+    prepare_with_aliases(
+        input.expression,
+        input.current_item_path,
+        input.replace_self_ref,
+        input.repeat_counts,
+        &RepeatAliases::from_field_paths(input.field_paths.iter().map(String::as_str)),
+    )
+}
+
+/// [`prepare_for_host`] with the repeat aliases already built from the field paths.
+pub fn prepare_with_aliases(
+    expression: &str,
+    current_item_path: &str,
+    replace_self_ref: bool,
+    repeat_counts: &HashMap<String, u32>,
+    aliases: &RepeatAliases,
+) -> String {
+    let leaf = current_field_leaf(current_item_path);
+    let mut normalized = expression.to_string();
+    if replace_self_ref && !leaf.is_empty() {
         normalized = replace_bare_current_field_refs(&normalized, &leaf);
     }
-    let ancestors = get_repeat_ancestors(input.current_item_path, input.repeat_counts);
+    let ancestors = get_repeat_ancestors(current_item_path, repeat_counts);
     normalized = resolve_qualified_group_refs(&normalized, &ancestors);
-    let aliases = build_repeat_aliases_sorted(input.field_paths);
-    for alias in aliases {
-        let wildcard = format!("${}", to_repeat_wildcard_path(&alias));
-        normalized = apply_repeat_alias_pass(&normalized, &alias, &wildcard);
+    for alias in aliases.as_slice() {
+        let wildcard = format!("${}", to_repeat_wildcard_path(alias));
+        normalized = apply_repeat_alias_pass(&normalized, alias, &wildcard);
     }
     normalized
 }
@@ -541,6 +576,42 @@ mod tests {
             &["rows[0].score", "rows[1].score"],
         );
         assert_eq!(out, "$rows[*].score + $rows[*].score + x.rows.score");
+    }
+
+    #[test]
+    fn prebuilt_aliases_match_per_call_inference_and_sort_longest_first() {
+        let aliases = RepeatAliases::from_field_paths([
+            "rows[0].s",
+            "rows[1].s",
+            "rows[0].score",
+            "plain",
+            "rows[0].sub[2].x",
+        ]);
+        assert_eq!(
+            aliases.as_slice(),
+            &[
+                "rows[0].sub.x".to_string(),
+                "rows.score".to_string(),
+                "rows.s".to_string()
+            ]
+        );
+        let counts = HashMap::new();
+        assert_eq!(
+            prepare_with_aliases("rows.score + $rows.s", "", false, &counts, &aliases),
+            prep(
+                "rows.score + $rows.s",
+                "",
+                false,
+                &[],
+                &[
+                    "rows[0].s",
+                    "rows[1].s",
+                    "rows[0].score",
+                    "plain",
+                    "rows[0].sub[2].x"
+                ],
+            ),
+        );
     }
 
     #[test]

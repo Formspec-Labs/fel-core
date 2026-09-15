@@ -38,9 +38,12 @@
 
 #![allow(clippy::missing_docs_in_private_items)]
 
-use fel_core::{PrepareHostInput, PrepareHostOptions, parse, prepare, prepare_for_host};
+use fel_core::{
+    PrepareHostInput, PrepareHostOptions, RepeatAliases, parse, prepare, prepare_for_host,
+    prepare_with_aliases,
+};
 use proptest::prelude::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// Identifiers safe to use in test expressions — match FEL identifier
 /// rules ([a-zA-Z_][a-zA-Z0-9_]*) and avoid reserved words.
@@ -467,5 +470,50 @@ proptest! {
             !out.is_empty() || expr.is_empty(),
             "prepared output unexpectedly empty for {expr:?}: {out:?}"
         );
+    }
+}
+
+// ── Prebuilt repeat aliases ────────────────────────────────────────────────
+
+proptest! {
+    #![proptest_config(proptest::test_runner::Config {
+        cases: 128,
+        ..Default::default()
+    })]
+
+    /// `prepare_with_aliases` over `RepeatAliases::from_field_paths(paths)` equals
+    /// `prepare_for_host` inferring the aliases from the same paths per call.
+    #[test]
+    fn prepare_with_aliases_equivalent_to_prepare_for_host(
+        expr in arb_safe_expr(),
+        field in arb_safe_ident(),
+        rows in 0u32..3,
+        replace in any::<bool>(),
+    ) {
+        let paths: Vec<String> = (0..rows).map(|i| format!("group[{i}].{field}")).collect();
+        let path_refs: Vec<&str> = paths.iter().map(String::as_str).collect();
+        let aliases = RepeatAliases::from_field_paths(path_refs.iter().copied());
+        let counts: HashMap<String, u32> = HashMap::from([("group".to_string(), rows)]);
+        let prebuilt = prepare_with_aliases(&expr, "group[0].x", replace, &counts, &aliases);
+        let inferred = prep(&expr, "group[0].x", replace, &[("group", rows)], &path_refs);
+        prop_assert_eq!(prebuilt, inferred);
+    }
+
+    /// The alias set is one entry per distinct `<group>.<field>`, longest first.
+    #[test]
+    fn repeat_aliases_are_distinct_and_longest_first(
+        fields in proptest::collection::vec(arb_safe_ident(), 0..6),
+        rows in 1u32..3,
+    ) {
+        let paths: Vec<String> = fields
+            .iter()
+            .flat_map(|field| (0..rows).map(move |i| format!("group[{i}].{field}")))
+            .collect();
+        let aliases = RepeatAliases::from_field_paths(paths.iter().map(String::as_str));
+        let expected: HashSet<String> = fields.iter().map(|field| format!("group.{field}")).collect();
+        let distinct: HashSet<String> = aliases.as_slice().iter().cloned().collect();
+        prop_assert_eq!(distinct.len(), aliases.as_slice().len());
+        prop_assert_eq!(distinct, expected);
+        prop_assert!(aliases.as_slice().windows(2).all(|pair| pair[0].len() >= pair[1].len()));
     }
 }

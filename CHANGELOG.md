@@ -18,6 +18,14 @@ conformance corpus.
   `ExtensionCallOutcome` gains `Failed { name, message }`.
 
 ### Added
+- **`RepeatAliases` and `prepare_with_aliases`.** `prepare_for_host` inferred repeat
+  row aliases (`rows.score` from `rows[0].score`) from every field path on each
+  call, O(paths) per expression. A host that evaluates many expressions against one
+  field set now builds `RepeatAliases::from_field_paths` once and passes it to
+  `prepare_with_aliases`; `prepare_for_host` is unchanged and delegates.
+- **`resolve_value_path`.** The nested-value walk `FormspecEnvironment` uses for
+  `@current.tail`, `@instance('x').tail`, and `@variable.tail` (projecting over
+  arrays) is public, so host environments resolve tails the same way.
 - **`ExtensionFunctions`, `call_extension`, `check_extension_name`.** The trait is
   lookup (`arity`) plus fallible `invoke`; `call_extension` keeps the Core §3.12
   contract in the evaluator (arity bounds, null propagation without invoking the

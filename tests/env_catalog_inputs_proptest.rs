@@ -21,9 +21,9 @@ use fel_core::extensions::{
 };
 use fel_core::testing::strategies::arb_value;
 use fel_core::{
-    FormspecEnvironment, MipState, RepeatContext, Value as TypeValue, fel_to_wire_json,
+    FormspecEnvironment, IndexMap, MipState, RepeatContext, Value as TypeValue, fel_to_wire_json,
     field_map_from_json_str, formspec_environment_from_json_map, host_options_from_json,
-    json_object_to_field_map,
+    json_object_to_field_map, resolve_value_path,
 };
 use proptest::prelude::*;
 use serde_json::{Map, Value as JsonValue, json};
@@ -522,4 +522,25 @@ fn mip_state_default_is_spec_default() {
 fn arb_value_encodes_to_wire_json() {
     let v = TypeValue::Null;
     let _ = fel_to_wire_json(&v);
+}
+
+// ── resolve_value_path ──────────────────────────────────────────────────────
+
+proptest! {
+    /// `resolve_value_path` reads object keys, projects each element of an array, and
+    /// yields `Null` for a missing key — the walk `@current.tail` and `@instance('x').tail` use.
+    #[test]
+    fn resolve_value_path_walks_objects_and_projects_arrays(leaf in arb_value(1), key in arb_key()) {
+        let object = TypeValue::Object(IndexMap::from([(key.clone(), leaf.clone())]));
+        prop_assert_eq!(resolve_value_path(&object, std::slice::from_ref(&key)), leaf.clone());
+        prop_assert_eq!(
+            resolve_value_path(&object, &[format!("{key}_missing")]),
+            TypeValue::Null
+        );
+        let rows = TypeValue::Array(vec![object, TypeValue::Null]);
+        prop_assert_eq!(
+            resolve_value_path(&rows, &[key]),
+            TypeValue::Array(vec![leaf, TypeValue::Null])
+        );
+    }
 }
