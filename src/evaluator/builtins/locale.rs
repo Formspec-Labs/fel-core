@@ -46,6 +46,24 @@ const MONTHS_FR_FULL: [&str; 12] = [
     "décembre",
 ];
 
+const WEEKDAYS_EN: [&str; 7] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+const WEEKDAYS_EN_FULL: [&str; 7] = [
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+];
+
+const WEEKDAYS_FR: [&str; 7] = ["dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."];
+
+const WEEKDAYS_FR_FULL: [&str; 7] = [
+    "dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi",
+];
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum DateFormatPattern {
     Short,
@@ -62,6 +80,16 @@ impl DateFormatPattern {
             "long" => Some(Self::Long),
             "full" => Some(Self::Full),
             _ => None,
+        }
+    }
+
+    /// The style name a Locale document keys its `formats.date` pattern by.
+    fn name(self) -> &'static str {
+        match self {
+            Self::Short => "short",
+            Self::Medium => "medium",
+            Self::Long => "long",
+            Self::Full => "full",
         }
     }
 }
@@ -106,7 +134,13 @@ impl<'a> Evaluator<'a> {
         };
 
         let (pattern, locale) = self.parse_format_date_pattern_locale(args);
-        self.make_string(format_date_locale(&date, pattern, locale.as_deref()))
+        // The Locale document may say how this locale writes a style; the style name stays the
+        // authored contract, so a Definition never carries a pattern.
+        let text = match self.env.date_format(pattern.name()) {
+            Some(authored) => format_date_pattern(&date, authored, locale.as_deref()),
+            None => format_date_locale(&date, pattern, locale.as_deref()),
+        };
+        self.make_string(text)
     }
 
     fn parse_format_date_pattern_locale(
@@ -230,6 +264,25 @@ fn month_name_full(lang: &str, month: u32) -> &'static str {
     }
 }
 
+/// Day of week, Sunday = 0. 1970-01-01 was a Thursday.
+fn weekday_index(date: &Date) -> usize {
+    (date.ordinal_days() + 4).rem_euclid(7) as usize
+}
+
+fn weekday_name_abbrev(lang: &str, weekday: usize) -> &'static str {
+    match lang {
+        "fr" => WEEKDAYS_FR[weekday],
+        _ => WEEKDAYS_EN[weekday],
+    }
+}
+
+fn weekday_name_full(lang: &str, weekday: usize) -> &'static str {
+    match lang {
+        "fr" => WEEKDAYS_FR_FULL[weekday],
+        _ => WEEKDAYS_EN_FULL[weekday],
+    }
+}
+
 fn format_date_locale(date: &Date, pattern: DateFormatPattern, locale: Option<&str>) -> String {
     let lang = language_tag(locale);
     let (year, month, day) = date.to_naive_date();
@@ -240,13 +293,59 @@ fn format_date_locale(date: &Date, pattern: DateFormatPattern, locale: Option<&s
             "fr" => format!("{day:02}/{month:02}/{yy:02}"),
             _ => format!("{month}/{day}/{yy:02}"),
         },
-        DateFormatPattern::Long | DateFormatPattern::Full => {
-            let month_name = month_name_full(lang, month);
-            format!("{month_name} {day}, {year}")
-        }
         DateFormatPattern::Medium => {
             let month_name = month_name_abbrev(lang, month);
-            format!("{month_name} {day}, {year}")
+            match lang {
+                "fr" => format!("{day} {month_name} {year}"),
+                _ => format!("{month_name} {day}, {year}"),
+            }
+        }
+        DateFormatPattern::Long => {
+            let month_name = month_name_full(lang, month);
+            match lang {
+                "fr" => format!("{day} {month_name} {year}"),
+                _ => format!("{month_name} {day}, {year}"),
+            }
+        }
+        // CLDR `full` is `long` plus the weekday.
+        DateFormatPattern::Full => {
+            let month_name = month_name_full(lang, month);
+            let weekday = weekday_name_full(lang, weekday_index(date));
+            match lang {
+                "fr" => format!("{weekday} {day} {month_name} {year}"),
+                _ => format!("{weekday}, {month_name} {day}, {year}"),
+            }
         }
     }
+}
+
+/// Renders `date` with an authored pattern (Locale spec §2.4): the ICU letters `yyyy`, `yy`,
+/// `MMMM`, `MMM`, `MM`, `M`, `dd`, `d`, `EEEE`, `EEE` are fields; every other character is literal.
+fn format_date_pattern(date: &Date, pattern: &str, locale: Option<&str>) -> String {
+    let lang = language_tag(locale);
+    let (year, month, day) = date.to_naive_date();
+    let weekday = weekday_index(date);
+    let chars: Vec<char> = pattern.chars().collect();
+    let mut out = String::with_capacity(pattern.len() + 8);
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        let run = chars[i..].iter().take_while(|&&x| x == c).count();
+        let (text, used) = match (c, run) {
+            ('y', n) if n >= 4 => (format!("{year}"), 4),
+            ('y', 2) => (format!("{:02}", year.rem_euclid(100)), 2),
+            ('M', n) if n >= 4 => (month_name_full(lang, month).to_string(), 4),
+            ('M', 3) => (month_name_abbrev(lang, month).to_string(), 3),
+            ('M', 2) => (format!("{month:02}"), 2),
+            ('M', 1) => (format!("{month}"), 1),
+            ('d', n) if n >= 2 => (format!("{day:02}"), 2),
+            ('d', 1) => (format!("{day}"), 1),
+            ('E', n) if n >= 4 => (weekday_name_full(lang, weekday).to_string(), 4),
+            ('E', n) if n >= 1 => (weekday_name_abbrev(lang, weekday).to_string(), n.min(3)),
+            _ => (c.to_string(), 1),
+        };
+        out.push_str(&text);
+        i += used;
+    }
+    out
 }

@@ -306,13 +306,71 @@ fn format_date_null_propagation() {
     assert_eq!(eval_value("formatDate(null)", &env), Value::Null);
 }
 
+// CLDR: `full` carries the weekday; `long` does not. 2026-05-17 is a Sunday.
+#[test]
+fn format_date_full_names_the_weekday() {
+    let env = FormspecEnvironment::new();
+    assert_eq!(
+        eval_value("formatDate('2026-05-17', 'full', 'en')", &env),
+        s("Sunday, May 17, 2026")
+    );
+    assert_eq!(
+        eval_value("formatDate('2026-05-17', 'long', 'en')", &env),
+        s("May 17, 2026")
+    );
+    assert_eq!(
+        eval_value("formatDate('2026-05-17', 'full', 'fr')", &env),
+        s("dimanche 17 mai 2026")
+    );
+}
+
+// A Locale document's `formats.date.<style>` pattern replaces the built-in rendering of that style.
+#[test]
+fn format_date_style_pattern_from_environment_wins() {
+    let mut env = FormspecEnvironment::new();
+    env.set_locale("en-US");
+    env.set_date_format("medium", "MM/dd/yyyy");
+    env.set_date_format("full", "EEEE, MM/dd/yyyy");
+    assert_eq!(
+        eval_value("formatDate('2026-05-17', 'medium')", &env),
+        s("05/17/2026")
+    );
+    assert_eq!(
+        eval_value("formatDate('2026-05-17', 'full')", &env),
+        s("Sunday, 05/17/2026")
+    );
+    // A style without a pattern keeps the built-in rendering.
+    assert_eq!(
+        eval_value("formatDate('2026-05-17', 'long')", &env),
+        s("May 17, 2026")
+    );
+}
+
+// Pattern tokens are the ICU letters the spec lists; anything else is literal, including unknown letters.
+#[test]
+fn format_date_pattern_tokens_and_literals() {
+    let mut env = FormspecEnvironment::new();
+    env.set_locale("en");
+    env.set_date_format("short", "d MMM yy (EEE) - Q");
+    assert_eq!(
+        eval_value("formatDate('2026-05-07', 'short')", &env),
+        s("7 May 26 (Thu) - Q")
+    );
+    env.set_date_format("short", "yyyy-MM-dd | MMMM d");
+    assert_eq!(
+        eval_value("formatDate('2026-05-07', 'short')", &env),
+        s("2026-05-07 | May 7")
+    );
+}
+
 #[test]
 fn format_date_medium_fr_differs_from_en() {
     let env = FormspecEnvironment::new();
     let en = eval_value("formatDate('@2026-05-17', 'medium', 'en')", &env);
     let fr = eval_value("formatDate('@2026-05-17', 'medium', 'fr')", &env);
     assert_eq!(en, s("May 17, 2026"));
-    assert_eq!(fr, s("mai 17, 2026"));
+    // French writes day before month and no comma (CLDR fr yMMMd).
+    assert_eq!(fr, s("17 mai 2026"));
     assert_ne!(en, fr);
 }
 
@@ -356,7 +414,7 @@ fn format_date_two_arg_locale_only() {
     let env = FormspecEnvironment::new();
     assert_eq!(
         eval_value("formatDate('@2026-05-17', 'fr')", &env),
-        s("mai 17, 2026")
+        s("17 mai 2026")
     );
 }
 

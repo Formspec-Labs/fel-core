@@ -82,6 +82,9 @@ pub struct FormspecEnvironment {
     pub current_datetime: Option<TypeDate>,
     /// Active locale code (BCP 47) — backs `locale()` and default for `pluralCategory()`.
     pub locale: Option<String>,
+    /// The active Locale document's `formats.date` — a pattern per `formatDate` style name
+    /// (`short` … `full`) that replaces the built-in rendering of that style.
+    pub date_formats: HashMap<String, String>,
     /// Runtime metadata bag — backs `runtimeMeta(key)`.
     pub meta: HashMap<String, TypeValue>,
 }
@@ -97,6 +100,7 @@ impl FormspecEnvironment {
             repeat_context: None,
             current_datetime: None,
             locale: None,
+            date_formats: HashMap::new(),
             meta: HashMap::new(),
         }
     }
@@ -124,6 +128,12 @@ impl FormspecEnvironment {
     /// Set the active locale code (BCP 47).
     pub fn set_locale(&mut self, code: &str) {
         self.locale = Some(code.to_string());
+    }
+
+    /// Set the pattern a `formatDate` style renders with (Locale `formats.date.<style>`).
+    pub fn set_date_format(&mut self, style: &str, pattern: &str) {
+        self.date_formats
+            .insert(style.to_string(), pattern.to_string());
     }
 
     /// Set a runtime metadata value.
@@ -416,6 +426,10 @@ impl Environment for FormspecEnvironment {
 
     fn locale(&self) -> Option<&str> {
         self.locale.as_deref()
+    }
+
+    fn date_format(&self, style: &str) -> Option<&str> {
+        self.date_formats.get(style).map(String::as_str)
     }
 
     fn runtime_meta(&self, key: &str) -> TypeValue {

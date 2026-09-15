@@ -81,6 +81,11 @@ pub trait Environment {
     fn locale(&self) -> Option<&str> {
         None
     }
+    /// The Locale document's pattern for a `formatDate` style (`short` … `full`), when the
+    /// active locale authored one (Locale spec §2.4). Default none: built-in rendering.
+    fn date_format(&self, _style: &str) -> Option<&str> {
+        None
+    }
     /// Runtime metadata value for `runtimeMeta(key)` — default null.
     fn runtime_meta(&self, _key: &str) -> Value {
         Value::Null
