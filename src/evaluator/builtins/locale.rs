@@ -46,6 +46,25 @@ const MONTHS_FR_FULL: [&str; 12] = [
     "décembre",
 ];
 
+const MONTHS_ES: [&str; 12] = [
+    "ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sept", "oct", "nov", "dic",
+];
+
+const MONTHS_ES_FULL: [&str; 12] = [
+    "enero",
+    "febrero",
+    "marzo",
+    "abril",
+    "mayo",
+    "junio",
+    "julio",
+    "agosto",
+    "septiembre",
+    "octubre",
+    "noviembre",
+    "diciembre",
+];
+
 const WEEKDAYS_EN: [&str; 7] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const WEEKDAYS_EN_FULL: [&str; 7] = [
@@ -62,6 +81,12 @@ const WEEKDAYS_FR: [&str; 7] = ["dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", 
 
 const WEEKDAYS_FR_FULL: [&str; 7] = [
     "dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi",
+];
+
+const WEEKDAYS_ES: [&str; 7] = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
+
+const WEEKDAYS_ES_FULL: [&str; 7] = [
+    "domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado",
 ];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -252,6 +277,7 @@ fn month_name_abbrev(lang: &str, month: u32) -> &'static str {
     let idx = (month as usize).saturating_sub(1);
     match lang {
         "fr" => MONTHS_FR.get(idx).copied().unwrap_or("?"),
+        "es" => MONTHS_ES.get(idx).copied().unwrap_or("?"),
         _ => MONTHS_EN.get(idx).copied().unwrap_or("?"),
     }
 }
@@ -260,6 +286,7 @@ fn month_name_full(lang: &str, month: u32) -> &'static str {
     let idx = (month as usize).saturating_sub(1);
     match lang {
         "fr" => MONTHS_FR_FULL.get(idx).copied().unwrap_or("?"),
+        "es" => MONTHS_ES_FULL.get(idx).copied().unwrap_or("?"),
         _ => MONTHS_EN_FULL.get(idx).copied().unwrap_or("?"),
     }
 }
@@ -272,6 +299,7 @@ fn weekday_index(date: &Date) -> usize {
 fn weekday_name_abbrev(lang: &str, weekday: usize) -> &'static str {
     match lang {
         "fr" => WEEKDAYS_FR[weekday],
+        "es" => WEEKDAYS_ES[weekday],
         _ => WEEKDAYS_EN[weekday],
     }
 }
@@ -279,6 +307,7 @@ fn weekday_name_abbrev(lang: &str, weekday: usize) -> &'static str {
 fn weekday_name_full(lang: &str, weekday: usize) -> &'static str {
     match lang {
         "fr" => WEEKDAYS_FR_FULL[weekday],
+        "es" => WEEKDAYS_ES_FULL[weekday],
         _ => WEEKDAYS_EN_FULL[weekday],
     }
 }
@@ -290,13 +319,13 @@ fn format_date_locale(date: &Date, pattern: DateFormatPattern, locale: Option<&s
 
     match pattern {
         DateFormatPattern::Short => match lang {
-            "fr" => format!("{day:02}/{month:02}/{yy:02}"),
+            "fr" | "es" => format!("{day:02}/{month:02}/{yy:02}"),
             _ => format!("{month}/{day}/{yy:02}"),
         },
         DateFormatPattern::Medium => {
             let month_name = month_name_abbrev(lang, month);
             match lang {
-                "fr" => format!("{day} {month_name} {year}"),
+                "fr" | "es" => format!("{day} {month_name} {year}"),
                 _ => format!("{month_name} {day}, {year}"),
             }
         }
@@ -304,6 +333,7 @@ fn format_date_locale(date: &Date, pattern: DateFormatPattern, locale: Option<&s
             let month_name = month_name_full(lang, month);
             match lang {
                 "fr" => format!("{day} {month_name} {year}"),
+                "es" => format!("{day} de {month_name} de {year}"),
                 _ => format!("{month_name} {day}, {year}"),
             }
         }
@@ -313,6 +343,7 @@ fn format_date_locale(date: &Date, pattern: DateFormatPattern, locale: Option<&s
             let weekday = weekday_name_full(lang, weekday_index(date));
             match lang {
                 "fr" => format!("{weekday} {day} {month_name} {year}"),
+                "es" => format!("{weekday}, {day} de {month_name} de {year}"),
                 _ => format!("{weekday}, {month_name} {day}, {year}"),
             }
         }

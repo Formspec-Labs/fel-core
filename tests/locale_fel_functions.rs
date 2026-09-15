@@ -324,6 +324,26 @@ fn format_date_full_names_the_weekday() {
     );
 }
 
+/// Spanish (CLDR `es`): day first, `de` between day, month and year in the long styles, lower-case names.
+#[test]
+fn format_date_spanish_styles() {
+    let mut env = FormspecEnvironment::new();
+    env.set_locale("es");
+    assert_eq!(eval_value("formatDate('2025-03-23', 'short')", &env), s("23/03/25"));
+    assert_eq!(eval_value("formatDate('2025-03-23', 'medium')", &env), s("23 mar 2025"));
+    assert_eq!(eval_value("formatDate('2025-03-23', 'long')", &env), s("23 de marzo de 2025"));
+    assert_eq!(
+        eval_value("formatDate('2025-03-23', 'full')", &env),
+        s("domingo, 23 de marzo de 2025")
+    );
+    // A Locale pattern names the weekday in the active language too.
+    env.set_date_format("full", "EEEE, dd/MM/yyyy");
+    assert_eq!(
+        eval_value("formatDate('2025-03-29', 'full')", &env),
+        s("sábado, 29/03/2025")
+    );
+}
+
 // A Locale document's `formats.date.<style>` pattern replaces the built-in rendering of that style.
 #[test]
 fn format_date_style_pattern_from_environment_wins() {
