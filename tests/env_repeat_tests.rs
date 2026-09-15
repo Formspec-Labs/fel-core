@@ -116,3 +116,24 @@ fn repeat_current_in_arithmetic() {
     assert_eq!(eval_value("@current * 2", &env), num(20));
     assert_eq!(eval_value("@current + @index", &env), num(12));
 }
+
+// ── Interpolation rule 3a: what counts as reading instance data ──
+
+/// Locale §3.3.1 rule 3a keeps a null result literal only when the expression reads no instance data.
+/// Navigation across rows reads it, so a boundary row renders empty rather than the raw template.
+#[test]
+fn repeat_navigation_counts_as_reading_instance_data() {
+    let reads = |source: &str| expr_references_instance_data(&parse(source).unwrap());
+
+    assert!(reads("prev().qty"));
+    assert!(reads("next().qty"));
+    assert!(reads("parent().label"));
+    assert!(reads("coalesce(prev().qty, 0)"));
+    assert!(reads("$qty"));
+    assert!(reads("@index"));
+
+    // An author's typo or a call that reads nothing keeps the template, as the rule intends.
+    assert!(!reads("nosuchthing"));
+    assert!(!reads("format('{0}', 1)"));
+    assert!(!reads("1 + 1"));
+}

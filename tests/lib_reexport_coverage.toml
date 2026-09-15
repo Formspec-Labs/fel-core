@@ -438,6 +438,12 @@ notes = "Third-party re-export; upstream owns the property surface."
 # ── interpolation ────────────────────────────────────────────────────────────
 
 [[entries]]
+symbol = "interpolation::expr_references_instance_data"
+exemption = "E8"
+example_tests = ["tests/env_repeat_tests.rs:L121-L139"]
+notes = "Locale §3.3.1 rule 3a predicate: repeat_navigation_counts_as_reading_instance_data pins what counts as reading instance data — $field, @context, and the prev/next/parent navigation calls — against a typo and a literal."
+
+[[entries]]
 symbol = "interpolation::expr_is_interpolation_static_literal"
 proptests = [
     "tests/interpolation_trace_proptest.rs::interpolation_predicate_matches_oracle",

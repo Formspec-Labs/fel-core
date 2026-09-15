@@ -60,7 +60,7 @@ pub use extensions::{
     builtin_function_catalog_json_value_for, call_extension, check_extension_name,
 };
 pub use indexmap::IndexMap;
-pub use interpolation::expr_is_interpolation_static_literal;
+pub use interpolation::{expr_is_interpolation_static_literal, expr_references_instance_data};
 pub use iso_duration::{IsoDurationParse, parse_iso8601_duration, parse_iso8601_duration_ms};
 pub use lexer::{
     PositionedToken, is_valid_fel_identifier, sanitize_fel_identifier, tokenize,
