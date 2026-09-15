@@ -33,6 +33,19 @@ fn repeat_context_current_index_count() {
     assert_eq!(eval_value("@count", &env), num(3));
 }
 
+/// A host that binds bare `$` to the node under evaluation (a Bind constraint on a repeat row's field)
+/// keeps that binding inside the row; with no binding, bare `$` is the row itself.
+#[test]
+fn explicit_self_binding_wins_over_the_repeat_row() {
+    let mut env = FormspecEnvironment::new();
+    let row = obj(vec![("position".to_string(), num(2))]);
+    env.push_repeat(row.clone(), 2, 2, vec![row.clone(), row.clone()]);
+    assert_eq!(eval_value("$", &env), row);
+
+    env.set_field("", num(2));
+    assert_eq!(eval_value("$ = @index", &env), Value::Boolean(true));
+}
+
 /// Correctness: repeat context with object values
 #[test]
 fn repeat_context_with_object_current() {

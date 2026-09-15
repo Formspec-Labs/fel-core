@@ -267,12 +267,13 @@ fn mip_path(path: &[String]) -> String {
 impl Environment for FormspecEnvironment {
     fn resolve_field(&self, segments: &[String]) -> TypeValue {
         if segments.is_empty() {
-            // Bare $ — return repeat context current, data[""], or null
-            if let Some(ctx) = &self.repeat_context {
-                return ctx.current.clone();
-            }
+            // Bare $: the node the host bound for this evaluation (data[""], e.g. the field a Bind
+            // constraint targets), else the repeat row being evaluated, else null.
             if let Some(val) = self.data.get("") {
                 return val.clone();
+            }
+            if let Some(ctx) = &self.repeat_context {
+                return ctx.current.clone();
             }
             return TypeValue::Null;
         }
