@@ -8,6 +8,8 @@ conformance corpus.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-16
+
 ### Changed (BREAKING)
 - **Extension functions resolve through a host port.** `EvaluatorOptions::extensions`
   is now `Option<&dyn ExtensionFunctions>` instead of `Option<&ExtensionRegistry>`.
