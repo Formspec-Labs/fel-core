@@ -86,7 +86,13 @@ const WEEKDAYS_FR_FULL: [&str; 7] = [
 const WEEKDAYS_ES: [&str; 7] = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
 
 const WEEKDAYS_ES_FULL: [&str; 7] = [
-    "domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado",
+    "domingo",
+    "lunes",
+    "martes",
+    "miércoles",
+    "jueves",
+    "viernes",
+    "sábado",
 ];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

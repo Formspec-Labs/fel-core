@@ -329,9 +329,18 @@ fn format_date_full_names_the_weekday() {
 fn format_date_spanish_styles() {
     let mut env = FormspecEnvironment::new();
     env.set_locale("es");
-    assert_eq!(eval_value("formatDate('2025-03-23', 'short')", &env), s("23/03/25"));
-    assert_eq!(eval_value("formatDate('2025-03-23', 'medium')", &env), s("23 mar 2025"));
-    assert_eq!(eval_value("formatDate('2025-03-23', 'long')", &env), s("23 de marzo de 2025"));
+    assert_eq!(
+        eval_value("formatDate('2025-03-23', 'short')", &env),
+        s("23/03/25")
+    );
+    assert_eq!(
+        eval_value("formatDate('2025-03-23', 'medium')", &env),
+        s("23 mar 2025")
+    );
+    assert_eq!(
+        eval_value("formatDate('2025-03-23', 'long')", &env),
+        s("23 de marzo de 2025")
+    );
     assert_eq!(
         eval_value("formatDate('2025-03-23', 'full')", &env),
         s("domingo, 23 de marzo de 2025")

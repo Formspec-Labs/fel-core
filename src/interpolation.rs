@@ -31,7 +31,9 @@ pub fn expr_references_instance_data(expr: &Expr) -> bool {
         | Expr::DateTimeLiteral(_)
         | Expr::VarRef { .. } => false,
         Expr::Array(elems) => elems.iter().any(expr_references_instance_data),
-        Expr::Object(entries) => entries.iter().any(|(_, v)| expr_references_instance_data(v)),
+        Expr::Object(entries) => entries
+            .iter()
+            .any(|(_, v)| expr_references_instance_data(v)),
         Expr::UnaryOp { operand, .. } => expr_references_instance_data(operand),
         Expr::PostfixAccess { expr, .. } => expr_references_instance_data(expr),
         Expr::BinaryOp { left, right, .. }
