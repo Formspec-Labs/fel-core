@@ -43,7 +43,7 @@ for await (const line of rl) {
     if (trimmed === '') continue;
     try {
         const { expr, fields = {} } = JSON.parse(trimmed);
-        const resultJson = getWasmModule().evalFEL(expr, JSON.stringify(fields));
+        const resultJson = getWasmModule().evalFel(expr, JSON.stringify(fields));
         process.stdout.write(JSON.stringify({ resultJson, error: null }) + '\n');
     } catch (err) {
         process.stdout.write(

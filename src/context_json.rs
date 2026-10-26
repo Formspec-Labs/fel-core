@@ -39,7 +39,7 @@ fn push_repeat_context(env: &mut FormspecEnvironment, repeat: &Value, depth: u8)
     env.push_repeat(current, index, count, collection);
 }
 
-/// Populate a [`FormspecEnvironment`] from a JSON object (e.g. WASM `evalFELWithContext` payload).
+/// Populate a [`FormspecEnvironment`] from a JSON object (e.g. WASM `evalFelWithContext` payload).
 ///
 /// Recognized keys: `nowIso` / `now_iso`, `fields`, `variables`, `mipStates` / `mip_states`,
 /// `repeatContext` / `repeat_context`, `instances`, `locale`, `meta`.

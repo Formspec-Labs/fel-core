@@ -136,7 +136,7 @@ fn bare_dollar_in_repeat_returns_current() {
 
 // ── WASM-shaped context JSON (`formspec_environment_from_json_map`) ──
 
-/// End-to-end: JSON map like WASM `evalFELWithContext` → evaluate.
+/// End-to-end: JSON map like WASM `evalFelWithContext` → evaluate.
 #[test]
 fn wasm_shaped_json_context_evaluates_field_variable_mip_and_locale() {
     let ctx = json!({

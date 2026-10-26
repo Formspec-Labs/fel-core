@@ -21,7 +21,7 @@ fn rust_val(expr: &fel_core::Expr) -> serde_json::Value {
     fel_to_json(&result.value)
 }
 
-/// Cross-runtime envelope per Locale §3.3.1 rule 2 — `evalFEL` callers
+/// Cross-runtime envelope per Locale §3.3.1 rule 2 — `evalFel` callers
 /// (the Locale interpolation processor in particular) MUST detect
 /// error-severity diagnostics even when the coerced value is `null`,
 /// because that decides whether the interpolation site renders the
