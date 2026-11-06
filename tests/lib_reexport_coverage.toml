@@ -39,6 +39,11 @@ notes = "AST is the central data type; every parse/print/eval proptest exercises
 # ── context_json ─────────────────────────────────────────────────────────────
 
 [[entries]]
+symbol = "context_json::formspec_environment_from_exact_json_map"
+proptests = ["tests/env_catalog_inputs_proptest.rs::exact_context_preserves_decimal_fields"]
+notes = "Exact JSON context preserves the Decimal field value across coefficient and scale variations."
+
+[[entries]]
 symbol = "context_json::formspec_environment_from_json_map"
 proptests = [
     "tests/env_catalog_inputs_proptest.rs::formspec_environment_from_json_map_populates_fields_and_variables",

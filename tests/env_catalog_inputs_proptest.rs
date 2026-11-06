@@ -29,6 +29,16 @@ use proptest::prelude::*;
 use serde_json::{Map, Value as JsonValue, json};
 use std::collections::HashSet;
 
+proptest! {
+    #[test]
+    fn exact_context_preserves_decimal_fields(coefficient in any::<i64>(), scale in 0u32..=28) {
+        let expected = rust_decimal::Decimal::new(coefficient, scale);
+        let json = fel_core::exact_json::from_str(&format!(r#"{{"fields":{{"n":{expected}}}}}"#)).unwrap();
+        let environment = fel_core::formspec_environment_from_exact_json_map(json.as_object().unwrap());
+        prop_assert_eq!(environment.data.get("n"), Some(&TypeValue::Number(expected)));
+    }
+}
+
 // ── Strategies ──────────────────────────────────────────────────────────────
 
 /// Arbitrary safe identifier-shaped key (avoids whitespace / control chars

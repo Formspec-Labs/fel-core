@@ -38,9 +38,15 @@ pub fn field_map_from_json_str(fields_json: &str) -> Result<HashMap<String, Type
     if fields_json.is_empty() || fields_json == "{}" {
         return Ok(HashMap::new());
     }
-    let json_val: Value =
-        serde_json::from_str(fields_json).map_err(|e| format!("invalid fields JSON: {e}"))?;
-    Ok(json_object_to_field_map(&json_val))
+    let value = crate::exact_json::from_str(fields_json)
+        .map_err(|e| format!("invalid fields JSON: {e}"))?;
+    crate::exact_json::check_decimal_range(&value)?;
+    Ok(value
+        .as_object()
+        .into_iter()
+        .flatten()
+        .map(|(key, value)| (key.clone(), crate::exact_json::to_fel_wire(value)))
+        .collect())
 }
 
 /// Convert a `serde_json::Value` to a `TypeValue`.

@@ -18,7 +18,7 @@ categories = ["parser-implementations"]
 # under formspec-stack until hosted publication on crates.io.
 
 [dependencies]
-indexmap = "2"
+indexmap = { version = "2", features = ["serde"] }
 # Pinned to ~7.0 (i.e. >=7.0, <7.1) — plural rules are CLDR-derived;
 # minor CLDR data shifts can change plural categories for specific
 # languages and break `tests/locale_fel_functions.rs` silently. Bump
@@ -32,7 +32,7 @@ regex = "1"
 # tests/fuzz_regression_corpus.rs. Re-evaluate when 1.42.x ships the fix.
 rust_decimal = "~1.41"
 serde = { version = "1", features = ["derive"] }
-serde_json = { version = "1", features = ["preserve_order"] }
+serde_json = { version = "1", features = ["preserve_order", "raw_value"] }
 unic-langid = { version = "0.9", features = ["macros"] }
 
 [[bin]]

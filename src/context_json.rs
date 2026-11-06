@@ -3,9 +3,9 @@
 //! `push_repeat_context` recursively walks nested repeat JSON into environment state.
 #![allow(clippy::missing_docs_in_private_items)]
 
-use serde_json::{Map, Value};
+use crate::exact_json::{Map, Value};
 
-use crate::convert::json_to_fel;
+use crate::exact_json::to_fel_wire as json_to_fel;
 use crate::types::Value as CoreValue;
 use crate::{FormspecEnvironment, MipState};
 
@@ -43,7 +43,7 @@ fn push_repeat_context(env: &mut FormspecEnvironment, repeat: &Value, depth: u8)
 ///
 /// Recognized keys: `nowIso` / `now_iso`, `fields`, `variables`, `mipStates` / `mip_states`,
 /// `repeatContext` / `repeat_context`, `instances`, `locale`, `meta`.
-pub fn formspec_environment_from_json_map(ctx: &Map<String, Value>) -> FormspecEnvironment {
+pub fn formspec_environment_from_exact_json_map(ctx: &Map<String, Value>) -> FormspecEnvironment {
     let mut env = FormspecEnvironment::new();
 
     if let Some(now_iso) = pick_key(ctx, &["nowIso", "now_iso"]).and_then(|v| v.as_str()) {
@@ -116,9 +116,9 @@ pub fn formspec_environment_from_json_map(ctx: &Map<String, Value>) -> FormspecE
 #[cfg(test)]
 mod tests {
     #![allow(clippy::missing_docs_in_private_items)]
+    use crate::exact_json::native_json as json;
     use indexmap::IndexMap;
     use rust_decimal::Decimal;
-    use serde_json::json;
 
     use crate::types::Value as CoreValue;
 
@@ -131,7 +131,7 @@ mod tests {
             "fields": { "n": 3 }
         });
         let obj = ctx.as_object().unwrap();
-        let env = formspec_environment_from_json_map(obj);
+        let env = formspec_environment_from_exact_json_map(obj);
         assert_eq!(
             env.data.get("n"),
             Some(&CoreValue::Number(Decimal::from(3)))
@@ -157,7 +157,7 @@ mod tests {
                 }
             }
         });
-        let env = formspec_environment_from_json_map(ctx.as_object().unwrap());
+        let env = formspec_environment_from_exact_json_map(ctx.as_object().unwrap());
 
         assert_eq!(
             env.data.get("a"),
@@ -198,7 +198,7 @@ mod tests {
                 }
             }
         });
-        let env = formspec_environment_from_json_map(ctx.as_object().unwrap());
+        let env = formspec_environment_from_exact_json_map(ctx.as_object().unwrap());
         let repeat = env.repeat_context.as_ref().expect("repeat context");
         assert_eq!(repeat.current, CoreValue::String("child".to_string()));
         assert_eq!(repeat.index, 2);
@@ -226,11 +226,19 @@ mod tests {
                 "q": { "readonly": true }
             }
         });
-        let env = formspec_environment_from_json_map(ctx.as_object().unwrap());
+        let env = formspec_environment_from_exact_json_map(ctx.as_object().unwrap());
         let mip = env.mip_states.get("q").expect("mip state q");
         assert!(mip.valid);
         assert!(mip.relevant);
         assert!(mip.readonly);
         assert!(!mip.required);
     }
+}
+
+/// Convert a previously parsed context; original number digits cannot be recovered here.
+pub fn formspec_environment_from_json_map(
+    ctx: &serde_json::Map<String, serde_json::Value>,
+) -> FormspecEnvironment {
+    let value = Value::from(serde_json::Value::Object(ctx.clone()));
+    formspec_environment_from_exact_json_map(value.as_object().expect("converted object"))
 }

@@ -17,6 +17,7 @@ pub mod dependencies;
 pub mod environment;
 pub mod error;
 pub mod evaluator;
+pub mod exact_json;
 pub mod extensions;
 pub(crate) mod interpolation;
 pub(crate) mod iso_duration;
@@ -33,7 +34,9 @@ pub mod testing;
 
 // Re-export key types
 pub use ast::Expr;
-pub use context_json::formspec_environment_from_json_map;
+pub use context_json::{
+    formspec_environment_from_exact_json_map, formspec_environment_from_json_map,
+};
 pub use convert::{
     fel_to_json, fel_to_ui_json, fel_to_wire_json, field_map_from_json_str,
     json_object_to_field_map, json_to_fel,
