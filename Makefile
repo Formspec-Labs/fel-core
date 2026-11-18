@@ -99,8 +99,7 @@ package:
 ci: lint deny ratify package
 
 conformance:
-	@mkdir -p conformance
-	$(CARGO) run $(CARGO_FLAGS_PROPTEST_FEATURES) --bin emit-conformance-fixtures -- 200 > conformance/fel-conformance.jsonl
+	CARGO="$(CARGO)" $(PYTHON) scripts/check-ratification.py --regenerate
 
 ## ── Mutation testing (Phase 2 of the test triage plan) ──────────
 ##

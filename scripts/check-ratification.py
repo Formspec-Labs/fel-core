@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -146,10 +147,10 @@ def validate_todo_surface() -> None:
         fail("TODO.md still carries stale deprecated-wrapper debt")
 
 
-def verify_generated_corpus() -> None:
+def generate_corpus() -> bytes:
     proc = subprocess.run(
         [
-            "cargo",
+            os.environ.get("CARGO", "cargo"),
             "run",
             "--features",
             "proptest-strategies",
@@ -168,7 +169,21 @@ def verify_generated_corpus() -> None:
         sys.stderr.buffer.write(proc.stderr)
         fail("conformance generator failed")
 
-    generated = proc.stdout
+    return proc.stdout
+
+
+def regenerate_corpus() -> None:
+    raw = generate_corpus()
+    manifest_path = ROOT / "conformance" / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    corpus = manifest["corpus"]
+    corpus.update(lineCount=len(raw.splitlines()), sha256=sha256_bytes(raw))
+    (ROOT / corpus["path"]).write_bytes(raw)
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
+
+def verify_generated_corpus() -> None:
+    generated = generate_corpus()
     committed = (ROOT / "conformance" / "fel-conformance.jsonl").read_bytes()
     if generated != committed:
         fail("generated conformance corpus differs from conformance/fel-conformance.jsonl")
@@ -181,7 +196,12 @@ def main() -> None:
         action="store_true",
         help="also regenerate the public conformance corpus and compare bytes",
     )
+    parser.add_argument(
+        "--regenerate", action="store_true", help="refresh the corpus and its manifest together"
+    )
     args = parser.parse_args()
+    if args.regenerate:
+        regenerate_corpus()
 
     validate_required_headings()
     corpus_summary = validate_conformance_corpus()

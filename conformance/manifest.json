@@ -12,8 +12,8 @@
   "corpus": {
     "path": "conformance/fel-conformance.jsonl",
     "format": "application/x-ndjson",
-    "lineCount": 253,
-    "sha256": "34edbe54252033b69343a77cc288accfa6757656bde3877cc207f17f7eaa1e8f"
+    "lineCount": 254,
+    "sha256": "f3fbb41baf5d682bed8dcfd7db3a6791c128ecd7347b80fc0d962431c5a14ffe"
   },
   "ratificationGates": [
     "make ratify",

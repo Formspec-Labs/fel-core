@@ -78,6 +78,7 @@
 {"environment":{},"expectedDiagnosticKinds":[],"expectedValue":{"amount":350,"currency":"USD"},"expression":"moneyAdd(money(100, 'USD'), money(250, 'USD'))"}
 {"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"locale()"}
 {"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"runtimeMeta('tenantId')"}
+{"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"subject('uei')"}
 {"environment":{},"expectedDiagnosticKinds":[],"expectedValue":null,"expression":"pluralCategory(1)"}
 {"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"other","expression":"pluralCategory(2, 'en')"}
 {"environment":{},"expectedDiagnosticKinds":[],"expectedValue":"1,234.5","expression":"formatNumber(1234.5, 'en')"}
