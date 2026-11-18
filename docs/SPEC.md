@@ -261,7 +261,7 @@ Function categories:
 | `money` | 6 | `money`, `moneyAmount`, `moneyCurrency`, `moneyAdd`, `moneySum`, `moneySumWhere` |
 | `mip` | 4 | `valid`, `relevant`, `readonly`, `required` |
 | `repeat` | 3 | `prev`, `next`, `parent` (+ `instance` for multi-instance forms) |
-| `locale` | 5 | `locale`, `runtimeMeta`, `pluralCategory`, `formatNumber`, `formatDate` |
+| `locale` | 6 | `locale`, `runtimeMeta`, `subject`, `pluralCategory`, `formatNumber`, `formatDate` |
 
 Each catalog entry defines: name, category, parameter list (name, FEL type, required/optional/variadic, description, allowed enum values), return type, description, null handling semantics, determinism flag, short-circuit flag, usage examples, since-version, and package (Universal vs Formspec — controls availability in non-formspec hosts).
 

@@ -80,6 +80,61 @@ fn runtime_meta_null_propagation_on_null_key() {
     assert_eq!(eval_value("runtimeMeta(null)", &env), Value::Null);
 }
 
+#[test]
+fn subject_returns_null_without_identity_or_a_matching_key() {
+    let mut env = FormspecEnvironment::new();
+    env.set_field("uei", s("editable"));
+    env.set_meta("uei", s("metadata"));
+    let result = eval_with_env("subject('uei')", &env);
+    assert_eq!(result.value, Value::Null);
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+
+    env.subject_keys.insert("ffy".into(), num(2026));
+    let result = eval_with_env("subject('uei')", &env);
+    assert_eq!(result.value, Value::Null);
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+}
+
+#[test]
+fn subject_preserves_identity_values_and_matches_instance_rows() {
+    let mut env = FormspecEnvironment::new();
+    env.subject_keys.insert("uei".into(), s("00123"));
+    env.subject_keys.insert("ffy".into(), num(2026));
+    env.set_field("uei", s("editable"));
+    env.set_meta("uei", s("metadata"));
+    let list = exact_json::native_json!({"agencies": [{"uei": "other"}, {"uei": "00123"}]});
+    env.set_instance("agencyList", exact_json::to_fel(&list).unwrap());
+
+    assert_eq!(eval_value("subject('uei')", &env), s("00123"));
+    assert_eq!(eval_value("subject('ffy')", &env), num(2026));
+    assert_eq!(eval_value("runtimeMeta('uei')", &env), s("metadata"));
+    assert_eq!(
+        eval_value(
+            "some(@instance('agencyList').agencies, $.uei = subject('uei'))",
+            &env
+        ),
+        Value::Boolean(true),
+    );
+}
+
+#[test]
+fn subject_requires_a_string_key_including_when_the_argument_is_null() {
+    let env = FormspecEnvironment::new();
+    for expr in ["subject(2026)", "subject(null)"] {
+        let result = eval_with_env(expr, &env);
+        assert_eq!(result.value, Value::Null);
+        assert_eq!(result.diagnostics.len(), 1);
+        assert!(
+            matches!(
+                result.diagnostics[0].kind,
+                Some(DiagnosticKind::TypeMismatch { ref fn_name, .. }) if fn_name == "subject"
+            ),
+            "{:?}",
+            result.diagnostics
+        );
+    }
+}
+
 // ── pluralCategory(count, locale?) ────────────────────────────────
 
 #[test]

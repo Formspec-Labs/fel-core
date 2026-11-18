@@ -67,6 +67,7 @@ impl Default for MipState {
 /// - Mapping-style context via host-specific `Environment` implementations
 /// - Locale via `locale()` and `pluralCategory()`
 /// - Runtime metadata via `runtimeMeta(key)`
+/// - Response identity keys via `subject(key)`
 pub struct FormspecEnvironment {
     /// Primary data dict — backs `$field` references.
     pub data: HashMap<String, TypeValue>,
@@ -87,6 +88,8 @@ pub struct FormspecEnvironment {
     pub date_formats: HashMap<String, String>,
     /// Runtime metadata bag — backs `runtimeMeta(key)`.
     pub meta: HashMap<String, TypeValue>,
+    /// Current Response identity keys for `subject(key)`.
+    pub subject_keys: HashMap<String, TypeValue>,
 }
 
 impl FormspecEnvironment {
@@ -102,6 +105,7 @@ impl FormspecEnvironment {
             locale: None,
             date_formats: HashMap::new(),
             meta: HashMap::new(),
+            subject_keys: HashMap::new(),
         }
     }
 
@@ -435,6 +439,13 @@ impl Environment for FormspecEnvironment {
 
     fn runtime_meta(&self, key: &str) -> TypeValue {
         self.meta.get(key).cloned().unwrap_or(TypeValue::Null)
+    }
+
+    fn subject_key(&self, key: &str) -> TypeValue {
+        self.subject_keys
+            .get(key)
+            .cloned()
+            .unwrap_or(TypeValue::Null)
     }
 }
 

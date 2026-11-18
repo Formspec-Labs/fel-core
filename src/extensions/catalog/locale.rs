@@ -51,6 +51,34 @@ pub(super) const ENTRIES: &[BuiltinFunctionCatalogEntry] = &[
         package: Package::Formspec,
     },
     BuiltinFunctionCatalogEntry {
+        name: "subject",
+        category: "locale",
+        parameters: &[Parameter {
+            name: "key",
+            fel_type: FelType::String,
+            description: Some("Key in the current Response's subject identity."),
+            required: true,
+            variadic: false,
+            allowed_values: None,
+        }],
+        returns: FelType::Any,
+        return_description: Some("The key's string or integer value, or null if absent."),
+        description: "Reads a key from Response.subject.keys without coercion.",
+        null_handling: Some(
+            "A missing key or subject returns null. A null argument is a type error.",
+        ),
+        deterministic: false,
+        emit_deterministic_explicitly: false,
+        short_circuit: false,
+        examples: &[Example {
+            expression: "subject('uei')",
+            result_json: "\"00123\"",
+            note: None,
+        }],
+        since_version: "1.0",
+        package: Package::Formspec,
+    },
+    BuiltinFunctionCatalogEntry {
         name: "pluralCategory",
         category: "locale",
         parameters: &[

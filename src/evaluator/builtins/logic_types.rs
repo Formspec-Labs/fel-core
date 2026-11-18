@@ -239,6 +239,14 @@ impl<'a> Evaluator<'a> {
         }
     }
 
+    /// Reads a typed key from the current Response's identity.
+    pub(in crate::evaluator) fn fn_subject(&mut self, args: &[Expr]) -> Value {
+        match self.eval_arg(args, 0) {
+            Value::String(key) => self.env.subject_key(&key),
+            other => self.reject_expected_type("subject", "string", &other),
+        }
+    }
+
     /// `pluralCategory(count, locale?)` — returns CLDR cardinal plural category.
     ///
     /// Uses the explicit locale parameter if provided, otherwise the environment locale.

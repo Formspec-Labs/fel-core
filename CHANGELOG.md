@@ -8,6 +8,16 @@ conformance corpus.
 
 ## [Unreleased]
 
+### Added
+
+- `subject(key)` reads a declared filing-unit key. Hosts supply the value through
+  `Environment::subject_key`.
+
+### Changed (BREAKING)
+
+- `FormspecEnvironment` gains the public `subject_keys` field for `subject(key)`.
+  Downstream struct literals must initialize the field or use `..Default::default()`.
+
 ## [0.3.0] - 2026-09-16
 
 ### Changed (BREAKING)

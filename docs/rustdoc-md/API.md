@@ -40,7 +40,7 @@ Uses `rust_decimal` for base-10 arithmetic per spec S3.4.1 (minimum 18 significa
 
 ### [`fel_core`](fel_core.md)
 
-*12 modules*
+*1 macro, 13 modules*
 
 ### [`ast`](ast.md)
 
@@ -48,7 +48,7 @@ Uses `rust_decimal` for base-10 arithmetic per spec S3.4.1 (minimum 18 significa
 
 ### [`context_json`](context_json.md)
 
-*1 function*
+*2 functions*
 
 ### [`convert`](convert.md)
 
@@ -60,7 +60,7 @@ Uses `rust_decimal` for base-10 arithmetic per spec S3.4.1 (minimum 18 significa
 
 ### [`environment`](environment.md)
 
-*3 structs*
+*1 function, 3 structs*
 
 ### [`error`](error.md)
 
@@ -77,6 +77,10 @@ Uses `rust_decimal` for base-10 arithmetic per spec S3.4.1 (minimum 18 significa
 ### [`evaluator::core`](evaluator/core.md)
 
 *1 constant, 1 enum, 2 traits, 3 functions, 6 structs*
+
+### [`exact_json`](exact_json.md)
+
+*1 enum, 1 struct, 1 trait, 1 type alias, 7 functions*
 
 ### [`extensions::catalog`](extensions/catalog.md)
 
@@ -96,7 +100,7 @@ Uses `rust_decimal` for base-10 arithmetic per spec S3.4.1 (minimum 18 significa
 
 ### [`interpolation`](interpolation.md)
 
-*1 function*
+*2 functions*
 
 ### [`iso_duration`](iso_duration.md)
 
@@ -112,7 +116,7 @@ Uses `rust_decimal` for base-10 arithmetic per spec S3.4.1 (minimum 18 significa
 
 ### [`prepare_host`](prepare_host.md)
 
-*2 structs, 3 functions*
+*3 structs, 4 functions*
 
 ### [`printer`](printer.md)
 
@@ -148,12 +152,17 @@ Uses `rust_decimal` for base-10 arithmetic per spec S3.4.1 (minimum 18 significa
 - [`environment`](#environment) - FEL evaluation environment with field resolution, repeats, MIP state, and instances.
 - [`error`](#error) - FEL error types and diagnostic messages.
 - [`evaluator`](#evaluator) - FEL tree-walking evaluator with base-10 decimal arithmetic and null propagation.
+- [`exact_json`](#exact_json) - JSON values with exact numeric tokens and no object-shaped numeric markers.
 - [`extensions`](#extensions) - FEL extension function registry with null propagation and conflict detection.
 - [`lexer`](#lexer) - FEL hand-rolled lexer — tokenization with spans and decimal numbers.
 - [`parser`](#parser) - FEL hand-rolled recursive descent parser with operator precedence.
 - [`prepare_host`](#prepare_host) - FEL source normalization before host evaluation (parity with TS `normalizeExpressionForWasmEvaluation`).
 - [`printer`](#printer) - FEL AST to string serializer for expression rewriting and debugging.
 - [`types`](#types) - FEL runtime value types with base-10 decimal arithmetic.
+
+**Macros**
+
+- [`native_json`](#native_json) - Build exact JSON from ordinary Rust JSON literals.
 
 ---
 
@@ -211,6 +220,17 @@ The [`Evaluator`] owns `let` scopes and builtins; private `eval` / `fn_*` method
 
 
 
+## Module: exact_json
+
+JSON values with exact numeric tokens and no object-shaped numeric markers.
+
+Serde owns JSON syntax and escaping. This type keeps validated numeric text
+until decimal arithmetic or serialization, without changing serde_json's
+feature behavior for other crates. Use text input to retain original digits;
+conversion from an already parsed serde_json value cannot recover lost digits.
+
+
+
 ## Module: extensions
 
 FEL extension function registry with null propagation and conflict detection.
@@ -243,6 +263,23 @@ guard, extensions would silently be ignored instead of rejected.
 FEL hand-rolled lexer — tokenization with spans and decimal numbers.
 
 Internal scanning uses a char buffer and cursor; [`Lexer::tokenize`] is the public entry point.
+
+
+
+## fel_core::native_json
+
+*Declarative Macro*
+
+Build exact JSON from ordinary Rust JSON literals.
+
+Numeric Rust literals have already been interpreted by Rust. Use `from_str`
+for source JSON and `to_value` for values containing exact numeric leaves.
+
+```rust
+macro_rules! native_json {
+    ($($token:tt)+) => { ... };
+}
+```
 
 
 
@@ -434,18 +471,31 @@ Unary operators (`not`, unary `-`).
 
 **Functions**
 
-- [`formspec_environment_from_json_map`](#formspec_environment_from_json_map) - Populate a [`FormspecEnvironment`] from a JSON object (e.g. WASM `evalFELWithContext` payload).
+- [`formspec_environment_from_exact_json_map`](#formspec_environment_from_exact_json_map) - Populate a [`FormspecEnvironment`] from a JSON object (e.g. WASM `evalFelWithContext` payload).
+- [`formspec_environment_from_json_map`](#formspec_environment_from_json_map) - Convert a previously parsed context; original number digits cannot be recovered here.
 
 ---
+
+## fel_core::context_json::formspec_environment_from_exact_json_map
+
+*Function*
+
+Populate a [`FormspecEnvironment`] from a JSON object (e.g. WASM `evalFelWithContext` payload).
+
+Recognized keys: `nowIso` / `now_iso`, `fields`, `variables`, `mipStates` / `mip_states`,
+`repeatContext` / `repeat_context`, `instances`, `locale`, `meta`.
+
+```rust
+fn formspec_environment_from_exact_json_map(ctx: &crate::exact_json::Map<String, crate::exact_json::Value>) -> crate::FormspecEnvironment
+```
+
+
 
 ## fel_core::context_json::formspec_environment_from_json_map
 
 *Function*
 
-Populate a [`FormspecEnvironment`] from a JSON object (e.g. WASM `evalFELWithContext` payload).
-
-Recognized keys: `nowIso` / `now_iso`, `fields`, `variables`, `mipStates` / `mip_states`,
-`repeatContext` / `repeat_context`, `instances`, `locale`, `meta`.
+Convert a previously parsed context; original number digits cannot be recovered here.
 
 ```rust
 fn formspec_environment_from_json_map(ctx: &serde_json::Map<String, serde_json::Value>) -> crate::FormspecEnvironment
@@ -672,6 +722,10 @@ fn extract_dependencies(expr: &crate::ast::Expr) -> Dependencies
 - [`MipState`](#mipstate) - XForms Model Item Properties for a single field path.
 - [`RepeatContext`](#repeatcontext) - Repeat-group iteration context (§4.3).
 
+**Functions**
+
+- [`resolve_value_path`](#resolve_value_path) - Walks a nested value by string path segments; on an array, projects each element (`rows.score`).
+
 ---
 
 ## fel_core::environment::FormspecEnvironment
@@ -689,6 +743,7 @@ Supports:
 - Mapping-style context via host-specific `Environment` implementations
 - Locale via `locale()` and `pluralCategory()`
 - Runtime metadata via `runtimeMeta(key)`
+- Response identity keys via `subject(key)`
 
 **Fields:**
 - `data: std::collections::HashMap<String, crate::types::Value>` - Primary data dict — backs `$field` references.
@@ -698,7 +753,9 @@ Supports:
 - `repeat_context: Option<RepeatContext>` - Current repeat context (if inside a repeat iteration).
 - `current_datetime: Option<crate::types::Date>` - Current runtime date for today()/now().
 - `locale: Option<String>` - Active locale code (BCP 47) — backs `locale()` and default for `pluralCategory()`.
+- `date_formats: std::collections::HashMap<String, String>` - The active Locale document's `formats.date` — a pattern per `formatDate` style name
 - `meta: std::collections::HashMap<String, crate::types::Value>` - Runtime metadata bag — backs `runtimeMeta(key)`.
+- `subject_keys: std::collections::HashMap<String, crate::types::Value>` - Current Response identity keys for `subject(key)`.
 
 **Methods:**
 
@@ -708,6 +765,7 @@ Supports:
 - `fn set_mip(self: & mut Self, path: &str, state: MipState)` - Set MIP state for a field path.
 - `fn set_variable(self: & mut Self, name: &str, value: TypeValue)` - Set a variable value.
 - `fn set_locale(self: & mut Self, code: &str)` - Set the active locale code (BCP 47).
+- `fn set_date_format(self: & mut Self, style: &str, pattern: &str)` - Set the pattern a `formatDate` style renders with (Locale `formats.date.<style>`).
 - `fn set_meta(self: & mut Self, key: &str, value: TypeValue)` - Set a runtime metadata value.
 - `fn set_now_from_iso(self: & mut Self, iso: &str)` - Set the current runtime datetime from an ISO string.
 - `fn push_repeat(self: & mut Self, current: TypeValue, index: usize, count: usize, collection: Vec<TypeValue>)` - Enter a repeat context.
@@ -730,7 +788,9 @@ Supports:
   - `fn current_date(self: &Self) -> Result<TypeDate, MissingTimezoneContextError>`
   - `fn current_datetime(self: &Self) -> Result<TypeDate, MissingTimezoneContextError>`
   - `fn locale(self: &Self) -> Option<&str>`
+  - `fn date_format(self: &Self, style: &str) -> Option<&str>`
   - `fn runtime_meta(self: &Self, key: &str) -> TypeValue`
+  - `fn subject_key(self: &Self, key: &str) -> TypeValue`
 
 
 
@@ -776,6 +836,20 @@ Repeat-group iteration context (§4.3).
   - `fn clone(self: &Self) -> RepeatContext`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+
+
+
+## fel_core::environment::resolve_value_path
+
+*Function*
+
+Walks a nested value by string path segments; on an array, projects each element (`rows.score`).
+
+A missing key or a scalar in the middle of the path resolves to `Null`.
+
+```rust
+fn resolve_value_path(val: &crate::types::Value, segments: &[String]) -> crate::types::Value
+```
 
 ---
 
@@ -837,10 +911,10 @@ A non-fatal diagnostic recorded during evaluation.
 
 **Trait Implementations:**
 
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Clone**
   - `fn clone(self: &Self) -> Diagnostic`
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 
 
 
@@ -916,7 +990,7 @@ the refusal without parsing message strings.
 - `fn not_configured() -> Self` - Constructs the common `NotConfigured` case.
 - `fn multi_calendar_conflict(calendars: Vec<String>) -> Self` - Constructs a `MultiCalendarConflict` case carrying the calendars whose
 
-**Traits:** Eq, Error
+**Traits:** Error, Eq
 
 **Trait Implementations:**
 
@@ -953,12 +1027,12 @@ timezone. Hosts surface their own variant from
 
 **Trait Implementations:**
 
-- **Clone**
-  - `fn clone(self: &Self) -> MissingTimezoneContextReason`
 - **PartialEq**
   - `fn eq(self: &Self, other: &MissingTimezoneContextReason) -> bool`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **Clone**
+  - `fn clone(self: &Self) -> MissingTimezoneContextReason`
 
 
 
@@ -1009,16 +1083,16 @@ Diagnostic severity for tooling and JSON wire format.
 
 - `fn as_wire_str(self: Self) -> &'static str` - Wire string used in JSON diagnostics (`error` / `warning` / `info`).
 
-**Traits:** Copy, Eq
+**Traits:** Eq, Copy
 
 **Trait Implementations:**
 
+- **Clone**
+  - `fn clone(self: &Self) -> Severity`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **PartialEq**
   - `fn eq(self: &Self, other: &Severity) -> bool`
-- **Clone**
-  - `fn clone(self: &Self) -> Severity`
 
 
 
@@ -1137,7 +1211,7 @@ Which resource limit was hit.
 - `Alloc` - Allocation exceeded [`EvalBudget::max_alloc_bytes`].
 - `Deadline` - Wall-clock deadline expired.
 
-**Traits:** Copy, Eq
+**Traits:** Eq, Copy
 
 **Trait Implementations:**
 
@@ -1171,10 +1245,10 @@ Hard cap on evaluation resource consumption. Exceeding any limit returns `Err(Bu
 
 **Trait Implementations:**
 
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Clone**
   - `fn clone(self: &Self) -> EvalBudget`
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 
 ---
 
@@ -1234,12 +1308,12 @@ Materialized host context binding returned by a catalog.
 
 **Trait Implementations:**
 
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Clone**
   - `fn clone(self: &Self) -> ContextBinding`
 - **PartialEq**
   - `fn eq(self: &Self, other: &ContextBinding) -> bool`
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 
 
 
@@ -1327,7 +1401,9 @@ Resolves `$` field paths, `@` context, MIP queries, repeat navigation, and clock
 - `current_date`: Calendar date for `today()` per ADR 0069 D-6 — hosts MUST configure a
 - `current_datetime`: Date-time for `now()` per ADR 0069 D-6 — see [`Self::current_date`] for
 - `locale`: Active locale code for `locale()` — default none (returns null).
+- `date_format`: The Locale document's pattern for a `formatDate` style (`short` … `full`), when the
 - `runtime_meta`: Runtime metadata value for `runtimeMeta(key)` — default null.
+- `subject_key`: Response identity value for `subject(key)` or null when absent.
 
 
 
@@ -1454,6 +1530,292 @@ existing callers while enabling FEL §6.3 catalog-aware evaluation.
 
 ```rust
 fn evaluate_with_catalog<'a>(expr: &Expr, env: &dyn Environment, options: EvaluatorOptions<'a>, catalog: &'a dyn ContextBindingCatalog) -> EvalResult
+```
+
+---
+
+## Source: fel_core/exact_json.md
+
+**fel_core > exact_json**
+
+# Module: exact_json
+
+## Contents
+
+**Structs**
+
+- [`Number`](#number) - A validated JSON number, retaining its original decimal digits.
+
+**Enums**
+
+- [`Value`](#value) - JSON's six value kinds; a number is never an ordinary object or string.
+
+**Functions**
+
+- [`check_decimal_range`](#check_decimal_range) - Check arithmetic range without allocating a second tree of FEL values.
+- [`from_fel`](#from_fel) - Encode FEL values as schema-compliant JSON, with exact numbers and string money amounts.
+- [`from_str`](#from_str) - Parse JSON through serde, preserving number tokens and object identity.
+- [`from_value`](#from_value) - Deserialize an exact tree through JSON text, preserving numeric tokens.
+- [`to_fel`](#to_fel) - Decode ordinary JSON without interpreting any object as a typed wire marker.
+- [`to_fel_wire`](#to_fel_wire) - Adapt exact tokens to FEL's explicitly tagged host protocol.
+- [`to_value`](#to_value) - Serialize a value directly into an exact JSON tree.
+
+**Traits**
+
+- [`JsonTree`](#jsontree) - Structural JSON access shared by definition walkers and bind merging.
+
+**Type Aliases**
+
+- [`Map`](#map) - An insertion-ordered JSON object.
+
+---
+
+## fel_core::exact_json::JsonTree
+
+*Trait*
+
+Structural JSON access shared by definition walkers and bind merging.
+
+This keeps those algorithms independent of numeric storage. The exact and
+serde_json trees share traversal, without converting their numeric leaves.
+
+**Methods:**
+
+- `Object`: The object's mutable collection type.
+- `get`: A named member of an object.
+- `as_str`: A string's contents.
+- `as_array`: An array's elements.
+- `is_object`: Whether this value is an object.
+- `members`: Object members in document order; empty for other kinds.
+
+
+
+## fel_core::exact_json::Map
+
+*Type Alias*: `indexmap::IndexMap<K, V>`
+
+An insertion-ordered JSON object.
+
+
+
+## fel_core::exact_json::Number
+
+*Struct*
+
+A validated JSON number, retaining its original decimal digits.
+
+**Tuple Struct**: `()`
+
+**Methods:**
+
+- `fn as_str(self: &Self) -> &str` - The original JSON number token.
+- `fn as_decimal(self: &Self) -> Option<Decimal>` - An exact decimal, or `None` outside the evaluator's precision and range.
+- `fn as_i64(self: &Self) -> Option<i64>` - An exact signed integer when it fits in i64.
+- `fn as_u64(self: &Self) -> Option<u64>` - An exact unsigned integer when it fits in u64.
+- `fn as_f64(self: &Self) -> Option<f64>` - A finite binary floating-point approximation for display or legacy callers.
+- `fn is_i64(self: &Self) -> bool` - Whether this number is an i64.
+- `fn is_u64(self: &Self) -> bool` - Whether this number is a u64.
+
+**Traits:** Eq
+
+**Trait Implementations:**
+
+- **Clone**
+  - `fn clone(self: &Self) -> Number`
+- **PartialEq**
+  - `fn eq(self: &Self, other: &Self) -> bool`
+- **Display**
+  - `fn fmt(self: &Self, f: & mut fmt::Formatter) -> fmt::Result`
+- **Serialize**
+  - `fn serialize<S>(self: &Self, serializer: S) -> Result<<S as >::Ok, <S as >::Error>`
+- **From**
+  - `fn from(value: Decimal) -> Self`
+- **FromStr**
+  - `fn from_str(text: &str) -> Result<Self, <Self as >::Err>`
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+
+
+
+## fel_core::exact_json::Value
+
+*Enum*
+
+JSON's six value kinds; a number is never an ordinary object or string.
+
+**Variants:**
+- `Null` - JSON null.
+- `Bool(bool)` - JSON boolean.
+- `Number(Number)` - An exact JSON number.
+- `String(String)` - JSON string.
+- `Array(Vec<Value>)` - JSON array.
+- `Object(Map<String, Value>)` - JSON object, including objects that resemble implementation markers.
+
+**Methods:**
+
+- `fn get(self: &Self, key: &str) -> Option<&Value>` - A named object member.
+- `fn get_mut(self: & mut Self, key: &str) -> Option<& mut Value>` - A mutable named object member.
+- `fn as_object(self: &Self) -> Option<&Map<String, Value>>` - The object members, if this is an object.
+- `fn as_object_mut(self: & mut Self) -> Option<& mut Map<String, Value>>` - The mutable object members, if this is an object.
+- `fn as_array(self: &Self) -> Option<&Vec<Value>>` - The array elements, if this is an array.
+- `fn as_array_mut(self: & mut Self) -> Option<& mut Vec<Value>>` - The mutable array elements, if this is an array.
+- `fn as_str(self: &Self) -> Option<&str>` - The string contents, if this is a string.
+- `fn as_bool(self: &Self) -> Option<bool>` - The boolean, if this is a boolean.
+- `fn as_decimal(self: &Self) -> Option<Decimal>` - The exact decimal, if supported by the evaluator.
+- `fn as_i64(self: &Self) -> Option<i64>` - An exact signed integer, if available.
+- `fn as_u64(self: &Self) -> Option<u64>` - An exact unsigned integer, if available.
+- `fn as_f64(self: &Self) -> Option<f64>` - A finite binary approximation, if this is a number.
+- `fn is_null(self: &Self) -> bool` - Whether this is null.
+- `fn is_object(self: &Self) -> bool` - Whether this is an object.
+- `fn is_array(self: &Self) -> bool` - Whether this is an array.
+- `fn is_string(self: &Self) -> bool` - Whether this is a string.
+- `fn is_number(self: &Self) -> bool` - Whether this is a number.
+- `fn is_i64(self: &Self) -> bool` - Whether this value fits a signed integer.
+- `fn is_u64(self: &Self) -> bool` - Whether this value fits an unsigned integer.
+- `fn is_boolean(self: &Self) -> bool` - Whether this is a boolean.
+- `fn pointer_mut(self: & mut Self, pointer: &str) -> Option<& mut Self>` - Find a mutable value by RFC 6901 JSON Pointer.
+
+**Traits:** Eq
+
+**Trait Implementations:**
+
+- **Display**
+  - `fn fmt(self: &Self, f: & mut fmt::Formatter) -> fmt::Result`
+- **PartialEq**
+  - `fn eq(self: &Self, other: &&str) -> bool`
+- **Default**
+  - `fn default() -> Value`
+- **From**
+  - `fn from(value: serde_json::Value) -> Self`
+- **PartialEq**
+  - `fn eq(self: &Self, other: &serde_json::Value) -> bool`
+- **PartialEq**
+  - `fn eq(self: &Self, other: &Value) -> bool`
+- **Serialize**
+  - `fn serialize<S>(self: &Self, serializer: S) -> Result<<S as >::Ok, <S as >::Error>`
+- **IndexMut**
+  - `fn index_mut(self: & mut Self, key: &str) -> & mut <Self as >::Output`
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **Index**
+  - `fn index(self: &Self, key: &str) -> &<Self as >::Output`
+- **Deserialize**
+  - `fn deserialize<D>(deserializer: D) -> Result<Self, <D as >::Error>`
+- **IndexMut**
+  - `fn index_mut(self: & mut Self, key: usize) -> & mut <Self as >::Output`
+- **Index**
+  - `fn index(self: &Self, key: usize) -> &<Self as >::Output`
+- **Index**
+  - `fn index(self: &Self, key: &String) -> &<Self as >::Output`
+- **Clone**
+  - `fn clone(self: &Self) -> Value`
+- **JsonTree**
+  - `fn get(self: &Self, key: &str) -> Option<&Self>`
+  - `fn as_str(self: &Self) -> Option<&str>`
+  - `fn as_array(self: &Self) -> Option<&Vec<Self>>`
+  - `fn is_object(self: &Self) -> bool`
+  - `fn members(self: &Self) -> impl Trait`
+
+
+
+## fel_core::exact_json::check_decimal_range
+
+*Function*
+
+Check arithmetic range without allocating a second tree of FEL values.
+
+# Errors
+Rejects any numeric token outside FEL's decimal precision or range.
+
+```rust
+fn check_decimal_range(value: &Value) -> Result<(), String>
+```
+
+
+
+## fel_core::exact_json::from_fel
+
+*Function*
+
+Encode FEL values as schema-compliant JSON, with exact numbers and string money amounts.
+
+```rust
+fn from_fel(value: &crate::Value) -> Value
+```
+
+
+
+## fel_core::exact_json::from_str
+
+*Function*
+
+Parse JSON through serde, preserving number tokens and object identity.
+
+# Errors
+Rejects malformed JSON and nesting deeper than serde_json's default limit.
+
+```rust
+fn from_str(text: &str) -> Result<Value, serde_json::Error>
+```
+
+
+
+## fel_core::exact_json::from_value
+
+*Function*
+
+Deserialize an exact tree through JSON text, preserving numeric tokens.
+
+# Errors
+Returns errors when the target cannot represent the JSON value.
+
+```rust
+fn from_value<T, impl Into<Value>>(value: impl Trait) -> Result<T, serde_json::Error>
+```
+
+
+
+## fel_core::exact_json::to_fel
+
+*Function*
+
+Decode ordinary JSON without interpreting any object as a typed wire marker.
+
+# Errors
+Rejects numbers outside the evaluator's decimal precision or range.
+
+```rust
+fn to_fel(value: &Value) -> Result<crate::Value, String>
+```
+
+
+
+## fel_core::exact_json::to_fel_wire
+
+*Function*
+
+Adapt exact tokens to FEL's explicitly tagged host protocol.
+
+Ordinary response data must use [`to_fel`] instead: this protocol deliberately
+recognizes FEL number, date, and money markers supplied by a host.
+
+```rust
+fn to_fel_wire(value: &Value) -> crate::Value
+```
+
+
+
+## fel_core::exact_json::to_value
+
+*Function*
+
+Serialize a value directly into an exact JSON tree.
+
+# Errors
+Returns serialization errors, including unsupported map keys.
+
+```rust
+fn to_value<T>(value: &T) -> Result<Value, serde_json::Error>
 ```
 
 ---
@@ -1586,12 +1948,12 @@ Error type for extension registration failures.
 
 **Trait Implementations:**
 
+- **Display**
+  - `fn fmt(self: &Self, f: & mut std::fmt::Formatter) -> std::fmt::Result`
 - **Clone**
   - `fn clone(self: &Self) -> ExtensionError`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
-- **Display**
-  - `fn fmt(self: &Self, f: & mut std::fmt::Formatter) -> std::fmt::Result`
 
 
 
@@ -1889,12 +2251,12 @@ groups, instances, locale) and are no-ops against [`crate::MapEnvironment`].
 
 **Trait Implementations:**
 
-- **Clone**
-  - `fn clone(self: &Self) -> Package`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **PartialEq**
   - `fn eq(self: &Self, other: &Package) -> bool`
+- **Clone**
+  - `fn clone(self: &Self) -> Package`
 
 
 
@@ -1932,6 +2294,7 @@ One parameter in a built-in function signature.
 **Functions**
 
 - [`expr_is_interpolation_static_literal`](#expr_is_interpolation_static_literal) - True when the AST is only literals and unary `not`/`!`/`-` on such (locale §3.3.1).
+- [`expr_references_instance_data`](#expr_references_instance_data) - True when the AST reads instance data: a `$field`, an `@context`, or a repeat navigation call
 
 ---
 
@@ -1943,6 +2306,24 @@ True when the AST is only literals and unary `not`/`!`/`-` on such (locale §3.3
 
 ```rust
 fn expr_is_interpolation_static_literal(expr: &crate::ast::Expr) -> bool
+```
+
+
+
+## fel_core::interpolation::expr_references_instance_data
+
+*Function*
+
+True when the AST reads instance data: a `$field`, an `@context`, or a repeat navigation call
+(locale §3.3.1 rule 3a).
+
+The rule keeps a `null` result literal only for an expression that reads none — an author's typo or a
+broken operator sequence — so that a missing `$field` still renders as empty text. Navigation across
+rows belongs on the reading side: `{{prev().total}}` is null on the first row for a good reason, and a
+respondent should read an empty space there, not the template.
+
+```rust
+fn expr_references_instance_data(expr: &crate::ast::Expr) -> bool
 ```
 
 ---
@@ -2077,12 +2458,12 @@ One lexeme from [`tokenize`] for host bindings and tooling (stable type names + 
 
 **Trait Implementations:**
 
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Clone**
   - `fn clone(self: &Self) -> PositionedToken`
 - **PartialEq**
   - `fn eq(self: &Self, other: &PositionedToken) -> bool`
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 
 
 
@@ -2177,12 +2558,12 @@ Lexical token for FEL source (literals, keywords, operators, punctuation).
 
 **Trait Implementations:**
 
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Clone**
   - `fn clone(self: &Self) -> Token`
 - **PartialEq**
   - `fn eq(self: &Self, other: &Token) -> bool`
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 
 
 
@@ -2301,12 +2682,14 @@ fn parse(input: &str) -> Result<Expr, crate::error::Error>
 
 - [`PrepareHostInput`](#preparehostinput) - Inputs for [`prepare_for_host`], mirroring the engine WASM prepass.
 - [`PrepareHostOptions`](#preparehostoptions) - Owned inputs for [`prepare`] after JSON / host parsing.
+- [`RepeatAliases`](#repeataliases) - Repeat row aliases inferred from flat field paths: `rows[0].score` yields `rows.score`,
 
 **Functions**
 
 - [`host_options_from_json`](#host_options_from_json) - Parses prepare-FEL options from a JSON object (WASM / Python hosts).
 - [`prepare`](#prepare) - Normalizes using owned options (convenience after [`host_options_from_json`]).
 - [`prepare_for_host`](#prepare_for_host) - Applies the same normalization pass the TypeScript engine runs before WASM FEL evaluation.
+- [`prepare_with_aliases`](#prepare_with_aliases) - [`prepare_for_host`] with the repeat aliases already built from the field paths.
 
 ---
 
@@ -2357,6 +2740,36 @@ Owned inputs for [`prepare`] after JSON / host parsing.
 
 
 
+## fel_core::prepare_host::RepeatAliases
+
+*Struct*
+
+Repeat row aliases inferred from flat field paths: `rows[0].score` yields `rows.score`,
+which [`prepare_with_aliases`] rewrites to the wildcard path `$rows[*].score`.
+
+Building the set is O(paths); a host that evaluates many expressions against one
+field set builds it once and reuses it, so each prepare costs O(aliases × expression).
+
+**Methods:**
+
+- `fn from_field_paths<'a, impl IntoIterator<Item = &'a str>>(paths: impl Trait) -> Self` - Aliases for every `<group>[<n>].<field>` path in `paths` (duplicates ignored).
+- `fn as_slice(self: &Self) -> &[String]` - The aliases, longest first.
+
+**Traits:** Eq
+
+**Trait Implementations:**
+
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **Default**
+  - `fn default() -> RepeatAliases`
+- **PartialEq**
+  - `fn eq(self: &Self, other: &RepeatAliases) -> bool`
+- **Clone**
+  - `fn clone(self: &Self) -> RepeatAliases`
+
+
+
 ## fel_core::prepare_host::host_options_from_json
 
 *Function*
@@ -2389,6 +2802,18 @@ Applies the same normalization pass the TypeScript engine runs before WASM FEL e
 
 ```rust
 fn prepare_for_host(input: PrepareHostInput) -> String
+```
+
+
+
+## fel_core::prepare_host::prepare_with_aliases
+
+*Function*
+
+[`prepare_for_host`] with the repeat aliases already built from the field paths.
+
+```rust
+fn prepare_with_aliases(expression: &str, current_item_path: &str, replace_self_ref: bool, repeat_counts: &std::collections::HashMap<String, u32>, aliases: &RepeatAliases) -> String
 ```
 
 ---
@@ -2459,14 +2884,14 @@ error-explainer) can render the sequence top-to-bottom to reconstruct
 
 **Trait Implementations:**
 
+- **Default**
+  - `fn default() -> Trace`
 - **Clone**
   - `fn clone(self: &Self) -> Trace`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Serialize**
-  - `fn serialize<__S>(self: &Self, __serializer: __S) -> _serde::__private228::Result<<__S as >::Ok, <__S as >::Error>`
-- **Default**
-  - `fn default() -> Trace`
+  - `fn serialize<__S>(self: &Self, __serializer: __S) -> _serde::__private229::Result<<__S as >::Ok, <__S as >::Error>`
 
 
 
@@ -2489,12 +2914,12 @@ rather than emitting noise — correctness over completeness.
 
 **Trait Implementations:**
 
-- **Clone**
-  - `fn clone(self: &Self) -> TraceStep`
-- **Serialize**
-  - `fn serialize<__S>(self: &Self, __serializer: __S) -> _serde::__private228::Result<<__S as >::Ok, <__S as >::Error>`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **Serialize**
+  - `fn serialize<__S>(self: &Self, __serializer: __S) -> _serde::__private229::Result<<__S as >::Ok, <__S as >::Error>`
+- **Clone**
+  - `fn clone(self: &Self) -> TraceStep`
 
 ---
 
@@ -2580,12 +3005,12 @@ Calendar date or date-time (no timezone model; used by date functions).
 
 **Trait Implementations:**
 
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Clone**
   - `fn clone(self: &Self) -> Date`
 - **PartialEq**
   - `fn eq(self: &Self, other: &Date) -> bool`
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 
 
 
@@ -2642,14 +3067,14 @@ Runtime value for FEL evaluation (mirrors JSON + dates + money).
 
 **Trait Implementations:**
 
-- **PartialEq**
-  - `fn eq(self: &Self, other: &Self) -> bool`
 - **Clone**
   - `fn clone(self: &Self) -> Value`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Display**
   - `fn fmt(self: &Self, f: & mut fmt::Formatter) -> fmt::Result`
+- **PartialEq**
+  - `fn eq(self: &Self, other: &Self) -> bool`
 
 
 
@@ -2754,11 +3179,11 @@ JSON object key style for WASM (`camelCase`) vs Python (`snake_case`) bindings.
 
 **Trait Implementations:**
 
-- **Clone**
-  - `fn clone(self: &Self) -> JsonWireStyle`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **PartialEq**
   - `fn eq(self: &Self, other: &JsonWireStyle) -> bool`
+- **Clone**
+  - `fn clone(self: &Self) -> JsonWireStyle`
 
 ---

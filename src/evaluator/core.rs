@@ -90,6 +90,10 @@ pub trait Environment {
     fn runtime_meta(&self, _key: &str) -> Value {
         Value::Null
     }
+    /// Response identity value for `subject(key)` or null when absent.
+    fn subject_key(&self, _key: &str) -> Value {
+        Value::Null
+    }
 }
 
 /// Classifies a host context binding root.
@@ -1722,6 +1726,7 @@ impl<'a> Evaluator<'a> {
             "formatNumber" => self.fn_format_number(args),
             "formatDate" => self.fn_format_date(args),
             "runtimeMeta" => self.fn_runtime_meta(args),
+            "subject" => self.fn_subject(args),
             "pluralCategory" => self.fn_plural_category(args),
 
             _ => {

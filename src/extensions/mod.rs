@@ -250,13 +250,14 @@ mod tests {
     }
 
     #[test]
-    fn emit_schema_has_74_functions() {
+    fn emit_schema_has_75_functions() {
         let v = emit_schema_json();
         let funcs = v["functions"].as_array().expect("functions array");
+        // The Core §3.5.11 subject() addition expands the published catalog by one.
         assert_eq!(
             funcs.len(),
-            74,
-            "expected 74 functions, got {}",
+            75,
+            "expected 75 functions, got {}",
             funcs.len()
         );
     }
