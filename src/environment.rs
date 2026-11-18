@@ -6,10 +6,12 @@
 //! Helpers such as `project_repeat_field` resolve repeat-group keys into projected field values.
 #![allow(clippy::missing_docs_in_private_items)]
 use rust_decimal::Decimal;
+use std::borrow::Cow;
 use std::collections::HashMap;
 
+use crate::ast::PathSegment;
 use crate::error::MissingTimezoneContextError;
-use crate::evaluator::Environment;
+use crate::evaluator::{Environment, FieldError, resolve_value_segments};
 use crate::types::{Date as TypeDate, Value as TypeValue, parse_datetime_literal};
 
 // ── Data structures ─────────────────────────────────────────────
@@ -192,30 +194,75 @@ impl Default for FormspecEnvironment {
 ///
 /// A missing key or a scalar in the middle of the path resolves to `Null`.
 pub fn resolve_value_path(val: &TypeValue, segments: &[String]) -> TypeValue {
-    let mut current = val.clone();
-    for seg in segments {
-        match &current {
-            TypeValue::Object(entries) => match entries.get(seg.as_str()) {
-                Some(v) => current = v.clone(),
-                None => return TypeValue::Null,
-            },
-            TypeValue::Array(entries) => {
-                current = TypeValue::Array(
-                    entries
-                        .iter()
-                        .map(|entry| match entry {
-                            TypeValue::Object(fields) => {
-                                fields.get(seg.as_str()).cloned().unwrap_or(TypeValue::Null)
-                            }
-                            _ => TypeValue::Null,
-                        })
-                        .collect(),
-                );
-            }
-            _ => return TypeValue::Null,
+    lookup_value_path(val, segments).into_owned()
+}
+
+/// Borrow a dotted lookup, building an array only for a legacy implicit projection.
+fn lookup_value_path<'a>(mut current: &'a TypeValue, segments: &[String]) -> Cow<'a, TypeValue> {
+    for (index, key) in segments.iter().enumerate() {
+        if let TypeValue::Array(rows) = current {
+            let projected = rows.iter().map(|row| {
+                segments[index..]
+                    .iter()
+                    .fold(row, |value, key| object_member(value, key))
+                    .clone()
+            });
+            return Cow::Owned(TypeValue::Array(projected.collect()));
+        }
+        current = object_member(current, key);
+    }
+    Cow::Borrowed(current)
+}
+
+/// Read a dotted key from an object, using null for an absent key or a non-object.
+fn object_member<'a>(value: &'a TypeValue, key: &str) -> &'a TypeValue {
+    match value {
+        TypeValue::Object(entries) => entries.get(key).unwrap_or(&TypeValue::Null),
+        _ => &TypeValue::Null,
+    }
+}
+
+pub(crate) fn resolve_legacy_field<'a>(
+    root: Option<&str>,
+    path: &[PathSegment],
+    lookup: impl Fn(&[String]) -> Cow<'a, TypeValue>,
+) -> Result<TypeValue, FieldError> {
+    let Some(root) = root else {
+        return resolve_value_segments(lookup(&[]).as_ref(), path);
+    };
+    let dots = path
+        .iter()
+        .take_while(|segment| matches!(segment, PathSegment::Dot(_)))
+        .count();
+    let mut segments = vec![root.to_owned()];
+    for segment in &path[..dots] {
+        if let PathSegment::Dot(key) = segment {
+            segments.push(key.clone());
         }
     }
-    current
+    let base = lookup(&segments);
+    // Map-backed callers can still supply indexed flat keys (fs-5n76).
+    if base.is_null()
+        && path[dots..]
+            .iter()
+            .any(|segment| matches!(segment, PathSegment::Index(_)))
+    {
+        for segment in &path[dots..] {
+            match segment {
+                PathSegment::Dot(key) => segments.push(key.clone()),
+                PathSegment::Index(index) => {
+                    segments.last_mut().unwrap().push_str(&format!("[{index}]"))
+                }
+                PathSegment::Wildcard => segments.last_mut().unwrap().push_str("[*]"),
+            }
+        }
+        return Ok(lookup(&segments).into_owned());
+    }
+    let remaining = &path[dots..];
+    if remaining.is_empty() {
+        return Ok(base.into_owned());
+    }
+    resolve_value_segments(base.as_ref(), remaining)
 }
 
 fn project_repeat_field(
@@ -267,37 +314,45 @@ fn mip_path(path: &[String]) -> String {
     path.join(".")
 }
 
-#[allow(missing_docs)]
-impl Environment for FormspecEnvironment {
-    fn resolve_field(&self, segments: &[String]) -> TypeValue {
+impl FormspecEnvironment {
+    /// Read a dotted field prefix, borrowing stored values through subscripts.
+    fn lookup_dotted(&self, segments: &[String]) -> Cow<'_, TypeValue> {
         if segments.is_empty() {
             // Bare $: the node the host bound for this evaluation (data[""], e.g. the field a Bind
             // constraint targets), else the repeat row being evaluated, else null.
             if let Some(val) = self.data.get("") {
-                return val.clone();
+                return Cow::Borrowed(val);
             }
             if let Some(ctx) = &self.repeat_context {
-                return ctx.current.clone();
+                return Cow::Borrowed(&ctx.current);
             }
-            return TypeValue::Null;
+            return Cow::Borrowed(&TypeValue::Null);
         }
 
         let key = segments.join(".");
         // Check flat lookup first (handles dotted keys like "address.city")
         if let Some(val) = self.data.get(&key) {
-            return val.clone();
+            return Cow::Borrowed(val);
         }
         // Check first segment then walk
         if let Some(val) = self.data.get(&segments[0]) {
-            if segments.len() == 1 {
-                return val.clone();
-            }
-            return resolve_value_path(val, &segments[1..]);
+            return lookup_value_path(val, &segments[1..]);
         }
         if let Some(projected) = project_repeat_field(&self.data, segments) {
-            return projected;
+            return Cow::Owned(projected);
         }
-        TypeValue::Null
+        Cow::Borrowed(&TypeValue::Null)
+    }
+}
+
+#[allow(missing_docs)]
+impl Environment for FormspecEnvironment {
+    fn resolve_field(
+        &self,
+        root: Option<&str>,
+        path: &[PathSegment],
+    ) -> Result<TypeValue, FieldError> {
+        resolve_legacy_field(root, path, |segments| self.lookup_dotted(segments))
     }
 
     fn resolve_context(&self, name: &str, arg: Option<&str>, tail: &[String]) -> TypeValue {
@@ -469,9 +524,12 @@ mod tests {
         env.set_field("name", s("Alice"));
         env.set_field("age", num(30));
 
-        assert_eq!(env.resolve_field(&["name".into()]), s("Alice"));
-        assert_eq!(env.resolve_field(&["age".into()]), num(30));
-        assert_eq!(env.resolve_field(&["missing".into()]), TypeValue::Null);
+        assert_eq!(env.resolve_field(Some("name"), &[]).unwrap(), s("Alice"));
+        assert_eq!(env.resolve_field(Some("age"), &[]).unwrap(), num(30));
+        assert_eq!(
+            env.resolve_field(Some("missing"), &[]).unwrap(),
+            TypeValue::Null
+        );
     }
 
     #[test]
@@ -484,11 +542,13 @@ mod tests {
         env.set_field("address", addr);
 
         assert_eq!(
-            env.resolve_field(&["address".into(), "city".into()]),
+            env.resolve_field(Some("address"), &[PathSegment::Dot("city".into())])
+                .unwrap(),
             s("NYC")
         );
         assert_eq!(
-            env.resolve_field(&["address".into(), "missing".into()]),
+            env.resolve_field(Some("address"), &[PathSegment::Dot("missing".into())])
+                .unwrap(),
             TypeValue::Null
         );
     }
@@ -501,7 +561,8 @@ mod tests {
         env.set_field("rows[2].score", num(50));
 
         assert_eq!(
-            env.resolve_field(&["rows".into(), "score".into()]),
+            env.resolve_field(Some("rows"), &[PathSegment::Dot("score".into())])
+                .unwrap(),
             TypeValue::Array(vec![num(80), num(30), num(50)]),
         );
     }
@@ -609,6 +670,6 @@ mod tests {
         env.push_repeat(num(10), 1, 2, items);
 
         // Bare $ resolves to repeat context current
-        assert_eq!(env.resolve_field(&[]), num(10));
+        assert_eq!(env.resolve_field(None, &[]).unwrap(), num(10));
     }
 }

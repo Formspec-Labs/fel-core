@@ -3,6 +3,7 @@
 //! These tests assert on the shape of emitted [`TraceStep`]s for small FEL
 //! programs. They are the contract for the v0 trace API and the regression
 //! guard for the non-tracing hot path.
+use fel_core::ast::PathSegment;
 use fel_core::{
     Environment, EvaluatorOptions, MapEnvironment, Trace, TraceStep, Value, evaluate,
     evaluate_with, parse,
@@ -58,11 +59,15 @@ impl CountingEnv {
 }
 
 impl Environment for CountingEnv {
-    fn resolve_field(&self, segments: &[String]) -> Value {
+    fn resolve_field(
+        &self,
+        root: Option<&str>,
+        path: &[PathSegment],
+    ) -> Result<Value, fel_core::FieldError> {
         self.resolve_count.set(self.resolve_count.get() + 1);
-        match segments {
-            [name] => self.fields.get(name).cloned().unwrap_or(Value::Null),
-            _ => Value::Null,
+        match (root, path) {
+            (Some(name), []) => Ok(self.fields.get(name).cloned().unwrap_or(Value::Null)),
+            _ => Ok(Value::Null),
         }
     }
 

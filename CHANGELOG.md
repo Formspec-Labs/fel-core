@@ -17,6 +17,16 @@ conformance corpus.
 
 - `FormspecEnvironment` gains the public `subject_keys` field for `subject(key)`.
   Downstream struct literals must initialize the field or use `..Default::default()`.
+- `Environment::resolve_field` takes the root (`Option<&str>`) and the full typed
+  path (`&[PathSegment]`) and returns `Result<Value, FieldError>`. Hosts return
+  null for absent values and use the new `FieldError` for invalid access.
+  `resolve_value_segments` takes a borrowed `&Value` and applies the path with
+  1-based indices. The optional `Environment::precomputed` method can supply
+  a function call's value before FEL evaluates its arguments.
+- A type error within a host-resolved field projection returns null for the entire reference
+  and reports one diagnostic. For numeric `items`, `$items[*].x` previously
+  returned `[null, null, null]` with three diagnostics. It now returns null
+  with one diagnostic, and `count($items[*].x)` changes from 0 to null.
 
 ## [0.3.0] - 2026-09-16
 

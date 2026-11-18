@@ -259,7 +259,9 @@ fn extract_field_path_str(expr: &Expr) -> String {
 
 fn extend_field_path(expr: &Expr, extra_path: &[PathSegment]) -> Option<String> {
     match expr {
-        Expr::FieldRef { .. } | Expr::VarRef { .. } => {
+        Expr::FieldRef { path, .. } | Expr::VarRef { path, .. }
+            if !path.contains(&PathSegment::Wildcard) =>
+        {
             let mut path = extract_field_path_str(expr);
             for seg in extra_path {
                 seg.append_to_path(&mut path, PathDotJoin::PrefixWhenNonempty);
@@ -337,6 +339,13 @@ mod tests {
         let d = deps("$items[*].qty");
         assert!(d.has_wildcard);
         assert!(d.fields.contains("items[*].qty"));
+    }
+
+    #[test]
+    fn postfix_on_projection_reads_the_inner_field_path() {
+        let d = deps("($rows[*].x)[1]");
+        assert!(d.has_wildcard);
+        assert_eq!(d.fields.into_iter().collect::<Vec<_>>(), ["rows[*].x"]);
     }
 
     #[test]

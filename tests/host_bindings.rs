@@ -4,6 +4,7 @@
 use std::collections::HashMap;
 use std::fs;
 
+use fel_core::ast::PathSegment;
 use fel_core::{
     ContextBinding, ContextBindingCatalog, ContextBindingKind, EmptyCatalog, Environment,
     EvaluatorOptions, IndexMap, MapEnvironment, UNBOUND_CONTEXT_REF_CODE, Value, evaluate,
@@ -55,9 +56,149 @@ impl ContextBindingCatalog for ArgCatalog {
 
 struct LegacyContextEnv;
 
-impl Environment for LegacyContextEnv {
-    fn resolve_field(&self, _segments: &[String]) -> Value {
+struct FullPathEnv;
+
+impl Environment for FullPathEnv {
+    fn resolve_field(
+        &self,
+        root: Option<&str>,
+        path: &[PathSegment],
+    ) -> Result<Value, fel_core::FieldError> {
+        let path = path
+            .iter()
+            .fold(root.unwrap_or("$").to_owned(), |mut text, segment| {
+                match segment {
+                    PathSegment::Dot(key) => text.push_str(&format!(".{key}")),
+                    PathSegment::Index(index) => text.push_str(&format!("[{index}]")),
+                    PathSegment::Wildcard => text.push_str("[*]"),
+                }
+                text
+            });
+        if root == Some("bad") {
+            return Err(fel_core::FieldError::new("host refused the field path"));
+        }
+        Ok(Value::String(path))
+    }
+
+    fn resolve_context(&self, _name: &str, _arg: Option<&str>, _tail: &[String]) -> Value {
         Value::Null
+    }
+
+    fn precomputed(&self, expr: &fel_core::Expr) -> Option<Value> {
+        match expr {
+            fel_core::Expr::FunctionCall { name, .. } if name == "sum" => {
+                Some(Value::Boolean(true))
+            }
+            _ => None,
+        }
+    }
+}
+
+#[test]
+fn host_receives_complete_authored_field_path_after_let_lookup() {
+    for (source, expected) in [
+        ("$a.b[*].c", "a.b[*].c"),
+        ("a.b[*].c", "a.b[*].c"),
+        ("(((($a).b)[*]).c)", "a.b[*].c"),
+        ("a.b", "a.b"),
+        ("($a).b", "a.b"),
+    ] {
+        let result = evaluate(&parse(source).unwrap(), &FullPathEnv);
+        assert_eq!(result.value, Value::String(expected.into()), "{source}");
+        assert!(
+            result.diagnostics.is_empty(),
+            "{source}: {:?}",
+            result.diagnostics
+        );
+    }
+    let result = evaluate(
+        &parse("let a = {b: [{c: 'local'}]} in ((a).b)[1].c").unwrap(),
+        &FullPathEnv,
+    );
+    assert_eq!(result.value, Value::String("local".into()));
+    assert_eq!(
+        evaluate(&parse("$.tail").unwrap(), &FullPathEnv).value,
+        Value::String("$.tail".into())
+    );
+    let result = evaluate(&parse("$bad.tail").unwrap(), &FullPathEnv);
+    assert_eq!(result.value, Value::Null);
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message == "host refused the field path")
+    );
+}
+
+#[test]
+fn postfix_after_parenthesized_wildcard_accesses_the_projected_value() {
+    let mut env = fel_core::FormspecEnvironment::new();
+    env.set_field(
+        "rows",
+        json_to_fel(&serde_json::json!([
+            {"x": 1, "y": [10, 20]}, {"x": 2, "y": [30, 40]}
+        ])),
+    );
+    for (source, expected) in [
+        ("($rows[*].x)[1]", serde_json::json!(1)),
+        ("($rows[*])[1]", serde_json::json!({"x": 1, "y": [10, 20]})),
+        ("($rows[*].y)[1]", serde_json::json!([10, 20])),
+    ] {
+        let result = evaluate(&parse(source).unwrap(), &env);
+        assert_eq!(fel_to_json(&result.value), expected, "{source}");
+        assert!(
+            result.diagnostics.is_empty(),
+            "{source}: {:?}",
+            result.diagnostics
+        );
+    }
+    let result = evaluate(&parse("($rows[*]).x").unwrap(), &env);
+    assert_eq!(result.value, Value::Null);
+    assert_eq!(result.diagnostics.len(), 1);
+    assert_eq!(result.diagnostics[0].message, "cannot access 'x' on array");
+}
+
+#[test]
+fn invalid_field_projection_reports_one_error_and_returns_null() {
+    let mut env = fel_core::FormspecEnvironment::new();
+    env.set_field("items", json_to_fel(&serde_json::json!([1, 2, 3])));
+    for source in ["$items[*].x", "count($items[*].x)"] {
+        let result = evaluate(&parse(source).unwrap(), &env);
+        assert_eq!(result.value, Value::Null, "{source}");
+        assert_eq!(
+            result.diagnostics.len(),
+            1,
+            "{source}: {:?}",
+            result.diagnostics
+        );
+        assert_eq!(result.diagnostics[0].message, "cannot access 'x' on number");
+    }
+}
+
+#[test]
+fn precomputed_call_skips_argument_evaluation() {
+    let result = evaluate(&parse("sum($bad.tail)").unwrap(), &FullPathEnv);
+    assert_eq!(result.value, Value::Boolean(true));
+    assert!(result.diagnostics.is_empty());
+}
+
+#[test]
+fn resolve_value_segments_uses_one_based_indices() {
+    let rows = Value::Array(vec![Value::String("first".into())]);
+    assert_eq!(
+        fel_core::resolve_value_segments(&rows, &[PathSegment::Index(1)]).unwrap(),
+        Value::String("first".into())
+    );
+    assert!(fel_core::resolve_value_segments(&rows, &[PathSegment::Index(0)]).is_err());
+}
+
+impl Environment for LegacyContextEnv {
+    fn resolve_field(
+        &self,
+        _root: Option<&str>,
+        _path: &[PathSegment],
+    ) -> Result<Value, fel_core::FieldError> {
+        Ok(Value::Null)
     }
 
     fn resolve_context(&self, name: &str, _arg: Option<&str>, _tail: &[String]) -> Value {
@@ -355,8 +496,12 @@ fn grammar_reserved_context_uses_environment_when_catalog_is_active() {
 /// review FUT-11.
 struct ReservedNamesEnv;
 impl Environment for ReservedNamesEnv {
-    fn resolve_field(&self, _segments: &[String]) -> Value {
-        Value::Null
+    fn resolve_field(
+        &self,
+        _root: Option<&str>,
+        _path: &[PathSegment],
+    ) -> Result<Value, fel_core::FieldError> {
+        Ok(Value::Null)
     }
     fn resolve_context(&self, name: &str, _arg: Option<&str>, _tail: &[String]) -> Value {
         match name {

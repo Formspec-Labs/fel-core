@@ -76,7 +76,7 @@ Uses `rust_decimal` for base-10 arithmetic per spec S3.4.1 (minimum 18 significa
 
 ### [`evaluator::core`](evaluator/core.md)
 
-*1 constant, 1 enum, 2 traits, 3 functions, 6 structs*
+*1 constant, 1 enum, 2 traits, 4 functions, 7 structs*
 
 ### [`exact_json`](exact_json.md)
 
@@ -773,10 +773,8 @@ Supports:
 
 **Trait Implementations:**
 
-- **Default**
-  - `fn default() -> Self`
 - **Environment**
-  - `fn resolve_field(self: &Self, segments: &[String]) -> TypeValue`
+  - `fn resolve_field(self: &Self, root: Option<&str>, path: &[PathSegment]) -> Result<TypeValue, FieldError>`
   - `fn resolve_context(self: &Self, name: &str, arg: Option<&str>, tail: &[String]) -> TypeValue`
   - `fn mip_valid(self: &Self, path: &[String]) -> TypeValue`
   - `fn mip_relevant(self: &Self, path: &[String]) -> TypeValue`
@@ -791,6 +789,8 @@ Supports:
   - `fn date_format(self: &Self, style: &str) -> Option<&str>`
   - `fn runtime_meta(self: &Self, key: &str) -> TypeValue`
   - `fn subject_key(self: &Self, key: &str) -> TypeValue`
+- **Default**
+  - `fn default() -> Self`
 
 
 
@@ -938,12 +938,12 @@ or renaming is a breaking change.
 
 **Trait Implementations:**
 
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Clone**
   - `fn clone(self: &Self) -> DiagnosticKind`
 - **PartialEq**
   - `fn eq(self: &Self, other: &DiagnosticKind) -> bool`
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 
 
 
@@ -960,12 +960,12 @@ Failure from [`crate::parse`] or fatal-style evaluation errors surfaced as `Err`
 
 **Trait Implementations:**
 
-- **Display**
-  - `fn fmt(self: &Self, f: & mut fmt::Formatter) -> fmt::Result`
 - **Clone**
   - `fn clone(self: &Self) -> Error`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **Display**
+  - `fn fmt(self: &Self, f: & mut fmt::Formatter) -> fmt::Result`
 
 
 
@@ -990,18 +990,18 @@ the refusal without parsing message strings.
 - `fn not_configured() -> Self` - Constructs the common `NotConfigured` case.
 - `fn multi_calendar_conflict(calendars: Vec<String>) -> Self` - Constructs a `MultiCalendarConflict` case carrying the calendars whose
 
-**Traits:** Error, Eq
+**Traits:** Eq, Error
 
 **Trait Implementations:**
 
-- **Clone**
-  - `fn clone(self: &Self) -> MissingTimezoneContextError`
-- **PartialEq**
-  - `fn eq(self: &Self, other: &MissingTimezoneContextError) -> bool`
 - **Display**
   - `fn fmt(self: &Self, f: & mut fmt::Formatter) -> fmt::Result`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **Clone**
+  - `fn clone(self: &Self) -> MissingTimezoneContextError`
+- **PartialEq**
+  - `fn eq(self: &Self, other: &MissingTimezoneContextError) -> bool`
 
 
 
@@ -1027,12 +1027,12 @@ timezone. Hosts surface their own variant from
 
 **Trait Implementations:**
 
+- **Clone**
+  - `fn clone(self: &Self) -> MissingTimezoneContextReason`
 - **PartialEq**
   - `fn eq(self: &Self, other: &MissingTimezoneContextReason) -> bool`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
-- **Clone**
-  - `fn clone(self: &Self) -> MissingTimezoneContextReason`
 
 
 
@@ -1057,14 +1057,14 @@ Lex or parse failure with optional source span (byte offsets into the expression
 
 **Trait Implementations:**
 
-- **Clone**
-  - `fn clone(self: &Self) -> ParseError`
 - **PartialEq**
   - `fn eq(self: &Self, other: &ParseError) -> bool`
 - **Display**
   - `fn fmt(self: &Self, f: & mut fmt::Formatter) -> fmt::Result`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **Clone**
+  - `fn clone(self: &Self) -> ParseError`
 
 
 
@@ -1087,12 +1087,12 @@ Diagnostic severity for tooling and JSON wire format.
 
 **Trait Implementations:**
 
+- **PartialEq**
+  - `fn eq(self: &Self, other: &Severity) -> bool`
 - **Clone**
   - `fn clone(self: &Self) -> Severity`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
-- **PartialEq**
-  - `fn eq(self: &Self, other: &Severity) -> bool`
 
 
 
@@ -1211,16 +1211,16 @@ Which resource limit was hit.
 - `Alloc` - Allocation exceeded [`EvalBudget::max_alloc_bytes`].
 - `Deadline` - Wall-clock deadline expired.
 
-**Traits:** Eq, Copy
+**Traits:** Copy, Eq
 
 **Trait Implementations:**
 
+- **PartialEq**
+  - `fn eq(self: &Self, other: &BudgetExceededKind) -> bool`
 - **Clone**
   - `fn clone(self: &Self) -> BudgetExceededKind`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
-- **PartialEq**
-  - `fn eq(self: &Self, other: &BudgetExceededKind) -> bool`
 
 
 
@@ -1267,6 +1267,7 @@ Hard cap on evaluation resource consumption. Exceeding any limit returns `Err(Bu
 - [`EvalResult`](#evalresult) - Result of evaluation: a value plus any accumulated diagnostics.
 - [`Evaluator`](#evaluator) - Tree-walking evaluator with `let` scopes and diagnostic collection.
 - [`EvaluatorOptions`](#evaluatoroptions) - Configuration for an evaluation run.
+- [`FieldError`](#fielderror) - A field reference the host could not resolve.
 - [`MapEnvironment`](#mapenvironment) - Flat `HashMap` environment for tests and simple hosts (no `@` context; fixed clock in default impl).
 
 **Enums**
@@ -1278,6 +1279,7 @@ Hard cap on evaluation resource consumption. Exceeding any limit returns `Err(Bu
 - [`evaluate`](#evaluate) - Evaluate an expression against an environment (no budget, no trace, no extensions).
 - [`evaluate_with`](#evaluate_with) - Evaluate with full configuration via [`EvaluatorOptions`].
 - [`evaluate_with_catalog`](#evaluate_with_catalog) - Evaluate with a host-supplied context binding catalog.
+- [`resolve_value_segments`](#resolve_value_segments) - Read a resolved value with 1-based indices and wildcard projection.
 
 **Traits**
 
@@ -1308,12 +1310,12 @@ Materialized host context binding returned by a catalog.
 
 **Trait Implementations:**
 
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Clone**
   - `fn clone(self: &Self) -> ContextBinding`
 - **PartialEq**
   - `fn eq(self: &Self, other: &ContextBinding) -> bool`
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 
 
 
@@ -1389,7 +1391,8 @@ Resolves `$` field paths, `@` context, MIP queries, repeat navigation, and clock
 
 **Methods:**
 
-- `resolve_field`: Resolve `$a.b` style path as segment list (`["a","b"]`); empty slice is bare `$`.
+- `resolve_field`: Resolve the whole authored field reference from the current site.
+- `precomputed`: Return a precomputed result for this function call, if available at the site.
 - `resolve_context`: Resolve `@name`, `@name('arg')`, `@name.tail`.
 - `mip_valid`: `valid($path)` — default `true` when not overridden.
 - `mip_relevant`: `relevant($path)` — default `true`.
@@ -1458,6 +1461,33 @@ Configuration for an evaluation run.
 
 
 
+## fel_core::evaluator::core::FieldError
+
+*Struct*
+
+A field reference the host could not resolve.
+
+**Tuple Struct**: `()`
+
+**Methods:**
+
+- `fn new<impl Into<String>>(message: impl Trait) -> Self` - Describe the invalid field access.
+
+**Traits:** Eq, Error
+
+**Trait Implementations:**
+
+- **Clone**
+  - `fn clone(self: &Self) -> FieldError`
+- **PartialEq**
+  - `fn eq(self: &Self, other: &FieldError) -> bool`
+- **Display**
+  - `fn fmt(self: &Self, formatter: & mut std::fmt::Formatter) -> std::fmt::Result`
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+
+
+
 ## fel_core::evaluator::core::MapEnvironment
 
 *Struct*
@@ -1480,7 +1510,7 @@ Flat `HashMap` environment for tests and simple hosts (no `@` context; fixed clo
 - **Default**
   - `fn default() -> Self`
 - **Environment**
-  - `fn resolve_field(self: &Self, segments: &[String]) -> Value`
+  - `fn resolve_field(self: &Self, root: Option<&str>, path: &[PathSegment]) -> Result<Value, FieldError>`
   - `fn resolve_context(self: &Self, _name: &str, _arg: Option<&str>, _tail: &[String]) -> Value`
   - `fn current_date(self: &Self) -> Result<Date, MissingTimezoneContextError>`
   - `fn current_datetime(self: &Self) -> Result<Date, MissingTimezoneContextError>`
@@ -1530,6 +1560,24 @@ existing callers while enabling FEL §6.3 catalog-aware evaluation.
 
 ```rust
 fn evaluate_with_catalog<'a>(expr: &Expr, env: &dyn Environment, options: EvaluatorOptions<'a>, catalog: &'a dyn ContextBindingCatalog) -> EvalResult
+```
+
+
+
+## fel_core::evaluator::core::resolve_value_segments
+
+*Function*
+
+Read a resolved value with 1-based indices and wildcard projection.
+
+Borrows the input and copies only the returned value or projected elements.
+
+# Errors
+
+Returns the first invalid access in the path. Missing values yield null.
+
+```rust
+fn resolve_value_segments(value: &Value, path: &[PathSegment]) -> Result<Value, FieldError>
 ```
 
 ---
@@ -2458,12 +2506,12 @@ One lexeme from [`tokenize`] for host bindings and tooling (stable type names + 
 
 **Trait Implementations:**
 
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Clone**
   - `fn clone(self: &Self) -> PositionedToken`
 - **PartialEq**
   - `fn eq(self: &Self, other: &PositionedToken) -> bool`
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 
 
 
@@ -2558,12 +2606,12 @@ Lexical token for FEL source (literals, keywords, operators, punctuation).
 
 **Trait Implementations:**
 
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Clone**
   - `fn clone(self: &Self) -> Token`
 - **PartialEq**
   - `fn eq(self: &Self, other: &Token) -> bool`
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 
 
 
@@ -2968,6 +3016,8 @@ ISO 4217 alphabetic currency code (three ASCII letters), normalized to uppercase
 
 **Trait Implementations:**
 
+- **PartialEq**
+  - `fn eq(self: &Self, other: &CurrencyCode) -> bool`
 - **Hash**
   - `fn hash<__H>(self: &Self, state: & mut __H)`
 - **Clone**
@@ -2976,8 +3026,6 @@ ISO 4217 alphabetic currency code (three ASCII letters), normalized to uppercase
   - `fn fmt(self: &Self, f: & mut fmt::Formatter) -> fmt::Result`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
-- **PartialEq**
-  - `fn eq(self: &Self, other: &CurrencyCode) -> bool`
 
 
 
@@ -3005,12 +3053,12 @@ Calendar date or date-time (no timezone model; used by date functions).
 
 **Trait Implementations:**
 
+- **PartialEq**
+  - `fn eq(self: &Self, other: &Date) -> bool`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Clone**
   - `fn clone(self: &Self) -> Date`
-- **PartialEq**
-  - `fn eq(self: &Self, other: &Date) -> bool`
 
 
 
@@ -3067,14 +3115,14 @@ Runtime value for FEL evaluation (mirrors JSON + dates + money).
 
 **Trait Implementations:**
 
+- **PartialEq**
+  - `fn eq(self: &Self, other: &Self) -> bool`
 - **Clone**
   - `fn clone(self: &Self) -> Value`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Display**
   - `fn fmt(self: &Self, f: & mut fmt::Formatter) -> fmt::Result`
-- **PartialEq**
-  - `fn eq(self: &Self, other: &Self) -> bool`
 
 
 

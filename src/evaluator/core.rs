@@ -1,6 +1,7 @@
 #![allow(clippy::missing_docs_in_private_items)]
 use indexmap::IndexMap;
 use rust_decimal::Decimal;
+use std::borrow::Cow;
 use std::collections::HashMap;
 
 use crate::ast::*;
@@ -24,10 +25,39 @@ pub const UNBOUND_CONTEXT_REF_CODE: &str = "FEL-UNBOUND-CONTEXT";
 
 // ── Evaluation context ──────────────────────────────────────────
 
+/// A field reference the host could not resolve.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FieldError(String);
+
+impl FieldError {
+    /// Describe the invalid field access.
+    pub fn new(message: impl Into<String>) -> Self {
+        Self(message.into())
+    }
+}
+
+impl std::fmt::Display for FieldError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for FieldError {}
+
 /// Resolves `$` field paths, `@` context, MIP queries, repeat navigation, and clock for FEL builtins.
 pub trait Environment {
-    /// Resolve `$a.b` style path as segment list (`["a","b"]`); empty slice is bare `$`.
-    fn resolve_field(&self, segments: &[String]) -> Value;
+    /// Resolve the whole authored field reference from the current site.
+    ///
+    /// `None` is bare `$`. Path subscripts are 1-based. An absent value is null.
+    ///
+    /// # Errors
+    ///
+    /// Returns a field access error for an invalid subscript or path.
+    fn resolve_field(&self, root: Option<&str>, path: &[PathSegment]) -> Result<Value, FieldError>;
+    /// Return a precomputed result for this function call, if available at the site.
+    fn precomputed(&self, _expr: &Expr) -> Option<Value> {
+        None
+    }
     /// Resolve `@name`, `@name('arg')`, `@name.tail`.
     fn resolve_context(&self, name: &str, arg: Option<&str>, tail: &[String]) -> Value;
 
@@ -229,31 +259,36 @@ impl Default for MapEnvironment {
     }
 }
 
-/// Default clock: pinned to 2026-03-20 for deterministic tests/examples; resolves nested fields by dotted key or object walk.
-impl Environment for MapEnvironment {
-    fn resolve_field(&self, segments: &[String]) -> Value {
+impl MapEnvironment {
+    fn lookup_dotted(&self, segments: &[String]) -> &Value {
         if segments.is_empty() {
-            return Value::Null;
+            return &Value::Null;
         }
         let key = segments.join(".");
         if let Some(val) = self.fields.get(&key) {
-            return val.clone();
+            return val;
         }
         // Walk nested objects
-        let mut current = match self.fields.get(&segments[0]) {
-            Some(v) => v.clone(),
-            None => return Value::Null,
-        };
+        let mut current = self.fields.get(&segments[0]).unwrap_or(&Value::Null);
         for seg in &segments[1..] {
-            match &current {
+            match current {
                 Value::Object(entries) => match entries.get(seg.as_str()) {
-                    Some(v) => current = v.clone(),
-                    None => return Value::Null,
+                    Some(v) => current = v,
+                    None => return &Value::Null,
                 },
-                _ => return Value::Null,
+                _ => return &Value::Null,
             }
         }
         current
+    }
+}
+
+/// Default clock: pinned to 2026-03-20 for deterministic tests/examples; resolves nested fields by dotted key or object walk.
+impl Environment for MapEnvironment {
+    fn resolve_field(&self, root: Option<&str>, path: &[PathSegment]) -> Result<Value, FieldError> {
+        crate::environment::resolve_legacy_field(root, path, |segments| {
+            Cow::Borrowed(self.lookup_dotted(segments))
+        })
     }
 
     fn resolve_context(&self, _name: &str, _arg: Option<&str>, _tail: &[String]) -> Value {
@@ -724,28 +759,8 @@ impl<'a> Evaluator<'a> {
                     .collect();
                 self.make_object(pairs)
             }
-            Expr::FieldRef { name, path } => {
-                let value = self.eval_field_ref(name, path);
-                if self.tracing() {
-                    let rendered = render_field_path(name, path);
-                    self.trace_step(TraceStep::FieldResolved {
-                        path: rendered,
-                        value: fel_to_json(&value),
-                    });
-                }
-                value
-            }
-            Expr::VarRef { name, path } => {
-                let value = self.eval_field_ref(&Some(name.clone()), path);
-                if self.tracing() {
-                    let rendered = render_field_path(&Some(name.clone()), path);
-                    self.trace_step(TraceStep::FieldResolved {
-                        path: rendered,
-                        value: fel_to_json(&value),
-                    });
-                }
-                value
-            }
+            Expr::FieldRef { name, path } => self.eval_field_ref(name.as_deref(), path),
+            Expr::VarRef { name, path } => self.eval_field_ref(Some(name), path),
             Expr::ContextRef {
                 name,
                 called,
@@ -819,6 +834,9 @@ impl<'a> Evaluator<'a> {
                 result
             }
             Expr::FunctionCall { name, args } => {
+                if let Some(value) = self.env.precomputed(expr) {
+                    return value;
+                }
                 // Eager traceable builtins rely on per-call arg caching (see `CallArgCache`);
                 // only pure functions may remain on the eager trace list.
                 let should_trace_call = self.tracing() && is_eager_traceable_function(name);
@@ -836,243 +854,107 @@ impl<'a> Evaluator<'a> {
                 }
                 result
             }
-            Expr::PostfixAccess { expr, path } => {
-                if let Expr::PostfixAccess {
-                    expr: inner,
-                    path: inner_path,
-                } = expr.as_ref()
-                {
-                    let mut combined = Vec::with_capacity(inner_path.len() + path.len());
-                    combined.extend(inner_path.iter().cloned());
-                    combined.extend(path.iter().cloned());
-                    if let Expr::ContextRef {
-                        name,
-                        called,
-                        arg,
-                        tail,
-                    } = inner.as_ref()
-                    {
-                        let mut context_path = context_tail_path(tail);
-                        context_path.extend(combined);
-                        return self.eval_context_ref_path(
-                            name,
-                            *called,
-                            arg.as_deref(),
-                            &context_path,
-                        );
-                    }
-                    let base = self.eval(inner);
-                    return self.access_path(base, &combined);
-                }
-                if let Expr::FieldRef {
-                    name: Some(name),
-                    path: base_path,
-                } = expr.as_ref()
-                {
-                    let mut segments = vec![name.clone()];
-                    let mut combined = Vec::with_capacity(base_path.len() + path.len());
-                    combined.extend(base_path.iter().cloned());
-                    combined.extend(path.iter().cloned());
-                    if combined
-                        .iter()
-                        .all(|segment| matches!(segment, PathSegment::Dot(_)))
-                    {
-                        // Let-bound identifiers resolve in `eval_field_ref` before the environment.
-                        // Skipping `eval(expr)` would merge path segments and call `resolve_field`
-                        // only, so e.g. `let x = {a: 1} in x.a` would wrongly yield null.
-                        let bound_in_let =
-                            self.let_scopes.iter().any(|scope| scope.contains_key(name));
-                        if !bound_in_let {
-                            for segment in &combined {
-                                if let PathSegment::Dot(part) = segment {
-                                    segments.push(part.clone());
-                                }
-                            }
-                            return self.env.resolve_field(&segments);
-                        }
-                    }
-                }
-                if let Expr::VarRef {
-                    name,
-                    path: base_path,
-                } = expr.as_ref()
-                {
-                    let mut segments = vec![name.clone()];
-                    let mut combined = Vec::with_capacity(base_path.len() + path.len());
-                    combined.extend(base_path.iter().cloned());
-                    combined.extend(path.iter().cloned());
-                    if combined
-                        .iter()
-                        .all(|segment| matches!(segment, PathSegment::Dot(_)))
-                    {
-                        let bound_in_let =
-                            self.let_scopes.iter().any(|scope| scope.contains_key(name));
-                        if !bound_in_let {
-                            for segment in &combined {
-                                if let PathSegment::Dot(part) = segment {
-                                    segments.push(part.clone());
-                                }
-                            }
-                            return self.env.resolve_field(&segments);
-                        }
-                    }
-                }
-                if let Expr::ContextRef {
-                    name,
-                    called,
-                    arg,
-                    tail,
-                } = expr.as_ref()
-                {
-                    let mut context_path = context_tail_path(tail);
-                    context_path.extend(path.iter().cloned());
-                    return self.eval_context_ref_path(
-                        name,
-                        *called,
-                        arg.as_deref(),
-                        &context_path,
-                    );
-                }
-                let base = self.eval(expr);
-                self.access_path(base, path)
+            Expr::PostfixAccess { .. } => self.eval_postfix(expr),
+        }
+    }
+
+    fn eval_postfix(&mut self, mut base: &Expr) -> Value {
+        let mut suffixes = Vec::new();
+        while let Expr::PostfixAccess { expr, path } = base {
+            if suffixes.len() + self.eval_depth >= MAX_EVAL_DEPTH {
+                self.diag("expression evaluation depth exceeded");
+                return Value::Null;
+            }
+            suffixes.push(path.as_slice());
+            base = expr;
+        }
+        let tail = suffixes.into_iter().rev().flatten().cloned();
+        match base {
+            // A wildcard already inside the atom yields a value for the outer postfix.
+            Expr::FieldRef { name, path } if !path.contains(&PathSegment::Wildcard) => {
+                let path: Vec<_> = path.iter().cloned().chain(tail).collect();
+                self.eval_field_ref(name.as_deref(), &path)
+            }
+            Expr::VarRef { name, path } if !path.contains(&PathSegment::Wildcard) => {
+                let path: Vec<_> = path.iter().cloned().chain(tail).collect();
+                self.eval_field_ref(Some(name), &path)
+            }
+            Expr::ContextRef {
+                name,
+                called,
+                arg,
+                tail: context_tail,
+            } => {
+                let path: Vec<_> = context_tail
+                    .iter()
+                    .cloned()
+                    .map(PathSegment::Dot)
+                    .chain(tail)
+                    .collect();
+                self.eval_context_ref_path(name, *called, arg.as_deref(), &path)
+            }
+            _ => {
+                let value = self.eval(base);
+                self.access_path(value, &tail.collect::<Vec<_>>())
             }
         }
     }
 
-    // ── Field references ────────────────────────────────────────
-
-    fn eval_field_ref(&mut self, name: &Option<String>, path: &[PathSegment]) -> Value {
-        match name {
-            None => {
-                // Check let-scopes for bare `$` (predicate rebound in countWhere / every / some
-                // and in *Where helpers via filter_where).
-                for scope in self.let_scopes.iter().rev() {
-                    if let Some(val) = scope.get("$") {
-                        return if path.is_empty() {
-                            val.clone()
-                        } else {
-                            self.access_path(val.clone(), path)
-                        };
-                    }
-                }
-                let base = self.env.resolve_field(&[]);
-                if path.is_empty() {
-                    base
-                } else {
-                    self.access_path(base, path)
-                }
-            }
-            Some(n) => {
-                // Check let-scopes first
-                for scope in self.let_scopes.iter().rev() {
-                    if let Some(val) = scope.get(n) {
-                        return if path.is_empty() {
-                            val.clone()
-                        } else {
-                            self.access_path(val.clone(), path)
-                        };
-                    }
-                }
-                // Build segments for environment resolution
-                let mut segments = vec![n.clone()];
-                let mut remaining_path = Vec::new();
-                let mut hit_special = false;
-                for seg in path {
-                    if hit_special {
-                        remaining_path.push(seg.clone());
-                    } else {
-                        match seg {
-                            PathSegment::Dot(name) => segments.push(name.clone()),
-                            _ => {
-                                hit_special = true;
-                                remaining_path.push(seg.clone());
-                            }
-                        }
-                    }
-                }
-                let base = self.env.resolve_field(&segments);
-                if matches!(base, Value::Null)
-                    && path.iter().any(|seg| matches!(seg, PathSegment::Index(_)))
-                {
-                    let mut flat_segments = vec![n.clone()];
-                    for seg in path {
-                        match seg {
-                            PathSegment::Dot(name) => flat_segments.push(name.clone()),
-                            PathSegment::Index(idx) => {
-                                if let Some(last) = flat_segments.last_mut() {
-                                    last.push_str(&format!("[{idx}]"));
-                                }
-                            }
-                            PathSegment::Wildcard => {
-                                if let Some(last) = flat_segments.last_mut() {
-                                    last.push_str("[*]");
-                                }
-                            }
-                        }
-                    }
-                    let flat = self.env.resolve_field(&flat_segments);
-                    if !matches!(flat, Value::Null) {
-                        return flat;
-                    }
-                }
-                if remaining_path.is_empty() {
-                    base
-                } else {
-                    self.access_path(base, &remaining_path)
-                }
-            }
-        }
-    }
-
-    fn access_path(&mut self, mut current: Value, path: &[PathSegment]) -> Value {
-        for (i, seg) in path.iter().enumerate() {
-            match seg {
-                PathSegment::Dot(name) => match &current {
-                    Value::Object(entries) => {
-                        current = entries.get(name.as_str()).cloned().unwrap_or(Value::Null);
-                    }
-                    Value::Null => return Value::Null,
-                    _ => {
-                        self.diag(format!("cannot access '{name}' on {}", current.type_name()));
-                        return Value::Null;
-                    }
-                },
-                PathSegment::Index(idx) => match &current {
-                    Value::Array(arr) => {
-                        // FEL indices are 1-based; guard above rejects 0 and OOB before subtracting.
-                        if *idx == 0 || *idx > arr.len() {
-                            self.diag(format!("index {idx} out of bounds (len {})", arr.len()));
-                            return Value::Null;
-                        }
-                        current = arr.get(*idx - 1).cloned().unwrap_or(Value::Null);
-                    }
-                    Value::Null => return Value::Null,
-                    _ => {
-                        self.diag(format!("cannot index into {}", current.type_name()));
-                        return Value::Null;
-                    }
-                },
-                PathSegment::Wildcard => match &current {
-                    Value::Array(arr) => {
-                        let remaining = &path[i + 1..];
-                        if remaining.is_empty() {
-                            return current;
-                        }
-                        let elems: Vec<Value> = arr
+    fn eval_field_ref(&mut self, root: Option<&str>, path: &[PathSegment]) -> Value {
+        let local = self
+            .let_scopes
+            .iter()
+            .rev()
+            .find_map(|scope| scope.get(root.unwrap_or("$")));
+        let value = if let Some(local) = local {
+            self.access_path(local.clone(), path)
+        } else {
+            match self.env.resolve_field(root, path) {
+                Ok(value) => {
+                    // A projection materializes an array at the host boundary. Plain field
+                    // lookups and a trailing wildcard only read an existing value.
+                    if self.budget.max_alloc_bytes < u64::MAX
+                        && matches!(value, Value::Array(_))
+                        && path
                             .iter()
-                            .map(|e| self.access_path(e.clone(), remaining))
-                            .collect();
-                        return self.make_array(elems);
+                            .rev()
+                            .skip(1)
+                            .any(|segment| matches!(segment, PathSegment::Wildcard))
+                    {
+                        self.track_alloc(value_size_estimate(&value));
                     }
-                    Value::Null => return Value::Null,
-                    _ => {
-                        self.diag(format!("cannot wildcard on {}", current.type_name()));
-                        return Value::Null;
+                    if self.alloc_limit_breached() {
+                        Value::Null
+                    } else {
+                        value
                     }
-                },
+                }
+                Err(error) => {
+                    self.diag(error.to_string());
+                    Value::Null
+                }
             }
+        };
+        if self.tracing() {
+            self.trace_step(TraceStep::FieldResolved {
+                path: render_field_path(root, path),
+                value: fel_to_json(&value),
+            });
         }
-        current
+        value
+    }
+
+    fn access_path(&mut self, current: Value, path: &[PathSegment]) -> Value {
+        if path.is_empty() {
+            return current;
+        }
+        access_value_path(&current, path, &mut |event| match event {
+            PathAccess::Array(values) => self.make_array(values),
+            PathAccess::Error(error) => {
+                self.diag(error.to_string());
+                Value::Null
+            }
+        })
     }
 
     // ── Unary operators ─────────────────────────────────────────
@@ -1863,4 +1745,91 @@ impl<'a> Evaluator<'a> {
         }
         Some(matched)
     }
+}
+
+/// Read a resolved value with 1-based indices and wildcard projection.
+///
+/// Borrows the input and copies only the returned value or projected elements.
+///
+/// # Errors
+///
+/// Returns the first invalid access in the path. Missing values yield null.
+pub fn resolve_value_segments(value: &Value, path: &[PathSegment]) -> Result<Value, FieldError> {
+    let mut first_error = None;
+    let value = access_value_path(value, path, &mut |event| match event {
+        PathAccess::Array(values) => Value::Array(values),
+        PathAccess::Error(error) => {
+            first_error.get_or_insert(error);
+            Value::Null
+        }
+    });
+    first_error.map_or(Ok(value), Err)
+}
+
+enum PathAccess {
+    Array(Vec<Value>),
+    Error(FieldError),
+}
+
+fn access_value_path(
+    mut current: &Value,
+    path: &[PathSegment],
+    handle: &mut impl FnMut(PathAccess) -> Value,
+) -> Value {
+    for (i, seg) in path.iter().enumerate() {
+        match seg {
+            PathSegment::Dot(name) => match current {
+                Value::Object(entries) => {
+                    current = entries.get(name.as_str()).unwrap_or(&Value::Null);
+                }
+                Value::Null => return Value::Null,
+                _ => {
+                    return handle(PathAccess::Error(FieldError::new(format!(
+                        "cannot access '{name}' on {}",
+                        current.type_name()
+                    ))));
+                }
+            },
+            PathSegment::Index(idx) => match current {
+                Value::Array(arr) => {
+                    // FEL indices are 1-based; guard above rejects 0 and OOB before subtracting.
+                    if *idx == 0 || *idx > arr.len() {
+                        return handle(PathAccess::Error(FieldError::new(format!(
+                            "index {idx} out of bounds (len {})",
+                            arr.len()
+                        ))));
+                    }
+                    current = &arr[*idx - 1];
+                }
+                Value::Null => return Value::Null,
+                _ => {
+                    return handle(PathAccess::Error(FieldError::new(format!(
+                        "cannot index into {}",
+                        current.type_name()
+                    ))));
+                }
+            },
+            PathSegment::Wildcard => match current {
+                Value::Array(arr) => {
+                    let remaining = &path[i + 1..];
+                    if remaining.is_empty() {
+                        break;
+                    }
+                    let elems: Vec<Value> = arr
+                        .iter()
+                        .map(|e| access_value_path(e, remaining, handle))
+                        .collect();
+                    return handle(PathAccess::Array(elems));
+                }
+                Value::Null => return Value::Null,
+                _ => {
+                    return handle(PathAccess::Error(FieldError::new(format!(
+                        "cannot wildcard on {}",
+                        current.type_name()
+                    ))));
+                }
+            },
+        }
+    }
+    current.clone()
 }

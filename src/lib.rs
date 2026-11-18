@@ -53,8 +53,9 @@ pub use error::{
 };
 pub use evaluator::{
     BudgetExceededKind, ContextBinding, ContextBindingCatalog, ContextBindingKind, EmptyCatalog,
-    Environment, EvalBudget, EvalResult, Evaluator, EvaluatorOptions, MapEnvironment,
+    Environment, EvalBudget, EvalResult, Evaluator, EvaluatorOptions, FieldError, MapEnvironment,
     UNBOUND_CONTEXT_REF_CODE, eval_with_fields, evaluate, evaluate_with, evaluate_with_catalog,
+    resolve_value_segments,
 };
 pub use extensions::{
     ExtensionCallOutcome, ExtensionError, ExtensionFn, ExtensionFunc, ExtensionFunctions,

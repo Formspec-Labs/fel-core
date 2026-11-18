@@ -14,8 +14,8 @@ mod util;
 pub use self::budget::{BudgetExceededKind, EvalBudget};
 pub use self::core::{
     ContextBinding, ContextBindingCatalog, ContextBindingKind, EmptyCatalog, Environment,
-    EvalResult, Evaluator, EvaluatorOptions, MapEnvironment, UNBOUND_CONTEXT_REF_CODE, evaluate,
-    evaluate_with, evaluate_with_catalog,
+    EvalResult, Evaluator, EvaluatorOptions, FieldError, MapEnvironment, UNBOUND_CONTEXT_REF_CODE,
+    evaluate, evaluate_with, evaluate_with_catalog, resolve_value_segments,
 };
 
 use std::collections::HashMap;

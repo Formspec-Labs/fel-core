@@ -49,6 +49,35 @@ fn step_budget_stops_long_addition_chain() {
 }
 
 #[test]
+fn field_wildcard_projection_counts_toward_allocation_budget() {
+    let expr = parse("$rows[*].amount").unwrap();
+    let row = Value::Object(fel_core::IndexMap::from([(
+        "amount".to_string(),
+        Value::Number(1.into()),
+    )]));
+    let env =
+        MapEnvironment::with_fields([("rows".to_string(), Value::Array(vec![row; 8]))].into());
+    let result = evaluate_with(
+        &expr,
+        &env,
+        EvaluatorOptions {
+            budget: EvalBudget {
+                max_alloc_bytes: 64,
+                ..EvalBudget::unlimited()
+            },
+            ..EvaluatorOptions::default()
+        },
+    );
+    assert_eq!(result.value, Value::Null);
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|d| d.message == "budget exceeded (alloc)")
+    );
+}
+
+#[test]
 fn step_budget_stops_deep_function_nesting() {
     let budget = EvalBudget {
         max_steps: 5,

@@ -312,10 +312,22 @@ proptests = [
 notes = "Canonical Environment impl; constructed in every eval proptest."
 
 [[entries]]
+symbol = "evaluator::FieldError"
+exemption = "E8"
+example_tests = ["tests/host_bindings.rs:L123-L131"]
+notes = "Host path refusals surface as a diagnostic and null."
+
+[[entries]]
+symbol = "evaluator::resolve_value_segments"
+exemption = "E8"
+example_tests = ["tests/host_bindings.rs:L186-L193"]
+notes = "A typed value path reports an invalid index."
+
+[[entries]]
 symbol = "evaluator::UNBOUND_CONTEXT_REF_CODE"
 exemption = "E8"
-example_tests = ["tests/host_bindings.rs:L130-L154"]
-notes = "Error-code constant string; empty_catalog_rejects_unbound_context_ref + mapping_source_is_rejected_when_not_in_active_catalog assert on the constant directly (host_bindings.rs:130-154)."
+example_tests = ["tests/host_bindings.rs:L272-L282", "tests/host_bindings.rs:L285-L295"]
+notes = "Error-code constant string asserted by the host binding tests."
 
 [[entries]]
 symbol = "evaluator::eval_with_fields"
