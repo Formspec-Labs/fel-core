@@ -278,31 +278,53 @@ fn extract_field_path_str(expr: &Expr) -> String {
     }
 }
 
-// Represent a selected row using the wildcard path of the rows it may read.
+/// Return the syntactic field path, using `[*]` for each selected row.
+///
+/// This is a source-level path. It does not resolve let bindings.
+pub fn source_field_path(expr: &Expr) -> Option<String> {
+    field_path_from_root(expr, |_, _| true)
+}
+
+/// Return a path only when the source explicitly names a field with `$`.
+pub(crate) fn explicit_field_path(expr: &Expr) -> Option<String> {
+    field_path_from_root(expr, |root, _| matches!(root, Expr::FieldRef { .. }))
+}
+
 fn field_path(expr: &Expr, let_vars: &[String]) -> Option<String> {
-    match expr {
-        Expr::FieldRef {
-            name: Some(name), ..
-        }
-        | Expr::VarRef { name, .. }
-            if !let_vars.contains(name) =>
-        {
-            Some(extract_field_path_str(expr))
-        }
-        Expr::PostfixAccess { expr, path } => {
-            let mut full_path = field_path(expr, let_vars)?;
-            for segment in path {
-                segment.append_to_path(&mut full_path, PathDotJoin::AlwaysPrefix);
+    field_path_from_root(expr, |_, name| !let_vars.iter().any(|bound| bound == name))
+}
+
+/// Postfix chains are parsed iteratively. Walk back to their root without recursion.
+fn field_path_from_root(mut expr: &Expr, accept: impl Fn(&Expr, &str) -> bool) -> Option<String> {
+    let mut suffixes = Vec::new();
+    loop {
+        match expr {
+            Expr::PostfixAccess { expr: base, path } => {
+                suffixes.push(path.as_slice());
+                expr = base;
             }
-            Some(full_path)
+            Expr::RowLookup { source, .. } => {
+                suffixes.push(std::slice::from_ref(&PathSegment::Wildcard));
+                expr = source;
+            }
+            Expr::FieldRef {
+                name: Some(name), ..
+            }
+            | Expr::VarRef { name, .. }
+                if accept(expr, name) =>
+            {
+                break;
+            }
+            _ => return None,
         }
-        Expr::RowLookup { source, .. } => {
-            let mut path = field_path(source, let_vars)?;
-            path.push_str("[*]");
-            Some(path)
-        }
-        _ => None,
     }
+    let mut path = extract_field_path_str(expr);
+    for suffix in suffixes.into_iter().rev() {
+        for segment in suffix {
+            segment.append_to_path(&mut path, PathDotJoin::AlwaysPrefix);
+        }
+    }
+    Some(path)
 }
 
 fn extend_field_path(expr: &Expr, extra_path: &[PathSegment]) -> Option<String> {

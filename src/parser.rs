@@ -30,8 +30,55 @@ use crate::ast::*;
 use crate::error::{Error, ParseError};
 use crate::lexer::{Lexer, SpannedToken, Token};
 
+/// A reference-bearing part of a parsed expression, with its UTF-8 byte range.
+#[derive(Debug)]
+pub struct SourceSite {
+    /// Half-open range into the original input, excluding surrounding trivia.
+    pub bytes: std::ops::Range<usize>,
+    /// Syntax and decoded value at this location.
+    pub kind: SiteKind,
+}
+
+/// Syntax recognized by the FEL parser. Consumers decide which names to edit.
+#[derive(Debug)]
+pub enum SiteKind {
+    /// A named field path, excluding its leading dollar from the value only.
+    Field(String),
+    /// Name after `@`, with no string argument.
+    ContextName(String),
+    /// Quoted argument of a context reference (context name, decoded literal).
+    ContextArgument(String, String),
+    /// Dotted tail of a context reference (context name, dotted path).
+    ContextTail(String, String),
+    /// A function's literal first argument (function name, decoded literal).
+    FirstStringArgument(String, String),
+    /// Key path of a selector (wildcard row path, dotted key).
+    RowKey(String, String),
+    /// Postfix path on a selected row (wildcard row path, suffix including punctuation).
+    RowTail(String, String),
+}
+
+/// Source locations are optional so evaluation only pays for the syntax tree.
+struct SourceSites {
+    /// Scalar-to-byte offsets for non-ASCII input. ASCII offsets are identical.
+    offsets: Vec<usize>,
+    sites: Vec<SourceSite>,
+}
+
+impl SourceSites {
+    fn push(&mut self, start: usize, end: usize, kind: SiteKind) {
+        let bytes = if self.offsets.is_empty() {
+            start..end
+        } else {
+            self.offsets[start]..self.offsets[end]
+        };
+        self.sites.push(SourceSite { bytes, kind });
+    }
+}
+
 /// Recursive-descent parser over a [`SpannedToken`] stream (use [`parse`] to build from source).
 pub struct Parser {
+    sites: Option<SourceSites>,
     tokens: Vec<SpannedToken>,
     pos: usize,
     /// When > 0, suppress `in` as membership operator (inside let-value).
@@ -42,9 +89,40 @@ pub struct Parser {
 
 /// Parse a FEL expression string into an AST.
 pub fn parse(input: &str) -> Result<Expr, Error> {
+    parse_inner(input, None).map(|(expr, _)| expr)
+}
+
+/// Parse an expression and locate its reference-bearing syntax in the original text.
+///
+/// Ranges are UTF-8 byte offsets into `input`. A parse error returns no sites.
+///
+/// # Errors
+///
+/// Returns the same lexer or parser error as [`parse`].
+pub fn parse_with_sites(input: &str) -> Result<(Expr, Vec<SourceSite>), Error> {
+    let offsets = if input.is_ascii() {
+        Vec::new()
+    } else {
+        input
+            .char_indices()
+            .map(|(i, _)| i)
+            .chain([input.len()])
+            .collect()
+    };
+    parse_inner(
+        input,
+        Some(SourceSites {
+            offsets,
+            sites: Vec::new(),
+        }),
+    )
+}
+
+fn parse_inner(input: &str, sites: Option<SourceSites>) -> Result<(Expr, Vec<SourceSite>), Error> {
     let mut lexer = Lexer::new(input);
     let tokens = lexer.tokenize().map_err(Error::Parse)?;
     let mut parser = Parser {
+        sites,
         tokens,
         pos: 0,
         no_in_depth: 0,
@@ -59,7 +137,7 @@ pub fn parse(input: &str) -> Result<Expr, Error> {
             parser.current().span.start
         )));
     }
-    Ok(expr)
+    Ok((expr, parser.sites.map(|s| s.sites).unwrap_or_default()))
 }
 
 impl Parser {
@@ -454,24 +532,44 @@ impl Parser {
     fn parse_postfix(&mut self) -> Result<Expr, Error> {
         let mut expr = self.parse_atom()?;
         loop {
-            match self.peek() {
-                Token::Dot => {
-                    self.advance();
-                    let name = self.eat_identifier()?;
-                    expr = self.attach_postfix_segment(expr, PathSegment::Dot(name));
+            let start = self.current().span.start;
+            let row = if self.sites.is_some() && matches!(expr, Expr::RowLookup { .. }) {
+                crate::dependencies::explicit_field_path(&expr)
+            } else {
+                None
+            };
+            let mut tail = String::new();
+            loop {
+                let segment = match self.peek() {
+                    Token::Dot => {
+                        self.advance();
+                        PathSegment::Dot(self.eat_identifier()?)
+                    }
+                    Token::LBracket if !self.starts_row_lookup() => {
+                        self.advance();
+                        self.parse_bracket_segment("")?
+                    }
+                    _ => break,
+                };
+                if row.is_some() {
+                    segment.append_to_path(&mut tail, PathDotJoin::AlwaysPrefix);
                 }
-                Token::LBracket if self.starts_row_lookup() => {
-                    expr = self.parse_row_lookup(expr)?;
-                }
-                Token::LBracket => {
-                    self.advance();
-                    let seg = self.parse_bracket_segment("")?;
-                    expr = self.attach_postfix_segment(expr, seg);
-                }
-                _ => break,
+                expr = self.attach_postfix_segment(expr, segment);
             }
+            if let (Some(sites), Some(row)) = (&mut self.sites, row)
+                && !tail.is_empty()
+            {
+                sites.push(
+                    start,
+                    self.tokens[self.pos - 1].span.end,
+                    SiteKind::RowTail(row, tail),
+                );
+            }
+            if !matches!(self.peek(), Token::LBracket) {
+                return Ok(expr);
+            }
+            expr = self.parse_row_lookup(expr)?;
         }
-        Ok(expr)
     }
 
     fn attach_postfix_segment(&mut self, expr: Expr, seg: PathSegment) -> Expr {
@@ -491,7 +589,7 @@ impl Parser {
 
     fn parse_row_lookup(&mut self, source: Expr) -> Result<Expr, Error> {
         let (key_path, key) =
-            self.parse_row_lookup_selector()
+            self.parse_row_lookup_selector(&source)
                 .map_err(|Error::Parse(mut err)| {
                     err.message = format!(
                         "expected a row lookup of the form [key = value]: {}",
@@ -506,12 +604,23 @@ impl Parser {
         })
     }
 
-    fn parse_row_lookup_selector(&mut self) -> Result<(Vec<String>, Expr), Error> {
+    fn parse_row_lookup_selector(&mut self, source: &Expr) -> Result<(Vec<String>, Expr), Error> {
         self.expect(&Token::LBracket)?;
+        let start = self.current().span.start;
         let mut key_path = vec![self.eat_identifier()?];
         while matches!(self.peek(), Token::Dot) {
             self.advance();
             key_path.push(self.eat_identifier()?);
+        }
+        if let Some(sites) = &mut self.sites
+            && let Some(mut row) = crate::dependencies::explicit_field_path(source)
+        {
+            row.push_str("[*]");
+            sites.push(
+                start,
+                self.tokens[self.pos - 1].span.end,
+                SiteKind::RowKey(row, key_path.join(".")),
+            );
         }
         self.expect(&Token::Eq)?;
         let key = self.parse_expression_with_in_allowed()?;
@@ -637,6 +746,8 @@ impl Parser {
         let mut name: Option<String> = None;
         let mut path = Vec::new();
 
+        let start = self.tokens[self.pos - 1].span.start;
+
         // Optional identifier after $
         if let Token::Identifier(n) = self.peek().clone() {
             name = Some(n.clone());
@@ -659,10 +770,21 @@ impl Parser {
             }
         }
 
-        Ok(Expr::FieldRef { name, path })
+        let expr = Expr::FieldRef { name, path };
+        if let Some(sites) = &mut self.sites
+            && let Some(path) = crate::dependencies::explicit_field_path(&expr)
+        {
+            sites.push(
+                start,
+                self.tokens[self.pos - 1].span.end,
+                SiteKind::Field(path),
+            );
+        }
+        Ok(expr)
     }
 
     fn parse_context_ref(&mut self) -> Result<Expr, Error> {
+        let name_span = self.current().span.clone();
         let name = self.eat_identifier()?;
         let mut called = false;
         let mut arg = None;
@@ -673,18 +795,45 @@ impl Parser {
             called = true;
             self.advance();
             if let Token::StringLit(s) = self.peek().clone() {
-                arg = Some(s.clone());
+                if let Some(sites) = &mut self.sites {
+                    let span = &self.tokens[self.pos].span;
+                    sites.push(
+                        span.start,
+                        span.end,
+                        SiteKind::ContextArgument(name.clone(), s.clone()),
+                    );
+                }
+                arg = Some(s);
                 self.advance();
             }
             self.expect(&Token::RParen)?;
         }
 
+        if let Some(sites) = &mut self.sites
+            && arg.is_none()
+        {
+            sites.push(
+                name_span.start,
+                name_span.end,
+                SiteKind::ContextName(name.clone()),
+            );
+        }
+        let first_tail_token = self.pos + 1;
         // Dot-chain: @instance('name').field.subfield
         while matches!(self.peek(), Token::Dot) {
             self.advance();
             tail.push(self.eat_identifier()?);
         }
 
+        if let Some(sites) = &mut self.sites
+            && !tail.is_empty()
+        {
+            sites.push(
+                self.tokens[first_tail_token].span.start,
+                self.tokens[self.pos - 1].span.end,
+                SiteKind::ContextTail(name.clone(), tail.join(".")),
+            );
+        }
         Ok(Expr::ContextRef {
             name,
             called,
@@ -697,7 +846,24 @@ impl Parser {
         self.expect(&Token::LParen)?;
         let mut args = Vec::new();
         if !matches!(self.peek(), Token::RParen) {
-            args.push(self.parse_expression_with_in_allowed()?);
+            let first_start = self.pos;
+            let first = self.parse_expression_with_in_allowed()?;
+            if let Some(sites) = &mut self.sites
+                && let Expr::String(value) = &first
+            {
+                // Grouping disappears from the AST. Locate the literal inside its parentheses.
+                if let Some(literal) = self.tokens[first_start..self.pos]
+                    .iter()
+                    .find(|t| matches!(t.token, Token::StringLit(_)))
+                {
+                    sites.push(
+                        literal.span.start,
+                        literal.span.end,
+                        SiteKind::FirstStringArgument(name.clone(), value.clone()),
+                    );
+                }
+            }
+            args.push(first);
             while matches!(self.peek(), Token::Comma) {
                 self.advance();
                 args.push(self.parse_expression_with_in_allowed()?);
@@ -775,6 +941,21 @@ impl Parser {
 mod tests {
     #![allow(clippy::missing_docs_in_private_items)]
     use super::*;
+
+    #[test]
+    fn locations_use_utf8_bytes_and_only_cover_reference_syntax() {
+        let source = r#"/*雪*/ prev(( "é" ), ($rows)[id = $sel].name)"#;
+        let (expr, sites) = parse_with_sites(source).unwrap();
+        assert_eq!(expr, parse(source).unwrap());
+        let mut slices: Vec<_> = sites.into_iter().map(|site| &source[site.bytes]).collect();
+        slices.sort_unstable();
+        assert_eq!(slices, [r#""é""#, "$rows", "$sel", ".name", "id"]);
+        let invalid = "$rows[id = $sel] +";
+        assert_eq!(
+            parse_with_sites(invalid).unwrap_err().to_string(),
+            parse(invalid).unwrap_err().to_string()
+        );
+    }
 
     #[test]
     fn test_parse_number() {
@@ -1375,6 +1556,7 @@ mod tests {
         let mut lexer = Lexer::new("42");
         let tokens = lexer.tokenize().expect("tokenize");
         let mut parser = Parser {
+            sites: None,
             tokens,
             pos: 0,
             no_in_depth: 0,
