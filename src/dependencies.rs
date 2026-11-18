@@ -278,9 +278,11 @@ fn extract_field_path_str(expr: &Expr) -> String {
     }
 }
 
-/// Return a path only when the source explicitly names a field with `$`.
-pub(crate) fn explicit_field_path(expr: &Expr) -> Option<String> {
-    field_path_from_root(expr, |root, _| matches!(root, Expr::FieldRef { .. }))
+/// Return a path only when the source names a field with `$` and no enclosing `let` binds it.
+pub(crate) fn explicit_field_path(expr: &Expr, let_vars: &[String]) -> Option<String> {
+    field_path_from_root(expr, |root, name| {
+        matches!(root, Expr::FieldRef { .. }) && !let_vars.iter().any(|bound| bound == name)
+    })
 }
 
 fn field_path(expr: &Expr, let_vars: &[String]) -> Option<String> {

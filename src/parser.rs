@@ -44,16 +44,19 @@ pub struct SourceSite {
 #[non_exhaustive]
 pub enum SiteKind {
     /// `$name.path`: the range covers the dollar sign and path; `path` omits the dollar sign.
+    #[non_exhaustive]
     Field {
         /// Dotted field path, with `[n]` and `[*]` segments.
         path: String,
     },
     /// The name after `@` in a context reference that has no string argument.
+    #[non_exhaustive]
     ContextName {
         /// Context name.
         name: String,
     },
     /// The quoted argument of `@name('value')`; the range covers the quotes.
+    #[non_exhaustive]
     ContextArgument {
         /// Context name.
         context: String,
@@ -61,6 +64,7 @@ pub enum SiteKind {
         value: String,
     },
     /// The dotted tail after a context reference, as in `@current.a.b`.
+    #[non_exhaustive]
     ContextTail {
         /// Context name.
         context: String,
@@ -68,6 +72,7 @@ pub enum SiteKind {
         path: String,
     },
     /// A string literal that is a function's whole first argument; the range covers the quotes.
+    #[non_exhaustive]
     FirstStringArgument {
         /// Function name.
         function: String,
@@ -75,6 +80,7 @@ pub enum SiteKind {
         value: String,
     },
     /// The key path of a keyed row lookup `$rows[key = value]`.
+    #[non_exhaustive]
     RowKey {
         /// Path of the selected row, ending in `[*]`.
         rows: String,
@@ -82,6 +88,7 @@ pub enum SiteKind {
         key: String,
     },
     /// The postfix path on a selected row, as in `$rows[id = 1].name`.
+    #[non_exhaustive]
     RowTail {
         /// Path of the selected row, ending in `[*]`.
         rows: String,
@@ -95,9 +102,15 @@ struct SourceSites {
     /// Scalar-to-byte offsets for non-ASCII input. ASCII offsets are identical.
     offsets: Vec<usize>,
     sites: Vec<SourceSite>,
+    /// `let` names in scope: the evaluator resolves `$name` to these before any field.
+    let_vars: Vec<String>,
 }
 
 impl SourceSites {
+    fn field_path(&self, expr: &Expr) -> Option<String> {
+        crate::dependencies::explicit_field_path(expr, &self.let_vars)
+    }
+
     fn push(&mut self, start: usize, end: usize, kind: SiteKind) {
         let bytes = if self.offsets.is_empty() {
             start..end
@@ -126,7 +139,9 @@ pub fn parse(input: &str) -> Result<Expr, Error> {
 
 /// Parse an expression and locate its reference-bearing syntax in the original text.
 ///
-/// Ranges are UTF-8 byte offsets into `input`. A parse error returns no sites.
+/// Ranges are UTF-8 byte offsets into `input`; sites come in source order and never overlap.
+/// A `$name` bound by an enclosing `let` is a local, not a field, and yields no site.
+/// A parse error returns no sites.
 ///
 /// # Errors
 ///
@@ -146,6 +161,7 @@ pub fn parse_with_sites(input: &str) -> Result<(Expr, Vec<SourceSite>), Error> {
         Some(SourceSites {
             offsets,
             sites: Vec::new(),
+            let_vars: Vec::new(),
         }),
     )
 }
@@ -262,7 +278,14 @@ impl Parser {
             let value = self.parse_ternary()?;
             self.no_in_depth -= 1;
             self.expect(&Token::In)?;
+            // The name is in scope for the body only, so a `$name` there is not a field site.
+            if let Some(sites) = &mut self.sites {
+                sites.let_vars.push(name.clone());
+            }
             let body = self.parse_let_or_if()?;
+            if let Some(sites) = &mut self.sites {
+                sites.let_vars.pop();
+            }
             return Ok(Expr::LetBinding {
                 name,
                 value: Box::new(value),
@@ -565,10 +588,9 @@ impl Parser {
         let mut expr = self.parse_atom()?;
         loop {
             let start = self.current().span.start;
-            let row = if self.sites.is_some() && matches!(expr, Expr::RowLookup { .. }) {
-                crate::dependencies::explicit_field_path(&expr)
-            } else {
-                None
+            let row = match &self.sites {
+                Some(sites) if matches!(expr, Expr::RowLookup { .. }) => sites.field_path(&expr),
+                _ => None,
             };
             let mut tail = String::new();
             loop {
@@ -645,7 +667,7 @@ impl Parser {
             key_path.push(self.eat_identifier()?);
         }
         if let Some(sites) = &mut self.sites
-            && let Some(mut row) = crate::dependencies::explicit_field_path(source)
+            && let Some(mut row) = sites.field_path(source)
         {
             row.push_str("[*]");
             sites.push(
@@ -807,7 +829,7 @@ impl Parser {
 
         let expr = Expr::FieldRef { name, path };
         if let Some(sites) = &mut self.sites
-            && let Some(path) = crate::dependencies::explicit_field_path(&expr)
+            && let Some(path) = sites.field_path(&expr)
         {
             sites.push(
                 start,
@@ -1005,6 +1027,17 @@ mod tests {
     fn parse_error_spans_count_characters_not_bytes() {
         let Error::Parse(err) = parse("'é' ]").unwrap_err();
         assert_eq!(err.span, Some(4..5));
+    }
+
+    #[test]
+    fn let_bound_dollar_names_are_locals_not_field_sites() {
+        let source = "let lines = [{amt: $amt}] in sum($lines[*].amt) + $lines[id = 1].amt";
+        let (_, sites) = parse_with_sites(source).unwrap();
+        let s = String::from;
+        assert_eq!(
+            sites.into_iter().map(|site| site.kind).collect::<Vec<_>>(),
+            [SiteKind::Field { path: s("amt") }]
+        );
     }
 
     #[test]

@@ -2770,7 +2770,9 @@ fn parse(input: &str) -> Result<Expr, crate::error::Error>
 
 Parse an expression and locate its reference-bearing syntax in the original text.
 
-Ranges are UTF-8 byte offsets into `input`. A parse error returns no sites.
+Ranges are UTF-8 byte offsets into `input`; sites come in source order and never overlap.
+A `$name` bound by an enclosing `let` is a local, not a field, and yields no site.
+A parse error returns no sites.
 
 # Errors
 
