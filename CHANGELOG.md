@@ -12,6 +12,19 @@ conformance corpus.
 
 - `subject(key)` reads a declared filing-unit key. Hosts supply the value through
   `Environment::subject_key`.
+- `parser::parse_with_sites` parses an expression and returns a `SourceSite` with
+  the UTF-8 byte range and `SiteKind` of each reference-bearing part: `$` field
+  paths, context names, string arguments and tails, a function's literal first
+  argument, and row-lookup keys and tails. Sites come in source order and never
+  overlap. A `$name` bound by an enclosing `let` is a local and yields no site.
+  Tools that edit authored text, such as renames, splice these ranges instead of
+  parsing FEL again.
+
+### Fixed
+
+- `ParseError::span`, `Diagnostic::span` and lexer `Span` are documented as
+  Unicode scalar (char) indices, which the lexer has always produced. They were
+  documented as byte offsets.
 
 ### Changed (BREAKING)
 
