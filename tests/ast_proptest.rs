@@ -68,6 +68,22 @@ proptest! {
         prop_assert!(!refused);
     }
 
+    /// Static visitors see calls in both branches and in keyed lookups, whatever FEL evaluates.
+    #[test]
+    fn function_visitor_reports_nested_calls(condition in any::<bool>(), argc in 0usize..5) {
+        let args = vec!["null"; argc].join(", ");
+        let expression = parse(&format!(
+            "if {condition} then outer(inner({args})) else $rows[id = keyOf()].value"
+        )).unwrap();
+        let mut calls = Vec::new();
+        fel_core::visit_function_calls(&expression, &mut |name, count| {
+            calls.push((name.to_owned(), count));
+        });
+        prop_assert_eq!(calls, [
+            ("outer".to_owned(), 1), ("inner".to_owned(), argc), ("keyOf".to_owned(), 0),
+        ]);
+    }
+
     /// 2. `eval(parse(s), env) == eval(parse(s), env)` — determinism across two evaluations.
     #[test]
     fn eval_determinism(

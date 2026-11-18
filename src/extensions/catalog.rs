@@ -89,29 +89,31 @@ pub(crate) fn builtin_arity_mismatch(name: &str, got: usize) -> Option<Diagnosti
 /// before evaluating it report these up front. Extension calls are checked by their registry.
 pub fn builtin_arity_mismatches(expr: &Expr) -> Vec<Diagnostic> {
     let mut found = Vec::new();
-    visit_calls(expr, &mut |name, got| {
+    visit_function_calls(expr, &mut |name, got| {
         found.extend(builtin_arity_mismatch(name, got));
     });
     found
 }
 
 /// Call `visit` with the name and argument count of every function call in `expr`.
-fn visit_calls(expr: &Expr, visit: &mut impl FnMut(&str, usize)) {
+pub fn visit_function_calls(expr: &Expr, visit: &mut impl FnMut(&str, usize)) {
     match expr {
         Expr::FunctionCall { name, args } => {
             visit(name, args.len());
             for arg in args {
-                visit_calls(arg, visit);
+                visit_function_calls(arg, visit);
             }
         }
-        Expr::Array(items) => items.iter().for_each(|item| visit_calls(item, visit)),
+        Expr::Array(items) => items
+            .iter()
+            .for_each(|item| visit_function_calls(item, visit)),
         Expr::Object(entries) => entries
             .iter()
-            .for_each(|(_, value)| visit_calls(value, visit)),
-        Expr::UnaryOp { operand, .. } => visit_calls(operand, visit),
+            .for_each(|(_, value)| visit_function_calls(value, visit)),
+        Expr::UnaryOp { operand, .. } => visit_function_calls(operand, visit),
         Expr::BinaryOp { left, right, .. } | Expr::NullCoalesce { left, right } => {
-            visit_calls(left, visit);
-            visit_calls(right, visit);
+            visit_function_calls(left, visit);
+            visit_function_calls(right, visit);
         }
         Expr::Ternary {
             condition,
@@ -123,24 +125,24 @@ fn visit_calls(expr: &Expr, visit: &mut impl FnMut(&str, usize)) {
             then_branch,
             else_branch,
         } => {
-            visit_calls(condition, visit);
-            visit_calls(then_branch, visit);
-            visit_calls(else_branch, visit);
+            visit_function_calls(condition, visit);
+            visit_function_calls(then_branch, visit);
+            visit_function_calls(else_branch, visit);
         }
         Expr::Membership {
             value, container, ..
         } => {
-            visit_calls(value, visit);
-            visit_calls(container, visit);
+            visit_function_calls(value, visit);
+            visit_function_calls(container, visit);
         }
         Expr::LetBinding { value, body, .. } => {
-            visit_calls(value, visit);
-            visit_calls(body, visit);
+            visit_function_calls(value, visit);
+            visit_function_calls(body, visit);
         }
-        Expr::PostfixAccess { expr, .. } => visit_calls(expr, visit),
+        Expr::PostfixAccess { expr, .. } => visit_function_calls(expr, visit),
         Expr::RowLookup { source, key, .. } => {
-            visit_calls(source, visit);
-            visit_calls(key, visit);
+            visit_function_calls(source, visit);
+            visit_function_calls(key, visit);
         }
         Expr::Null
         | Expr::Boolean(_)

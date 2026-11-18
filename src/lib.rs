@@ -63,6 +63,7 @@ pub use extensions::{
     ExtensionRegistry, Package, builtin_arity, builtin_arity_mismatches, builtin_function_catalog,
     builtin_function_catalog_for, builtin_function_catalog_json_value,
     builtin_function_catalog_json_value_for, call_extension, check_extension_name,
+    visit_function_calls,
 };
 pub use indexmap::IndexMap;
 pub use interpolation::{expr_is_interpolation_static_literal, expr_references_instance_data};

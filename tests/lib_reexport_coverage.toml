@@ -427,6 +427,11 @@ proptests = ["tests/ast_proptest.rs::static_arity_check_accepts_catalog_calls"]
 notes = "Never refuses an in-bounds call; out-of-bounds calls for every catalog entry match the evaluator's refusal in evaluator_tests.rs."
 
 [[entries]]
+symbol = "extensions::visit_function_calls"
+proptests = ["tests/ast_proptest.rs::function_visitor_reports_nested_calls"]
+notes = "Reports nested call names and argument counts across both branches and row lookup keys."
+
+[[entries]]
 symbol = "extensions::builtin_function_catalog"
 proptests = [
     "tests/ast_proptest.rs::parse_print_eval_equivalence",

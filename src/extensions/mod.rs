@@ -29,7 +29,8 @@ mod types;
 
 pub(crate) use catalog::builtin_arity_mismatch;
 pub use catalog::{
-    builtin_arity, builtin_arity_mismatches, builtin_function_catalog, builtin_function_catalog_for,
+    builtin_arity, builtin_arity_mismatches, builtin_function_catalog,
+    builtin_function_catalog_for, visit_function_calls,
 };
 pub use registry::{
     ExtensionCallOutcome, ExtensionError, ExtensionFunctions, ExtensionRegistry, call_extension,
