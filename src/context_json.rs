@@ -113,6 +113,14 @@ pub fn formspec_environment_from_exact_json_map(ctx: &Map<String, Value>) -> For
     env
 }
 
+/// Convert a previously parsed context; original number digits cannot be recovered here.
+pub fn formspec_environment_from_json_map(
+    ctx: &serde_json::Map<String, serde_json::Value>,
+) -> FormspecEnvironment {
+    let value = Value::from(serde_json::Value::Object(ctx.clone()));
+    formspec_environment_from_exact_json_map(value.as_object().expect("converted object"))
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(clippy::missing_docs_in_private_items)]
@@ -233,12 +241,4 @@ mod tests {
         assert!(mip.readonly);
         assert!(!mip.required);
     }
-}
-
-/// Convert a previously parsed context; original number digits cannot be recovered here.
-pub fn formspec_environment_from_json_map(
-    ctx: &serde_json::Map<String, serde_json::Value>,
-) -> FormspecEnvironment {
-    let value = Value::from(serde_json::Value::Object(ctx.clone()));
-    formspec_environment_from_exact_json_map(value.as_object().expect("converted object"))
 }

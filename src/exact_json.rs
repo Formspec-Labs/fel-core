@@ -333,6 +333,7 @@ pub fn from_str(text: &str) -> Result<Value, serde_json::Error> {
     serde_json::from_str(text)
 }
 
+/// Decode one raw JSON value, keeping number tokens, up to 128 levels deep.
 fn parse_raw(raw: &RawValue, depth: usize) -> Result<Value, serde_json::Error> {
     if depth > 128 {
         return Err(<serde_json::Error as serde::de::Error>::custom(
