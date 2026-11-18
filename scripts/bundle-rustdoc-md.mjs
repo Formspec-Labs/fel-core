@@ -2,15 +2,13 @@
 /**
  * Bundles cargo-doc-md output into a single Markdown API reference.
  *
- * Usage:
+ * Usage (from the checkout containing the rustdoc output):
  *   node scripts/bundle-rustdoc-md.mjs <title> <target-subdir> <crate-folder> <out.md>
  */
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const root = path.join(__dirname, "..");
+const root = process.cwd();
 
 function walkMdFiles(dir) {
   const out = [];
@@ -26,7 +24,15 @@ function walkMdFiles(dir) {
 }
 
 function readText(filePath) {
-  return fs.readFileSync(filePath, "utf8").trimEnd();
+  return fs.readFileSync(filePath, "utf8").trimEnd()
+    .replace(/^\*\*Traits:\*\* (.+)$/gm,
+      (_, list) => `**Traits:** ${list.split(", ").sort().join(", ")}`)
+    .replace(/^(\*\*Trait Implementations:\*\*\n\n)((?:- \*\*[^\n]+(?:\n  [^\n]*)*\n?)+)/gm,
+      (_, heading, list) => {
+        // Keep each trait with its indented methods.
+        const blocks = list.trimEnd().split(/\n(?=- \*\*)/).sort();
+        return heading + blocks.join("\n") + (list.endsWith("\n") ? "\n" : "");
+      });
 }
 
 const [, , title, targetSubdir, crateFolder, outArg] = process.argv;
@@ -37,7 +43,7 @@ if (!title || !targetSubdir || !crateFolder || !outArg) {
   process.exit(1);
 }
 
-const inRoot = path.join(root, "target", targetSubdir);
+const inRoot = path.resolve(root, "target", targetSubdir);
 const moduleRoot = path.join(inRoot, crateFolder);
 const outPath = path.resolve(root, outArg);
 
@@ -59,16 +65,16 @@ for (const preferred of ["index.md", `${crateFolder}.md`]) {
     filesByRel.delete(preferred);
   }
 }
-for (const rel of [...filesByRel.keys()].sort((a, b) => a.localeCompare(b))) {
+for (const rel of [...filesByRel.keys()].sort()) {
   ordered.push([rel, filesByRel.get(rel)]);
 }
 
 const pieces = [
-  `# ${title} - generated API (Markdown)`,
+  `# ${title} — generated API (Markdown)`,
   "",
-  "> Do not edit by hand; regenerate with `npm run docs:fel-core`.",
+  "> Do not edit by hand; regenerate via npm script / cargo doc-md + this bundler.",
   "",
-  "Bundled from cargo-doc-md output. Nested module paths are preserved in headings.",
+  "Bundled from [cargo-doc-md](https://github.com/Crazytieguy/cargo-doc-md). Nested module paths are preserved in headings. Relative links may not resolve; search by heading.",
   "",
   "---",
   "",

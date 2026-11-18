@@ -1,8 +1,8 @@
-# fel-core - generated API (Markdown)
+# fel-core — generated API (Markdown)
 
-> Do not edit by hand; regenerate with `npm run docs:fel-core`.
+> Do not edit by hand; regenerate via npm script / cargo doc-md + this bundler.
 
-Bundled from cargo-doc-md output. Nested module paths are preserved in headings.
+Bundled from [cargo-doc-md](https://github.com/Crazytieguy/cargo-doc-md). Nested module paths are preserved in headings. Relative links may not resolve; search by heading.
 
 ---
 
@@ -351,12 +351,12 @@ Binary and logical operators (precedence enforced in the parser).
 
 **Trait Implementations:**
 
+- **Clone**
+  - `fn clone(self: &Self) -> BinaryOp`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **PartialEq**
   - `fn eq(self: &Self, other: &BinaryOp) -> bool`
-- **Clone**
-  - `fn clone(self: &Self) -> BinaryOp`
 
 
 
@@ -396,10 +396,10 @@ Shape follows `specs/fel/fel-grammar.llm.md` in the Formspec repo.
 
 - **Clone**
   - `fn clone(self: &Self) -> Expr`
-- **PartialEq**
-  - `fn eq(self: &Self, other: &Expr) -> bool`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **PartialEq**
+  - `fn eq(self: &Self, other: &Expr) -> bool`
 
 
 
@@ -416,10 +416,10 @@ A path segment for field references and postfix access (`$a.b`, `$a[1]`, `$a[*]`
 
 **Trait Implementations:**
 
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Clone**
   - `fn clone(self: &Self) -> PathSegment`
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **PartialEq**
   - `fn eq(self: &Self, other: &PathSegment) -> bool`
 
@@ -435,16 +435,16 @@ Unary operators (`not`, unary `-`).
 - `Not` - Logical not.
 - `Neg` - Arithmetic negation.
 
-**Traits:** Eq, Copy
+**Traits:** Copy, Eq
 
 **Trait Implementations:**
 
-- **PartialEq**
-  - `fn eq(self: &Self, other: &UnaryOp) -> bool`
 - **Clone**
   - `fn clone(self: &Self) -> UnaryOp`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **PartialEq**
+  - `fn eq(self: &Self, other: &UnaryOp) -> bool`
 
 ---
 
@@ -795,12 +795,12 @@ XForms Model Item Properties for a single field path.
 
 **Trait Implementations:**
 
+- **Clone**
+  - `fn clone(self: &Self) -> MipState`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Default**
   - `fn default() -> Self`
-- **Clone**
-  - `fn clone(self: &Self) -> MipState`
 
 
 
@@ -927,10 +927,10 @@ or renaming is a breaking change.
 
 - **Clone**
   - `fn clone(self: &Self) -> DiagnosticKind`
-- **PartialEq**
-  - `fn eq(self: &Self, other: &DiagnosticKind) -> bool`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **PartialEq**
+  - `fn eq(self: &Self, other: &DiagnosticKind) -> bool`
 
 
 
@@ -947,12 +947,12 @@ Failure from [`crate::parse`] or fatal-style evaluation errors surfaced as `Err`
 
 **Trait Implementations:**
 
-- **Display**
-  - `fn fmt(self: &Self, f: & mut fmt::Formatter) -> fmt::Result`
 - **Clone**
   - `fn clone(self: &Self) -> Error`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **Display**
+  - `fn fmt(self: &Self, f: & mut fmt::Formatter) -> fmt::Result`
 
 
 
@@ -983,12 +983,12 @@ the refusal without parsing message strings.
 
 - **Clone**
   - `fn clone(self: &Self) -> MissingTimezoneContextError`
-- **PartialEq**
-  - `fn eq(self: &Self, other: &MissingTimezoneContextError) -> bool`
-- **Display**
-  - `fn fmt(self: &Self, f: & mut fmt::Formatter) -> fmt::Result`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **Display**
+  - `fn fmt(self: &Self, f: & mut fmt::Formatter) -> fmt::Result`
+- **PartialEq**
+  - `fn eq(self: &Self, other: &MissingTimezoneContextError) -> bool`
 
 
 
@@ -1014,10 +1014,10 @@ timezone. Hosts surface their own variant from
 
 **Trait Implementations:**
 
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Clone**
   - `fn clone(self: &Self) -> MissingTimezoneContextReason`
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **PartialEq**
   - `fn eq(self: &Self, other: &MissingTimezoneContextReason) -> bool`
 
@@ -1046,12 +1046,12 @@ Lex or parse failure with optional source span (Unicode scalar indices into the 
 
 - **Clone**
   - `fn clone(self: &Self) -> ParseError`
-- **PartialEq**
-  - `fn eq(self: &Self, other: &ParseError) -> bool`
-- **Display**
-  - `fn fmt(self: &Self, f: & mut fmt::Formatter) -> fmt::Result`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **Display**
+  - `fn fmt(self: &Self, f: & mut fmt::Formatter) -> fmt::Result`
+- **PartialEq**
+  - `fn eq(self: &Self, other: &ParseError) -> bool`
 
 
 
@@ -1198,7 +1198,7 @@ Which resource limit was hit.
 - `Alloc` - Allocation exceeded [`EvalBudget::max_alloc_bytes`].
 - `Deadline` - Wall-clock deadline expired.
 
-**Traits:** Eq, Copy
+**Traits:** Copy, Eq
 
 **Trait Implementations:**
 
@@ -1232,10 +1232,10 @@ Hard cap on evaluation resource consumption. Exceeding any limit returns `Err(Bu
 
 **Trait Implementations:**
 
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Clone**
   - `fn clone(self: &Self) -> EvalBudget`
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 
 ---
 
@@ -1297,12 +1297,12 @@ Materialized host context binding returned by a catalog.
 
 **Trait Implementations:**
 
-- **PartialEq**
-  - `fn eq(self: &Self, other: &ContextBinding) -> bool`
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Clone**
   - `fn clone(self: &Self) -> ContextBinding`
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **PartialEq**
+  - `fn eq(self: &Self, other: &ContextBinding) -> bool`
 
 
 
@@ -1358,15 +1358,15 @@ No-op host context binding catalog.
 
 **Trait Implementations:**
 
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **Clone**
+  - `fn clone(self: &Self) -> EmptyCatalog`
 - **ContextBindingCatalog**
   - `fn binding_kind(self: &Self, _name: &str) -> Option<ContextBindingKind>`
   - `fn resolve(self: &Self, _name: &str, _arg: Option<&str>) -> Option<Value>`
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Default**
   - `fn default() -> EmptyCatalog`
-- **Clone**
-  - `fn clone(self: &Self) -> EmptyCatalog`
 
 
 
@@ -1466,14 +1466,14 @@ A field reference the host could not resolve.
 
 **Trait Implementations:**
 
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Clone**
   - `fn clone(self: &Self) -> FieldError`
-- **PartialEq**
-  - `fn eq(self: &Self, other: &FieldError) -> bool`
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Display**
   - `fn fmt(self: &Self, formatter: & mut std::fmt::Formatter) -> std::fmt::Result`
+- **PartialEq**
+  - `fn eq(self: &Self, other: &FieldError) -> bool`
 
 
 
@@ -1496,13 +1496,13 @@ Flat `HashMap` environment for tests and simple hosts (no `@` context; fixed clo
 
 **Trait Implementations:**
 
+- **Default**
+  - `fn default() -> Self`
 - **Environment**
   - `fn resolve_field(self: &Self, root: Option<&str>, path: &[PathSegment]) -> Result<Value, FieldError>`
   - `fn resolve_context(self: &Self, _name: &str, _arg: Option<&str>, _tail: &[String]) -> Value`
   - `fn current_date(self: &Self) -> Result<Date, MissingTimezoneContextError>`
   - `fn current_datetime(self: &Self) -> Result<Date, MissingTimezoneContextError>`
-- **Default**
-  - `fn default() -> Self`
 
 
 
@@ -1657,20 +1657,20 @@ A validated JSON number, retaining its original decimal digits.
 
 **Trait Implementations:**
 
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Clone**
   - `fn clone(self: &Self) -> Number`
-- **PartialEq**
-  - `fn eq(self: &Self, other: &Self) -> bool`
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Display**
   - `fn fmt(self: &Self, f: & mut fmt::Formatter) -> fmt::Result`
-- **Serialize**
-  - `fn serialize<S>(self: &Self, serializer: S) -> Result<<S as >::Ok, <S as >::Error>`
 - **From**
   - `fn from(value: Decimal) -> Self`
 - **FromStr**
   - `fn from_str(text: &str) -> Result<Self, <Self as >::Err>`
+- **PartialEq**
+  - `fn eq(self: &Self, other: &Self) -> bool`
+- **Serialize**
+  - `fn serialize<S>(self: &Self, serializer: S) -> Result<<S as >::Ok, <S as >::Error>`
 
 
 
@@ -1716,42 +1716,42 @@ JSON's six value kinds; a number is never an ordinary object or string.
 
 **Trait Implementations:**
 
-- **Index**
-  - `fn index(self: &Self, key: usize) -> &<Self as >::Output`
-- **Index**
-  - `fn index(self: &Self, key: &String) -> &<Self as >::Output`
 - **Clone**
   - `fn clone(self: &Self) -> Value`
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **Default**
+  - `fn default() -> Value`
+- **Deserialize**
+  - `fn deserialize<D>(deserializer: D) -> Result<Self, <D as >::Error>`
+- **Display**
+  - `fn fmt(self: &Self, f: & mut fmt::Formatter) -> fmt::Result`
+- **From**
+  - `fn from(value: serde_json::Value) -> Self`
+- **Index**
+  - `fn index(self: &Self, key: &String) -> &<Self as >::Output`
+- **Index**
+  - `fn index(self: &Self, key: &str) -> &<Self as >::Output`
+- **Index**
+  - `fn index(self: &Self, key: usize) -> &<Self as >::Output`
+- **IndexMut**
+  - `fn index_mut(self: & mut Self, key: &str) -> & mut <Self as >::Output`
+- **IndexMut**
+  - `fn index_mut(self: & mut Self, key: usize) -> & mut <Self as >::Output`
 - **JsonTree**
   - `fn get(self: &Self, key: &str) -> Option<&Self>`
   - `fn as_str(self: &Self) -> Option<&str>`
   - `fn as_array(self: &Self) -> Option<&Vec<Self>>`
   - `fn is_object(self: &Self) -> bool`
   - `fn members(self: &Self) -> impl Trait`
-- **Display**
-  - `fn fmt(self: &Self, f: & mut fmt::Formatter) -> fmt::Result`
 - **PartialEq**
   - `fn eq(self: &Self, other: &&str) -> bool`
-- **Default**
-  - `fn default() -> Value`
-- **From**
-  - `fn from(value: serde_json::Value) -> Self`
-- **PartialEq**
-  - `fn eq(self: &Self, other: &serde_json::Value) -> bool`
 - **PartialEq**
   - `fn eq(self: &Self, other: &Value) -> bool`
+- **PartialEq**
+  - `fn eq(self: &Self, other: &serde_json::Value) -> bool`
 - **Serialize**
   - `fn serialize<S>(self: &Self, serializer: S) -> Result<<S as >::Ok, <S as >::Error>`
-- **IndexMut**
-  - `fn index_mut(self: & mut Self, key: &str) -> & mut <Self as >::Output`
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
-- **Index**
-  - `fn index(self: &Self, key: &str) -> &<Self as >::Output`
-- **Deserialize**
-  - `fn deserialize<D>(deserializer: D) -> Result<Self, <D as >::Error>`
-- **IndexMut**
-  - `fn index_mut(self: & mut Self, key: usize) -> & mut <Self as >::Output`
 
 
 
@@ -1965,10 +1965,10 @@ Result of [`ExtensionRegistry::call`].
 
 - **Clone**
   - `fn clone(self: &Self) -> ExtensionCallOutcome`
-- **PartialEq**
-  - `fn eq(self: &Self, other: &ExtensionCallOutcome) -> bool`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **PartialEq**
+  - `fn eq(self: &Self, other: &ExtensionCallOutcome) -> bool`
 
 
 
@@ -1985,12 +1985,12 @@ Error type for extension registration failures.
 
 **Trait Implementations:**
 
+- **Clone**
+  - `fn clone(self: &Self) -> ExtensionError`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Display**
   - `fn fmt(self: &Self, f: & mut std::fmt::Formatter) -> std::fmt::Result`
-- **Clone**
-  - `fn clone(self: &Self) -> ExtensionError`
 
 
 
@@ -2029,11 +2029,11 @@ Registry of extension functions backed by Rust closures.
 
 **Trait Implementations:**
 
+- **Default**
+  - `fn default() -> Self`
 - **ExtensionFunctions**
   - `fn arity(self: &Self, name: &str) -> Option<(usize, Option<usize>)>`
   - `fn invoke(self: &Self, name: &str, args: &[TypeValue]) -> Result<TypeValue, String>`
-- **Default**
-  - `fn default() -> Self`
 
 
 
@@ -2256,16 +2256,16 @@ FEL type identifier used in structured catalog entries.
 
 - `fn as_str(self: Self) -> &'static str` - Wire name used in the JSON schema.
 
-**Traits:** Eq, Copy
+**Traits:** Copy, Eq
 
 **Trait Implementations:**
 
+- **Clone**
+  - `fn clone(self: &Self) -> FelType`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **PartialEq**
   - `fn eq(self: &Self, other: &FelType) -> bool`
-- **Clone**
-  - `fn clone(self: &Self) -> FelType`
 
 
 
@@ -2284,16 +2284,16 @@ groups, instances, locale) and are no-ops against [`crate::MapEnvironment`].
 - `Universal` - Available to every host — pure language semantics.
 - `Formspec` - Requires formspec-shaped data: MIP queries, repeat groups, instances, locale.
 
-**Traits:** Eq, Copy
+**Traits:** Copy, Eq
 
 **Trait Implementations:**
 
+- **Clone**
+  - `fn clone(self: &Self) -> Package`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **PartialEq**
   - `fn eq(self: &Self, other: &Package) -> bool`
-- **Clone**
-  - `fn clone(self: &Self) -> Package`
 
 
 
@@ -2395,7 +2395,7 @@ Outcome of parsing an ISO 8601 duration for FEL.
 - `Invalid` - Empty input, missing `P`, unsupported shape, or a numeric component that does not fit `i128`.
 - `OutOfRange` - Total milliseconds do not fit in `i64`.
 
-**Traits:** Eq, Copy
+**Traits:** Copy, Eq
 
 **Trait Implementations:**
 
@@ -2495,12 +2495,12 @@ One lexeme from [`tokenize`] for host bindings and tooling (stable type names + 
 
 **Trait Implementations:**
 
-- **PartialEq**
-  - `fn eq(self: &Self, other: &PositionedToken) -> bool`
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Clone**
   - `fn clone(self: &Self) -> PositionedToken`
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **PartialEq**
+  - `fn eq(self: &Self, other: &PositionedToken) -> bool`
 
 
 
@@ -2595,12 +2595,12 @@ Lexical token for FEL source (literals, keywords, operators, punctuation).
 
 **Trait Implementations:**
 
-- **PartialEq**
-  - `fn eq(self: &Self, other: &Token) -> bool`
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Clone**
   - `fn clone(self: &Self) -> Token`
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **PartialEq**
+  - `fn eq(self: &Self, other: &Token) -> bool`
 
 
 
@@ -2708,13 +2708,13 @@ Recursive-descent parser over a [`SpannedToken`] stream (use [`parse`] to build 
 Reference syntax the FEL parser located. Consumers decide which sites to act on.
 
 **Variants:**
-- `Field{ path: String }` - `$name.path`: the range covers the dollar sign and path; `path` omits the dollar sign.
+- `Field{ path: String }` - `$name.path` or `($name).path`: the range covers the entire reference.
 - `ContextName{ name: String }` - The name after `@` in a context reference that has no string argument.
 - `ContextArgument{ context: String, value: String }` - The quoted argument of `@name('value')`; the range covers the quotes.
 - `ContextTail{ context: String, path: String }` - The dotted tail after a context reference, as in `@current.a.b`.
 - `FirstStringArgument{ function: String, value: String }` - A string literal that is a function's whole first argument; the range covers the quotes.
 - `RowKey{ rows: String, key: String }` - The key path of a keyed row lookup `$rows[key = value]`.
-- `RowTail{ rows: String, tail: String }` - The postfix path on a selected row, as in `$rows[id = 1].name`.
+- `RowTail{ rows: String, prefix: String, tail: String }` - The postfix path on a selected row, as in `$rows[id = 1].name`.
 - `UnboundName{ name: String }` - A bare name no enclosing `let` binds, as in `amount > 0`; the field read is `$amount`.
 
 **Traits:** Eq
@@ -2723,10 +2723,10 @@ Reference syntax the FEL parser located. Consumers decide which sites to act on.
 
 - **Clone**
   - `fn clone(self: &Self) -> SiteKind`
-- **PartialEq**
-  - `fn eq(self: &Self, other: &SiteKind) -> bool`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **PartialEq**
+  - `fn eq(self: &Self, other: &SiteKind) -> bool`
 
 
 
@@ -2746,10 +2746,10 @@ A reference-bearing part of a parsed expression, with its UTF-8 byte range.
 
 - **Clone**
   - `fn clone(self: &Self) -> SourceSite`
-- **PartialEq**
-  - `fn eq(self: &Self, other: &SourceSite) -> bool`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **PartialEq**
+  - `fn eq(self: &Self, other: &SourceSite) -> bool`
 
 
 
@@ -2855,10 +2855,10 @@ error-explainer) can render the sequence top-to-bottom to reconstruct
   - `fn clone(self: &Self) -> Trace`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
-- **Serialize**
-  - `fn serialize<__S>(self: &Self, __serializer: __S) -> _serde::__private229::Result<<__S as >::Ok, <__S as >::Error>`
 - **Default**
   - `fn default() -> Trace`
+- **Serialize**
+  - `fn serialize<__S>(self: &Self, __serializer: __S) -> _serde::__private229::Result<<__S as >::Ok, <__S as >::Error>`
 
 
 
@@ -2881,12 +2881,12 @@ rather than emitting noise — correctness over completeness.
 
 **Trait Implementations:**
 
+- **Clone**
+  - `fn clone(self: &Self) -> TraceStep`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Serialize**
   - `fn serialize<__S>(self: &Self, __serializer: __S) -> _serde::__private229::Result<<__S as >::Ok, <__S as >::Error>`
-- **Clone**
-  - `fn clone(self: &Self) -> TraceStep`
 
 ---
 
@@ -2931,18 +2931,18 @@ ISO 4217 alphabetic currency code (three ASCII letters), normalized to uppercase
 - `fn parse(s: &str) -> Option<Self>` - Parses a three-letter ISO code; accepts any casing.
 - `fn as_str(self: &Self) -> &str` - Uppercase ISO code slice (e.g. `USD`).
 
-**Traits:** Eq, Copy
+**Traits:** Copy, Eq
 
 **Trait Implementations:**
 
-- **Hash**
-  - `fn hash<__H>(self: &Self, state: & mut __H)`
 - **Clone**
   - `fn clone(self: &Self) -> CurrencyCode`
-- **Display**
-  - `fn fmt(self: &Self, f: & mut fmt::Formatter) -> fmt::Result`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **Display**
+  - `fn fmt(self: &Self, f: & mut fmt::Formatter) -> fmt::Result`
+- **Hash**
+  - `fn hash<__H>(self: &Self, state: & mut __H)`
 - **PartialEq**
   - `fn eq(self: &Self, other: &CurrencyCode) -> bool`
 
@@ -2974,10 +2974,10 @@ Calendar date or date-time (no timezone model; used by date functions).
 
 - **Clone**
   - `fn clone(self: &Self) -> Date`
-- **PartialEq**
-  - `fn eq(self: &Self, other: &Date) -> bool`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **PartialEq**
+  - `fn eq(self: &Self, other: &Date) -> bool`
 
 
 
@@ -2997,10 +2997,10 @@ Monetary value with ISO currency code.
 
 - **Clone**
   - `fn clone(self: &Self) -> Money`
-- **PartialEq**
-  - `fn eq(self: &Self, other: &Money) -> bool`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **PartialEq**
+  - `fn eq(self: &Self, other: &Money) -> bool`
 
 
 
@@ -3146,11 +3146,11 @@ JSON object key style for WASM (`camelCase`) vs Python (`snake_case`) bindings.
 
 **Trait Implementations:**
 
-- **PartialEq**
-  - `fn eq(self: &Self, other: &JsonWireStyle) -> bool`
 - **Clone**
   - `fn clone(self: &Self) -> JsonWireStyle`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **PartialEq**
+  - `fn eq(self: &Self, other: &JsonWireStyle) -> bool`
 
 ---
