@@ -84,7 +84,7 @@ Uses `rust_decimal` for base-10 arithmetic per spec S3.4.1 (minimum 18 significa
 
 ### [`extensions::catalog`](extensions/catalog.md)
 
-*3 functions*
+*4 functions*
 
 ### [`extensions::registry`](extensions/registry.md)
 
@@ -1868,6 +1868,7 @@ fn to_value<T>(value: &T) -> Result<Value, serde_json::Error>
 **Functions**
 
 - [`builtin_arity`](#builtin_arity) - Look up the catalog-declared arity for `name` as `(min_args, max_args)`.
+- [`builtin_arity_mismatches`](#builtin_arity_mismatches) - Arity diagnostics for every built-in call in `expr` the evaluator would refuse, in source order.
 - [`builtin_function_catalog`](#builtin_function_catalog) - Slice of all built-in functions.
 - [`builtin_function_catalog_for`](#builtin_function_catalog_for) - Catalog filtered to entries reachable from `package`.
 
@@ -1879,12 +1880,27 @@ fn to_value<T>(value: &T) -> Result<Value, serde_json::Error>
 
 Look up the catalog-declared arity for `name` as `(min_args, max_args)`.
 
-Returns `None` when `name` is not a built-in. The evaluator uses this for the
-uniform pre-dispatch arity check so every catalog-declared signature is
-enforced consistently — see `Evaluator::eval_function`.
+Returns `None` when `name` is not a built-in. The evaluator's pre-dispatch gate and
+[`builtin_arity_mismatches`] both apply these bounds, so every catalog-declared
+signature is enforced the same way.
 
 ```rust
 fn builtin_arity(name: &str) -> Option<(usize, Option<usize>)>
+```
+
+
+
+## fel_core::extensions::catalog::builtin_arity_mismatches
+
+*Function*
+
+Arity diagnostics for every built-in call in `expr` the evaluator would refuse, in source order.
+
+Core §3.10.1 makes an arity mismatch a Definition error, so hosts that check a Definition
+before evaluating it report these up front. Extension calls are checked by their registry.
+
+```rust
+fn builtin_arity_mismatches(expr: &crate::ast::Expr) -> Vec<crate::error::Diagnostic>
 ```
 
 
@@ -2910,7 +2926,7 @@ rather than emitting noise — correctness over completeness.
 
 **Functions**
 
-- [`date_add_days`](#date_add_days) - Add days to a date.
+- [`date_add_days`](#date_add_days) - Add days to a date; `None` when the result's year does not fit a [`Date`].
 - [`format_number`](#format_number) - Format a Decimal: strip trailing zeros, show as integer when possible.
 - [`parse_date_literal`](#parse_date_literal) - Parse "@YYYY-MM-DD" into Date.
 - [`parse_datetime_literal`](#parse_datetime_literal) - Parse "@YYYY-MM-DDTHH:MM\[:SS\]..." into Date.
@@ -3049,10 +3065,10 @@ Runtime value for FEL evaluation (mirrors JSON + dates + money).
 
 *Function*
 
-Add days to a date.
+Add days to a date; `None` when the result's year does not fit a [`Date`].
 
 ```rust
-fn date_add_days(d: &Date, n: i64) -> Date
+fn date_add_days(d: &Date, n: i64) -> Option<Date>
 ```
 
 
