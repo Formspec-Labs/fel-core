@@ -78,12 +78,13 @@ fn diagnostic_kind_variant_key(kind: &DiagnosticKind, style: JsonWireStyle) -> &
 /// Expected top-level Dependencies-object keys per style (`fields` is shared
 /// across both styles, the other keys rename). Mirrors
 /// `dependencies_to_json_value_styled` in `src/dependencies.rs`.
-fn dependencies_top_level_keys(style: JsonWireStyle) -> [&'static str; 7] {
+fn dependencies_top_level_keys(style: JsonWireStyle) -> [&'static str; 8] {
     match style {
         JsonWireStyle::JsCamel => [
             "fields",
             "contextRefs",
             "instanceReads",
+            "selfReads",
             "mipDeps",
             "hasSelfRef",
             "hasWildcard",
@@ -93,6 +94,7 @@ fn dependencies_top_level_keys(style: JsonWireStyle) -> [&'static str; 7] {
             "fields",
             "context_refs",
             "instance_reads",
+            "self_reads",
             "mip_deps",
             "has_self_ref",
             "has_wildcard",
@@ -104,10 +106,11 @@ fn dependencies_top_level_keys(style: JsonWireStyle) -> [&'static str; 7] {
 /// `(camel_key, snake_key)` pairs whose JSON values must be identical across
 /// the two styles. Excludes `fields` (same key in both). Lets the parity
 /// property assert value-equality under different casings.
-fn dependencies_key_pairs() -> [(&'static str, &'static str); 6] {
+fn dependencies_key_pairs() -> [(&'static str, &'static str); 7] {
     [
         ("contextRefs", "context_refs"),
         ("instanceReads", "instance_reads"),
+        ("selfReads", "self_reads"),
         ("mipDeps", "mip_deps"),
         ("hasSelfRef", "has_self_ref"),
         ("hasWildcard", "has_wildcard"),
@@ -367,7 +370,7 @@ proptest! {
         let camel_obj = camel.as_object().expect("camel deps is object");
         let snake_obj = snake.as_object().expect("snake deps is object");
 
-        // Exact seven top-level keys per style.
+        // Exact top-level keys per style.
         let camel_expected = dependencies_top_level_keys(JsonWireStyle::JsCamel);
         let snake_expected = dependencies_top_level_keys(JsonWireStyle::PythonSnake);
 

@@ -47,3 +47,60 @@ fn literal_instance_function_paths_match_context_syntax() {
         json!({"survey":["totals.count"]})
     );
 }
+
+#[test]
+fn conditional_rows_keep_the_possible_instance_paths() {
+    for source in [
+        "coalesce(@instance('survey').rows, @instance('archive').rows)",
+        "if($chosen, @instance('survey').rows, @instance('archive').rows)",
+    ] {
+        let expr = parse(&format!("some({source}, $.active)")).unwrap();
+        let deps = extract_dependencies(&expr);
+        assert_eq!(
+            dependencies_to_json_value(&deps)["instanceReads"],
+            json!({"archive":["rows","rows[*].active"],"survey":["rows","rows[*].active"]})
+        );
+    }
+}
+
+#[test]
+fn constructed_rows_project_only_the_selected_member() {
+    let source = "some([{row: @instance('a').primary}, {row: @instance('b').backup}], $.row.id)";
+    let deps = extract_dependencies(&parse(source).unwrap());
+    assert_eq!(
+        dependencies_to_json_value(&deps)["instanceReads"],
+        json!({"a":["primary","primary.id"],"b":["backup","backup.id"]})
+    );
+    assert!(deps.fields.is_empty());
+}
+
+#[test]
+fn projection_preserves_element_paths_through_nested_arrays() {
+    let source = "some(@instance('a').rows[*].children, every($, $.id))";
+    let deps = extract_dependencies(&parse(source).unwrap());
+    assert_eq!(
+        dependencies_to_json_value(&deps)["instanceReads"],
+        json!({"a":["rows[*].children","rows[*].children[*].id"]})
+    );
+}
+
+#[test]
+fn unresolved_sources_keep_ambient_reads_and_rebind_dollar() {
+    let deps = extract_dependencies(&parse("some(x_rows($selector), $.name = $filter)").unwrap());
+    assert_eq!(deps.fields, ["selector", "filter"].map(String::from).into());
+    assert!(!deps.has_self_ref);
+}
+
+#[test]
+fn current_field_reads_differ_from_nested_predicate_columns() {
+    let source = "$.config.title ?? some($.rows, $.selected)";
+    let deps = extract_dependencies(&parse(source).unwrap());
+    assert_eq!(
+        deps.self_reads,
+        ["config.title", "rows", "rows[*].selected"]
+            .map(String::from)
+            .into()
+    );
+    assert!(deps.has_self_ref);
+    assert!(deps.fields.is_empty());
+}

@@ -6,6 +6,7 @@
 //! The `walk` helper and related functions recurse the AST to populate [`Dependencies`].
 #![allow(clippy::missing_docs_in_private_items)]
 use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::rc::Rc;
 
 use crate::ast::{Expr, PathDotJoin, PathSegment};
 
@@ -16,12 +17,15 @@ pub struct Dependencies {
     pub fields: HashSet<String>,
     /// Context references (e.g., `["@current", "@index"]`).
     pub context_refs: HashSet<String>,
-    /// Paths read per named instance. An empty path reads the instance root.
+    /// Paths read per statically named instance. An empty path covers the whole instance,
+    /// including a read whose path depends on runtime data. Computed names are unresolved.
     pub instance_reads: BTreeMap<String, BTreeSet<String>>,
     /// Function calls in traversal order, including their argument counts.
     pub function_calls: Vec<(String, usize)>,
     /// An instance lookup computes its source name at evaluation time.
     pub has_dynamic_instance: bool,
+    /// Paths relative to the current field, excluding dollars rebound by predicates.
+    pub self_reads: BTreeSet<String>,
     /// MIP dependencies: fields used in valid/relevant/readonly/required.
     pub mip_deps: HashSet<String>,
     /// Whether bare `$` (self-reference) appears.
@@ -53,54 +57,114 @@ pub fn extract_dependencies(expr: &Expr) -> Dependencies {
     deps
 }
 
-#[derive(Clone)]
-struct ReadPath {
-    instance: Option<String>,
-    path: String,
+#[derive(Clone, PartialEq)]
+enum Root {
+    Field,
+    Instance(String),
+    CurrentField,
 }
 
-impl ReadPath {
-    fn extend(&mut self, segments: &[PathSegment]) {
-        for segment in segments {
-            segment.append_to_path(&mut self.path);
-        }
-    }
+// Describe where a value came from only when syntax determines the answer.
+// Constructors retain their actual member names and indices. A projected array
+// has one set of possible element origins (e.g. rows[*].child).
+#[derive(Clone, PartialEq)]
+enum Origin {
+    Path(Root, String),
+    Object(Rc<BTreeMap<String, Origins>>),
+    Array(Rc<Vec<Origins>>),
+    Projection(Rc<Origins>),
+}
 
-    fn row(mut self) -> Self {
-        if !self.path.ends_with("[*]") {
-            self.path.push_str("[*]");
-        }
-        self
-    }
+type Origins = Vec<Origin>;
+type Bindings = Vec<(String, Origins)>;
 
-    fn record(&self, deps: &mut Dependencies) {
-        if let Some(name) = &self.instance {
-            deps.instance_reads
-                .entry(name.clone())
-                .or_default()
-                .insert(self.path.clone());
-        } else if !self.path.is_empty() {
-            deps.fields.insert(self.path.clone());
+fn record(origins: &Origins, deps: &mut Dependencies) {
+    for origin in origins {
+        match origin {
+            Origin::Path(Root::Instance(name), path) => {
+                deps.instance_reads
+                    .entry(name.clone())
+                    .or_default()
+                    .insert(path.clone());
+            }
+            Origin::Path(Root::Field, path) => {
+                deps.fields.insert(path.clone());
+            }
+            Origin::Path(Root::CurrentField, path) => {
+                deps.self_reads.insert(path.clone());
+            }
+            Origin::Projection(rows) => record(rows, deps),
+            // Each constructor member was visited when the value was built.
+            Origin::Array(_) | Origin::Object(_) => {}
         }
     }
 }
 
-// A let binding or predicate's rebound dollar can point to several statically known paths.
-type Bindings = Vec<(String, Vec<ReadPath>)>;
+fn union(mut left: Origins, right: Origins) -> Origins {
+    for origin in right {
+        if !left.contains(&origin) {
+            left.push(origin);
+        }
+    }
+    left
+}
 
-fn visit(expr: &Expr, deps: &mut Dependencies, bindings: &mut Bindings) -> Vec<ReadPath> {
+fn elements(origins: Origins) -> Origins {
+    origins.into_iter().fold(Vec::new(), |rows, origin| {
+        let values = match origin {
+            Origin::Path(root, mut path) => {
+                path.push_str("[*]");
+                vec![Origin::Path(root, path)]
+            }
+            Origin::Array(values) => values.iter().cloned().fold(Vec::new(), union),
+            Origin::Projection(values) => (*values).clone(),
+            Origin::Object(_) => Vec::new(),
+        };
+        union(rows, values)
+    })
+}
+
+fn follow(mut origins: Origins, path: &[PathSegment]) -> Origins {
+    for (index, segment) in path.iter().enumerate() {
+        if *segment == PathSegment::Wildcard {
+            let rows = follow(elements(origins), &path[index + 1..]);
+            return vec![Origin::Projection(Rc::new(rows))];
+        }
+        origins = origins.into_iter().fold(Vec::new(), |result, origin| {
+            let values = match (origin, segment) {
+                (Origin::Path(root, mut base), segment) => {
+                    segment.append_to_path(&mut base, PathDotJoin::PrefixWhenNonempty);
+                    vec![Origin::Path(root, base)]
+                }
+                (Origin::Object(entries), PathSegment::Dot(key)) => {
+                    entries.get(key).cloned().unwrap_or_default()
+                }
+                (Origin::Array(rows), PathSegment::Index(index)) => index
+                    .checked_sub(1)
+                    .and_then(|i| rows.get(i))
+                    .cloned()
+                    .unwrap_or_default(),
+                (Origin::Projection(rows), PathSegment::Index(_)) => (*rows).clone(),
+                _ => Vec::new(),
+            };
+            union(result, values)
+        });
+    }
+    origins
+}
+
+fn visit(expr: &Expr, deps: &mut Dependencies, bindings: &mut Bindings) -> Origins {
     let paths = walk(expr, deps, bindings);
     // A lookup already records its source collection and key column.
-    let bare_dollar = matches!(expr, Expr::FieldRef { name: None, path } if path.is_empty());
+    let bare_dollar = matches!(expr, Expr::FieldRef { name: None, path } if path.is_empty())
+        && bindings.iter().any(|(name, _)| name == "$");
     if !bare_dollar && !matches!(expr, Expr::RowLookup { .. }) {
-        for path in &paths {
-            path.record(deps);
-        }
+        record(&paths, deps);
     }
     paths
 }
 
-fn walk(expr: &Expr, deps: &mut Dependencies, bindings: &mut Bindings) -> Vec<ReadPath> {
+fn walk(expr: &Expr, deps: &mut Dependencies, bindings: &mut Bindings) -> Origins {
     match expr {
         Expr::FieldRef { name, path } => {
             return reference(name.as_deref(), path, deps, bindings);
@@ -129,10 +193,10 @@ fn walk(expr: &Expr, deps: &mut Dependencies, bindings: &mut Bindings) -> Vec<Re
             if name == "instance"
                 && let Some(instance) = arg
             {
-                return vec![ReadPath {
-                    instance: Some(instance.clone()),
-                    path: tail.join("."),
-                }];
+                return vec![Origin::Path(
+                    Root::Instance(instance.clone()),
+                    tail.join("."),
+                )];
             }
         }
         Expr::FunctionCall { name, args } => {
@@ -146,15 +210,25 @@ fn walk(expr: &Expr, deps: &mut Dependencies, bindings: &mut Bindings) -> Vec<Re
                         }
                     }
                 }
+                "coalesce" => {
+                    return args
+                        .iter()
+                        .map(|arg| visit(arg, deps, bindings))
+                        .fold(Vec::new(), union);
+                }
+                "if" if args.len() == 3 => {
+                    visit(&args[0], deps, bindings);
+                    return union(
+                        visit(&args[1], deps, bindings),
+                        visit(&args[2], deps, bindings),
+                    );
+                }
                 "prev" | "next" | "parent" => deps.uses_prev_next = true,
                 "countWhere" | "every" | "some" | "sumWhere" | "avgWhere" | "minWhere"
                 | "maxWhere" | "moneySumWhere"
                     if args.len() == 2 =>
                 {
-                    let rows = visit(&args[0], deps, bindings)
-                        .into_iter()
-                        .map(ReadPath::row)
-                        .collect();
+                    let rows = elements(visit(&args[0], deps, bindings));
                     bindings.push(("$".into(), rows));
                     visit(&args[1], deps, bindings);
                     bindings.pop();
@@ -183,10 +257,7 @@ fn walk(expr: &Expr, deps: &mut Dependencies, bindings: &mut Bindings) -> Vec<Re
                         return Vec::new();
                     }
                 };
-                return vec![ReadPath {
-                    instance: Some(instance.clone()),
-                    path,
-                }];
+                return vec![Origin::Path(Root::Instance(instance.clone()), path)];
             }
         }
         Expr::LetBinding { name, value, body } => {
@@ -214,14 +285,13 @@ fn walk(expr: &Expr, deps: &mut Dependencies, bindings: &mut Bindings) -> Vec<Re
             else_branch,
         } => {
             visit(condition, deps, bindings);
-            let mut paths = visit(then_branch, deps, bindings);
-            paths.extend(visit(else_branch, deps, bindings));
-            return paths;
+            return union(
+                visit(then_branch, deps, bindings),
+                visit(else_branch, deps, bindings),
+            );
         }
         Expr::NullCoalesce { left, right } => {
-            let mut paths = visit(left, deps, bindings);
-            paths.extend(visit(right, deps, bindings));
-            return paths;
+            return union(visit(left, deps, bindings), visit(right, deps, bindings));
         }
         Expr::Membership {
             value, container, ..
@@ -234,37 +304,44 @@ fn walk(expr: &Expr, deps: &mut Dependencies, bindings: &mut Bindings) -> Vec<Re
             key_path,
             key,
         } => {
-            let rows: Vec<_> = visit(source, deps, bindings)
-                .into_iter()
-                .map(ReadPath::row)
-                .collect();
+            let rows = elements(visit(source, deps, bindings));
             visit(key, deps, bindings);
-            for row in &rows {
-                let mut column = row.clone();
-                column.path.push('.');
-                column.path.push_str(&key_path.join("."));
-                column.record(deps);
-            }
+            let columns = key_path
+                .iter()
+                .cloned()
+                .map(PathSegment::Dot)
+                .collect::<Vec<_>>();
+            record(&follow(rows.clone(), &columns), deps);
             deps.has_wildcard = true;
             return rows;
         }
-        Expr::PostfixAccess { expr, path } => {
-            let mut paths = walk(expr, deps, bindings);
-            deps.has_wildcard |= path.contains(&PathSegment::Wildcard);
-            for base in &mut paths {
-                base.extend(path);
+        Expr::PostfixAccess { .. } => {
+            // As in evaluation, adjacent postfix nodes form a single access path.
+            let mut base = expr;
+            let mut suffixes = Vec::new();
+            while let Expr::PostfixAccess { expr, path } = base {
+                suffixes.push(path.as_slice());
+                base = expr;
             }
-            return paths;
+            let path: Vec<_> = suffixes.into_iter().rev().flatten().cloned().collect();
+            deps.has_wildcard |= path.contains(&PathSegment::Wildcard);
+            return follow(walk(base, deps, bindings), &path);
         }
         Expr::Array(elems) => {
-            for elem in elems {
-                visit(elem, deps, bindings);
-            }
+            return vec![Origin::Array(Rc::new(
+                elems
+                    .iter()
+                    .map(|value| visit(value, deps, bindings))
+                    .collect(),
+            ))];
         }
         Expr::Object(entries) => {
-            for (_, value) in entries {
-                visit(value, deps, bindings);
-            }
+            return vec![Origin::Object(Rc::new(
+                entries
+                    .iter()
+                    .map(|(key, value)| (key.clone(), visit(value, deps, bindings)))
+                    .collect(),
+            ))];
         }
         Expr::Null
         | Expr::Boolean(_)
@@ -281,27 +358,21 @@ fn reference(
     path: &[PathSegment],
     deps: &mut Dependencies,
     bindings: &Bindings,
-) -> Vec<ReadPath> {
+) -> Origins {
     deps.has_wildcard |= path.contains(&PathSegment::Wildcard);
-    let mut roots = if let Some((_, paths)) = bindings
+    let roots = if let Some((_, paths)) = bindings
         .iter()
         .rev()
         .find(|(key, _)| key == name.unwrap_or("$"))
     {
         paths.clone()
     } else if let Some(name) = name {
-        vec![ReadPath {
-            instance: None,
-            path: name.to_owned(),
-        }]
+        vec![Origin::Path(Root::Field, name.to_owned())]
     } else {
         deps.has_self_ref = true;
-        Vec::new()
+        vec![Origin::Path(Root::CurrentField, String::new())]
     };
-    for root in &mut roots {
-        root.extend(path);
-    }
-    roots
+    follow(roots, path)
 }
 
 fn extract_field_path_str(expr: &Expr) -> String {
@@ -381,6 +452,7 @@ pub fn dependencies_to_json_value_styled(
             "fields": deps.fields.iter().collect::<Vec<_>>(),
             "contextRefs": deps.context_refs.iter().collect::<Vec<_>>(),
             "instanceReads": deps.instance_reads,
+            "selfReads": deps.self_reads,
             "mipDeps": deps.mip_deps.iter().collect::<Vec<_>>(),
             "hasSelfRef": deps.has_self_ref,
             "hasWildcard": deps.has_wildcard,
@@ -390,6 +462,7 @@ pub fn dependencies_to_json_value_styled(
             "fields": deps.fields.iter().collect::<Vec<_>>(),
             "context_refs": deps.context_refs.iter().collect::<Vec<_>>(),
             "instance_reads": deps.instance_reads,
+            "self_reads": deps.self_reads,
             "mip_deps": deps.mip_deps.iter().collect::<Vec<_>>(),
             "has_self_ref": deps.has_self_ref,
             "has_wildcard": deps.has_wildcard,
