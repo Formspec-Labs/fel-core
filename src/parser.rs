@@ -43,7 +43,7 @@ pub struct SourceSite {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum SiteKind {
-    /// `$name.path`: the range covers the dollar sign and path; `path` omits the dollar sign.
+    /// `$name.path` or `($name).path`: the range covers the entire reference.
     #[non_exhaustive]
     Field {
         /// Dotted field path, with `[n]` and `[*]` segments.
@@ -92,6 +92,8 @@ pub enum SiteKind {
     RowTail {
         /// Path of the selected row, ending in `[*]`.
         rows: String,
+        /// Path after the lookup but inside the grouped operand, including its delimiters.
+        prefix: String,
         /// Postfix path including its leading `.` or `[`.
         tail: String,
     },
@@ -593,14 +595,24 @@ impl Parser {
     // ── Postfix (dot/bracket access) ────────────────────────────
 
     fn parse_postfix(&mut self) -> Result<Expr, Error> {
+        let mut grouped_start =
+            matches!(self.peek(), Token::LParen).then(|| self.current().span.start);
         let mut expr = self.parse_atom()?;
         loop {
             let start = self.current().span.start;
-            let row = match &self.sites {
-                Some(sites) if matches!(expr, Expr::RowLookup { .. }) => sites.field_path(&expr),
-                _ => None,
-            };
+            let grouped = grouped_start.take();
+            let row = self.sites.as_ref().and_then(|sites| {
+                let base = postfix_base(&expr);
+                if !matches!(base, Expr::RowLookup { .. }) {
+                    return None;
+                }
+                let rows = sites.field_path(base)?;
+                let path = sites.field_path(&expr)?;
+                let prefix = path.strip_prefix(&rows)?.to_owned();
+                Some((rows, prefix))
+            });
             let mut tail = String::new();
+            let postfix_start = self.pos;
             loop {
                 let segment = match self.peek() {
                     Token::Dot => {
@@ -618,14 +630,22 @@ impl Parser {
                 }
                 expr = self.attach_postfix_segment(expr, segment);
             }
-            if let (Some(sites), Some(row)) = (&mut self.sites, row)
-                && !tail.is_empty()
+            if let Some(sites) = &mut self.sites
+                && self.pos > postfix_start
             {
-                sites.push(
-                    start,
-                    self.tokens[self.pos - 1].span.end,
-                    SiteKind::RowTail { rows: row, tail },
-                );
+                let end = self.tokens[self.pos - 1].span.end;
+                if let Some((rows, prefix)) = row {
+                    sites.push(start, end, SiteKind::RowTail { rows, prefix, tail });
+                } else if let Some(grouped) = grouped
+                    && matches!(postfix_base(&expr), Expr::FieldRef { path, .. }
+                        if !path.contains(&PathSegment::Wildcard))
+                    && let Some(path) = sites.field_path(&expr)
+                {
+                    // The grouped operand contributed only its Field site. Replace it
+                    // with one span, since the dot path crosses the closing parenthesis.
+                    sites.sites.pop();
+                    sites.push(grouped, end, SiteKind::Field { path });
+                }
             }
             if !matches!(self.peek(), Token::LBracket) {
                 return Ok(expr);
@@ -1018,6 +1038,14 @@ impl Parser {
     }
 }
 
+/// Walk past postfix accesses to the operand they extend, without recursion.
+fn postfix_base(mut expr: &Expr) -> &Expr {
+    while let Expr::PostfixAccess { expr: inner, .. } = expr {
+        expr = inner;
+    }
+    expr
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(clippy::missing_docs_in_private_items)]
@@ -1128,6 +1156,7 @@ mod tests {
                     ".n",
                     SiteKind::RowTail {
                         rows: s("r[*]"),
+                        prefix: String::new(),
                         tail: s(".n")
                     }
                 ),

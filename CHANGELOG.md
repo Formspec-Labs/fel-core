@@ -25,6 +25,9 @@ conformance corpus.
 
 ### Fixed
 
+- Reference sites cover grouped field access such as `($a).b`. Grouped keyed
+  lookups retain their selector and expose the path inside the group separately
+  from the editable postfix.
 - `ParseError::span`, `Diagnostic::span` and lexer `Span` are documented as
   Unicode scalar (char) indices, which the lexer has always produced. They were
   documented as byte offsets.
