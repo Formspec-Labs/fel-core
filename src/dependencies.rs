@@ -202,16 +202,37 @@ fn walk(expr: &Expr, deps: &mut Dependencies, let_vars: &mut Vec<String>) {
             walk(right, deps, let_vars);
         }
 
-        Expr::PostfixAccess { expr, path } => {
-            if let Some(field_path) = extend_field_path(expr, path) {
+        Expr::RowLookup {
+            source,
+            key_path,
+            key,
+        } => {
+            walk(source, deps, let_vars);
+            walk(key, deps, let_vars);
+            if let Some(path) = field_path(expr, let_vars) {
+                deps.has_wildcard = true;
+                deps.fields.insert(format!("{path}.{}", key_path.join(".")));
+            }
+        }
+
+        Expr::PostfixAccess { expr: inner, path } => {
+            let mut base = inner.as_ref();
+            while let Expr::PostfixAccess { expr, path } = base {
+                deps.has_wildcard |= path.contains(&PathSegment::Wildcard);
+                base = expr;
+            }
+            if matches!(base, Expr::RowLookup { .. }) {
+                if let Some(result_path) = field_path(expr, let_vars) {
+                    deps.fields.insert(result_path);
+                }
+                walk(base, deps, let_vars);
+            } else if let Some(field_path) = extend_field_path(inner, path) {
                 deps.fields.insert(field_path);
             } else {
-                walk(expr, deps, let_vars);
+                walk(inner, deps, let_vars);
             }
-            for seg in path {
-                if matches!(seg, PathSegment::Wildcard) {
-                    deps.has_wildcard = true;
-                }
+            if path.contains(&PathSegment::Wildcard) {
+                deps.has_wildcard = true;
             }
         }
 
@@ -254,6 +275,33 @@ fn extract_field_path_str(expr: &Expr) -> String {
             result
         }
         _ => String::new(),
+    }
+}
+
+// Represent a selected row using the wildcard path of the rows it may read.
+fn field_path(expr: &Expr, let_vars: &[String]) -> Option<String> {
+    match expr {
+        Expr::FieldRef {
+            name: Some(name), ..
+        }
+        | Expr::VarRef { name, .. }
+            if !let_vars.contains(name) =>
+        {
+            Some(extract_field_path_str(expr))
+        }
+        Expr::PostfixAccess { expr, path } => {
+            let mut full_path = field_path(expr, let_vars)?;
+            for segment in path {
+                segment.append_to_path(&mut full_path, PathDotJoin::AlwaysPrefix);
+            }
+            Some(full_path)
+        }
+        Expr::RowLookup { source, .. } => {
+            let mut path = field_path(source, let_vars)?;
+            path.push_str("[*]");
+            Some(path)
+        }
+        _ => None,
     }
 }
 

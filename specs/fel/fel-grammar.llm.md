@@ -1,6 +1,6 @@
 # FEL Normative Grammar (LLM Reference)
 
-The normative PEG grammar for the Formspec Expression Language. Supersedes the informative grammar in the core spec §3.7. Defines syntax only; semantics are in the core spec §§3.2–3.12.
+The [normative FEL grammar](fel-grammar.md) supersedes the informative grammar in Core §3.7. FEL Grammar §6.2.1 defines keyed row lookup. See Core §§3.2–3.12 for other expression semantics in Definitions.
 
 ## Lexical Rules
 
@@ -39,7 +39,21 @@ Postfix        ← Atom PathTail*
 
 **Atoms**: `if(args)`, `func(args)`, `$field.path`, `{obj}`, `[arr]`, literal, `(expr)`.
 
-**PathTail**: `.ident` or `[int | *]`.
+**PathTail**: `.ident`, `[int]`, `[*]`, or `[row.key = expression]`. The keyed
+lookup also accepts `==`. Dotted names on the left traverse each row. The
+right side evaluates once in the surrounding scope for a nonempty array. Bare
+names on the right resolve in that scope. Missing and null keys do not match.
+Equality uses FEL values without coercion.
+One match returns the row for ordinary `.field` access. Zero matches, a null
+source or a null lookup value return `null`. A non-array input produces a type
+diagnostic and `null`. Multiple matches produce `FEL_AMBIGUOUS_ROW_LOOKUP` and
+`null`. Track dependencies on the source and right-side references. For a field
+source, include `rows[*].key` and paths read after the selector, such as
+`rows[*].label`.
+
+[JSONata predicates](https://docs.jsonata.org/predicate) provide the bracket
+syntax. [XForms 1.1 `current()`](https://www.w3.org/TR/xforms11/#fn-current)
+illustrates the distinction between candidate and surrounding scope.
 
 **ContextRef**: `@ident` with optional `()` or `('string')`; normal postfix
 tails apply, so `@response.items[1].amount` is valid.

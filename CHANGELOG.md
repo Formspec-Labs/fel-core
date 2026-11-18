@@ -15,6 +15,14 @@ conformance corpus.
 
 ### Changed (BREAKING)
 
+- FEL accepts `rows[key = value]` to select a unique row. Update exhaustive
+  Rust matches for `Expr::RowLookup { source, key_path, key }`. For a field
+  source, `Dependencies::fields` and the JSON `fields` key include wildcard
+  paths for the row key and any fields read after the selector.
+  `has_wildcard` (`hasWildcard` in JavaScript JSON and `has_wildcard` in Python
+  JSON) also reflects those paths. Multiple matches yield `null` with the
+  diagnostic code `FEL_AMBIGUOUS_ROW_LOOKUP` in the diagnostic `code` key.
+
 - Removed the `prepare_host` module and its crate-root exports
   `PrepareHostInput`, `PrepareHostOptions`, `RepeatAliases`,
   `host_options_from_json`, `prepare`, `prepare_for_host`, and

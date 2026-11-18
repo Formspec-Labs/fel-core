@@ -120,6 +120,16 @@ pub fn arb_expr(
     let null_coalesce = arb_null_coalesce(sub.clone());
     let let_binding = arb_let_binding(sub.clone());
     let postfix = arb_postfix_access(sub.clone());
+    let row_lookup = (
+        sub.clone(),
+        prop::collection::vec(arb_identifier(), 1..=3),
+        sub,
+    )
+        .prop_map(|(source, key_path, key)| Expr::RowLookup {
+            source: Box::new(source),
+            key_path,
+            key: Box::new(key),
+        });
     prop_oneof![
         3 => leaf,
         2 => unary,
@@ -133,6 +143,7 @@ pub fn arb_expr(
         1 => null_coalesce,
         1 => let_binding,
         1 => postfix,
+        1 => row_lookup,
     ]
     .boxed()
 }

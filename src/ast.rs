@@ -138,6 +138,16 @@ pub enum Expr {
         expr: Box<Expr>,
         path: Vec<PathSegment>,
     },
+
+    /// Selects the unique row whose field equals an ambient FEL value.
+    RowLookup {
+        /// Expression supplying the array.
+        source: Box<Expr>,
+        /// Dot-separated field names relative to each row.
+        key_path: Vec<String>,
+        /// Lookup value evaluated in the surrounding scope.
+        key: Box<Expr>,
+    },
 }
 
 /// Unary operators (`not`, unary `-`).

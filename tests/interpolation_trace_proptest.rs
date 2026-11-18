@@ -57,6 +57,7 @@ fn oracle_is_static_literal(expr: &Expr) -> bool {
         | Expr::ContextRef { .. }
         | Expr::FunctionCall { .. }
         | Expr::PostfixAccess { .. }
+        | Expr::RowLookup { .. }
         | Expr::BinaryOp { .. }
         | Expr::Ternary { .. }
         | Expr::IfThenElse { .. }

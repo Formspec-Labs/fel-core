@@ -145,7 +145,12 @@ fn has_context_ref(expr: &Expr) -> bool {
         Expr::Membership {
             value, container, ..
         } => has_context_ref(value) || has_context_ref(container),
-        Expr::NullCoalesce { left, right } => has_context_ref(left) || has_context_ref(right),
+        Expr::NullCoalesce { left, right }
+        | Expr::RowLookup {
+            source: left,
+            key: right,
+            ..
+        } => has_context_ref(left) || has_context_ref(right),
         Expr::LetBinding { value, body, .. } => has_context_ref(value) || has_context_ref(body),
         Expr::FunctionCall { args, .. } => args.iter().any(has_context_ref),
         Expr::PostfixAccess { expr, .. } => has_context_ref(expr),

@@ -42,9 +42,12 @@ pub fn expr_references_instance_data(expr: &Expr) -> bool {
             container: right,
             ..
         }
-        | Expr::NullCoalesce { left, right } => {
-            expr_references_instance_data(left) || expr_references_instance_data(right)
-        }
+        | Expr::NullCoalesce { left, right }
+        | Expr::RowLookup {
+            source: left,
+            key: right,
+            ..
+        } => expr_references_instance_data(left) || expr_references_instance_data(right),
         Expr::Ternary {
             condition,
             then_branch,
@@ -87,6 +90,7 @@ pub fn expr_is_interpolation_static_literal(expr: &Expr) -> bool {
         | Expr::ContextRef { .. }
         | Expr::FunctionCall { .. }
         | Expr::PostfixAccess { .. }
+        | Expr::RowLookup { .. }
         | Expr::BinaryOp { .. }
         | Expr::Ternary { .. }
         | Expr::IfThenElse { .. }

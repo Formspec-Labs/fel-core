@@ -892,7 +892,49 @@ impl<'a> Evaluator<'a> {
                 result
             }
             Expr::PostfixAccess { .. } => self.eval_postfix(expr),
+            Expr::RowLookup {
+                source,
+                key_path,
+                key,
+            } => self.eval_row_lookup(source, key_path, key),
         }
+    }
+
+    fn eval_row_lookup(&mut self, source: &Expr, key_path: &[String], key: &Expr) -> Value {
+        let rows = match self.eval(source) {
+            Value::Array(rows) if !rows.is_empty() => rows,
+            Value::Array(_) | Value::Null => return Value::Null,
+            other => return self.reject_expected_type("row lookup", "array", &other),
+        };
+        let key = self.eval(key);
+        if key.is_null() {
+            return Value::Null;
+        }
+
+        let mut selected = None;
+        for row in rows {
+            if self.check_budget() {
+                return Value::Null;
+            }
+            let candidate = key_path.iter().try_fold(&row, |value, name| match value {
+                Value::Object(fields) => fields.get(name.as_str()),
+                _ => None,
+            });
+            if let Some(candidate) = candidate
+                && !candidate.is_null()
+                && candidate == &key
+            {
+                if selected.is_some() {
+                    self.diag_coded(
+                        "FEL_AMBIGUOUS_ROW_LOOKUP",
+                        "row lookup matched more than one row",
+                    );
+                    return Value::Null;
+                }
+                selected = Some(row);
+            }
+        }
+        selected.unwrap_or(Value::Null)
     }
 
     fn eval_postfix(&mut self, mut base: &Expr) -> Value {

@@ -460,6 +460,9 @@ impl Parser {
                     let name = self.eat_identifier()?;
                     expr = self.attach_postfix_segment(expr, PathSegment::Dot(name));
                 }
+                Token::LBracket if self.starts_row_lookup() => {
+                    expr = self.parse_row_lookup(expr)?;
+                }
                 Token::LBracket => {
                     self.advance();
                     let seg = self.parse_bracket_segment("")?;
@@ -476,6 +479,44 @@ impl Parser {
             expr: Box::new(expr),
             path: vec![seg],
         }
+    }
+
+    fn starts_row_lookup(&self) -> bool {
+        matches!(
+            self.tokens.get(self.pos + 1..self.pos + 3),
+            Some([name, next]) if matches!(name.token, Token::Identifier(_))
+                && matches!(next.token, Token::Dot | Token::Eq)
+        )
+    }
+
+    fn parse_row_lookup(&mut self, source: Expr) -> Result<Expr, Error> {
+        let (key_path, key) =
+            self.parse_row_lookup_selector()
+                .map_err(|Error::Parse(mut err)| {
+                    err.message = format!(
+                        "expected a row lookup of the form [key = value]: {}",
+                        err.message
+                    );
+                    Error::Parse(err)
+                })?;
+        Ok(Expr::RowLookup {
+            source: Box::new(source),
+            key_path,
+            key: Box::new(key),
+        })
+    }
+
+    fn parse_row_lookup_selector(&mut self) -> Result<(Vec<String>, Expr), Error> {
+        self.expect(&Token::LBracket)?;
+        let mut key_path = vec![self.eat_identifier()?];
+        while matches!(self.peek(), Token::Dot) {
+            self.advance();
+            key_path.push(self.eat_identifier()?);
+        }
+        self.expect(&Token::Eq)?;
+        let key = self.parse_expression_with_in_allowed()?;
+        self.expect(&Token::RBracket)?;
+        Ok((key_path, key))
     }
 
     /// Parse `[*]` or `[N]` after the opening `[` has been consumed; consumes `]`.
@@ -509,7 +550,7 @@ impl Parser {
             }
             other => {
                 return Err(self.parse_err_current(format!(
-                    "expected number or * in {bracket_context}brackets, got {other:?}"
+                    "expected a number, *, or [key = value] in {bracket_context}brackets, got {other:?}"
                 )));
             }
         };
@@ -610,7 +651,7 @@ impl Parser {
                     let seg_name = self.eat_identifier()?;
                     path.push(PathSegment::Dot(seg_name));
                 }
-                Token::LBracket => {
+                Token::LBracket if !self.starts_row_lookup() => {
                     self.advance();
                     path.push(self.parse_bracket_segment("field ref ")?);
                 }

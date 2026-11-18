@@ -217,6 +217,19 @@ fn write_expr(buf: &mut String, expr: &Expr, needs_parens: bool) {
             buf.push(')');
         }
 
+        Expr::RowLookup {
+            source,
+            key_path,
+            key,
+        } => {
+            write_expr(buf, source, true);
+            buf.push('[');
+            buf.push_str(&key_path.join("."));
+            buf.push_str(" = ");
+            write_expr(buf, key, false);
+            buf.push(']');
+        }
+
         Expr::PostfixAccess { expr: inner, path } => {
             // Wrap FieldRef/VarRef in parens so the parser enters parse_atom's
             // paren case rather than dispatch to parse_field_ref/identifier path.

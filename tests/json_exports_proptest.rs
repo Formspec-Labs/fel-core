@@ -76,8 +76,8 @@ fn diagnostic_kind_variant_key(kind: &DiagnosticKind, style: JsonWireStyle) -> &
 }
 
 /// Expected top-level Dependencies-object keys per style (`fields` is shared
-/// across both styles, the other six rename). Mirrors
-/// `dependencies_to_json_value_styled` in `src/dependencies.rs:286-310`.
+/// across both styles, the other keys rename). Mirrors
+/// `dependencies_to_json_value_styled` in `src/dependencies.rs`.
 fn dependencies_top_level_keys(style: JsonWireStyle) -> [&'static str; 7] {
     match style {
         JsonWireStyle::JsCamel => [

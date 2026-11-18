@@ -13,8 +13,8 @@ specification v1.0 §3 and supersedes the **informative** grammar given in §3.7
 of that specification.
 
 A conformant FEL parser MUST accept exactly the language described by this
-grammar. The semantics of each construct are defined in §§3.2–3.12 of the
-Formspec specification; this document defines only the syntax.
+grammar. This document also defines keyed row lookup semantics (§6.2.1).
+See Formspec Core §§3.2–3.12 for the other expression semantics in Definitions.
 
 ## 2. Notation
 
@@ -229,7 +229,7 @@ Unary          ← 'not' !IdContinue _ Unary
                / '-' _ Unary
                / Postfix
 
-# --- Postfix (dot/index access after any atom) ---
+# --- Postfix (path access after any atom) ---
 Postfix        ← Atom PathTail*
 
 # --- Atoms ---
@@ -317,7 +317,7 @@ precedence. This table is normative and matches the structural encoding in §4.
 | 10 | `not` / `!` (prefix), `-` (negate) | Unary | Right | `not $flag`, `!$flag`, `-$x` |
 
 Parenthesised sub-expressions (`( … )`) override precedence as usual.
-Postfix operators (`.field`, `[index]`) bind tighter than all prefix
+Postfix operators (`.field`, `[index]`, `[key = expression]`) bind tighter than all prefix
 operators, enabling `prev().field` and `(expr).field`.
 
 ## 6. Path Expressions
@@ -331,7 +331,9 @@ FieldRef       ← '$' Identifier PathTail*
                / ContextRef PathTail*
 
 PathTail       ← '.' Identifier
-               / '[' _ ( Integer / '*' ) _ ']'
+               / '[' _ ( Integer / '*' / RowKey _ ('==' / '=') _ Expression ) _ ']'
+
+RowKey         ← Identifier ('.' Identifier)*
 
 ContextRef     ← '@' Identifier ('(' _ StringLiteral? _ ')')?
 ```
@@ -372,6 +374,40 @@ ContextRef     ← '@' Identifier ('(' _ StringLiteral? _ ')')?
 5. **Context postfix access:** `PathTail` applies after `ContextRef`, so
    `@response.items[1].amount` and `@effects[*].outcomeRef` use the same
    postfix traversal rules as `$` field references.
+
+#### 6.2.1 Keyed row lookup
+
+`rows[key = expression]` selects a single row from an array. The left side is
+an identifier or dot-separated field path relative to each array element.
+The right side is an ordinary FEL expression in the surrounding scope. A bare
+name on that side resolves in the surrounding scope, independently of the row
+being checked. Both `=` and `==` spell the lookup operator.
+
+A null source or empty array MUST yield `null` without evaluating the right side.
+Any other non-array input MUST yield `null` with a type diagnostic. For a
+nonempty array, evaluate the right side once. A null lookup value yields
+`null`. A row matches only when its key path reaches a non-null value equal
+to the lookup value without type coercion. Skip non-object elements and
+paths that do not reach a value.
+
+One match yields the row itself, so `.field` reads its field using ordinary
+path rules. Zero matches yield `null`. Multiple matches MUST yield `null` with
+the FEL evaluation diagnostic `FEL_AMBIGUOUS_ROW_LOOKUP`, even if the matching
+rows are identical. Access after `null` continues to yield `null`.
+
+Dependency extraction MUST include the source expression and the references
+read by the right-side expression under ordinary dependency rules. When the
+source is a field reference, dependency extraction MUST also include its key
+path and any path read after the selector, using `[*]` at the lookup position.
+For example, `$rows[id = $selection].label` reads `rows`, `rows[*].id`,
+`rows[*].label`, and `selection`.
+
+[JSONata predicates](https://docs.jsonata.org/predicate) provide the bracket
+syntax and direct field access after a singleton match. FEL requires a unique
+match for scalar reads. FEL's two scopes follow the distinction illustrated
+by [XForms 1.1 `current()`](https://www.w3.org/TR/xforms11/#fn-current),
+where a predicate reads a candidate's field and compares it with a value
+from the surrounding context.
 
 ### 6.3 Host-Supplied Context Bindings
 
