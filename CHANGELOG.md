@@ -22,6 +22,10 @@ conformance corpus.
 - `SiteKind::UnboundName` locates a bare name that no enclosing `let` binds, such
   as `amount` in `amount > 0`. The grammar has no bare field reference, so linters
   report it and suggest `$amount`; evaluation is unchanged.
+- `builtin_arity_mismatches(expr)` returns the arity diagnostic for every
+  built-in call in an expression that the evaluator would refuse, without
+  evaluating it. Hosts use it to report Core §3.10.1 arity mismatches as
+  Definition errors before evaluation.
 
 ### Fixed
 

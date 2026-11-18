@@ -422,6 +422,11 @@ proptests = ["tests/env_catalog_inputs_proptest.rs::builtin_arity_matches_entry_
 notes = "Phase 3b closed: arity helper agrees with the catalog entry's arity bounds across probe names (design §Gap)."
 
 [[entries]]
+symbol = "extensions::builtin_arity_mismatches"
+proptests = ["tests/ast_proptest.rs::static_arity_check_accepts_catalog_calls"]
+notes = "Never refuses an in-bounds call; out-of-bounds calls for every catalog entry match the evaluator's refusal in evaluator_tests.rs."
+
+[[entries]]
 symbol = "extensions::builtin_function_catalog"
 proptests = [
     "tests/ast_proptest.rs::parse_print_eval_equivalence",

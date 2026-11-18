@@ -58,7 +58,7 @@ pub use evaluator::{
 };
 pub use extensions::{
     ExtensionCallOutcome, ExtensionError, ExtensionFn, ExtensionFunc, ExtensionFunctions,
-    ExtensionRegistry, Package, builtin_arity, builtin_function_catalog,
+    ExtensionRegistry, Package, builtin_arity, builtin_arity_mismatches, builtin_function_catalog,
     builtin_function_catalog_for, builtin_function_catalog_json_value,
     builtin_function_catalog_json_value_for, call_extension, check_extension_name,
 };

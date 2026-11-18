@@ -6,7 +6,10 @@
 #![allow(clippy::missing_docs_in_private_items)]
 
 use fel_core::testing::strategies::{arb_decimal, arb_expr, arb_value};
-use fel_core::{MapEnvironment, builtin_function_catalog, evaluate, parse, print_expr, tokenize};
+use fel_core::{
+    DiagnosticKind, MapEnvironment, builtin_arity_mismatches, builtin_function_catalog, evaluate,
+    parse, print_expr, tokenize,
+};
 use proptest::prelude::*;
 
 proptest! {
@@ -47,6 +50,22 @@ proptest! {
         let reparsed = parse(&printed).expect("printed form must reparse");
         let reparsed_result = evaluate(&reparsed, &env).value;
         prop_assert_eq!(original_result, reparsed_result);
+    }
+
+    /// The static arity check never refuses a call within its catalog bounds, and neither
+    /// does the evaluator. Out-of-bounds calls are covered per catalog entry in
+    /// `evaluator_tests.rs::static_arity_check_reports_what_the_evaluator_refuses`.
+    #[test]
+    fn static_arity_check_accepts_catalog_calls(
+        expr in arb_expr(3, builtin_function_catalog())
+    ) {
+        prop_assert!(builtin_arity_mismatches(&expr).is_empty());
+        let env = MapEnvironment::new();
+        let refused = evaluate(&expr, &env)
+            .diagnostics
+            .into_iter()
+            .any(|d| matches!(d.kind, Some(DiagnosticKind::ArityMismatch { .. })));
+        prop_assert!(!refused);
     }
 
     /// 2. `eval(parse(s), env) == eval(parse(s), env)` — determinism across two evaluations.

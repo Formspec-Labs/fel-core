@@ -1549,14 +1549,9 @@ impl<'a> Evaluator<'a> {
         // args (defaulting missing positions to null) or too-many args (ignoring
         // tails). Unknown names skip this gate and fall through to the
         // extension registry / undefined-function diagnostic at the bottom.
-        if let Some((min, max)) = crate::extensions::builtin_arity(name) {
-            let got = args.len();
-            let out_of_bounds = got < min || max.is_some_and(|m| got > m);
-            if out_of_bounds {
-                self.diagnostics
-                    .push(Diagnostic::arity_mismatch(name, min, max, got));
-                return Value::Null;
-            }
+        if let Some(mismatch) = crate::extensions::builtin_arity_mismatch(name, args.len()) {
+            self.diagnostics.push(mismatch);
+            return Value::Null;
         }
         match name {
             // Aggregates

@@ -2231,3 +2231,48 @@ fn every_decimal_overflow_shares_one_code() {
         assert_eq!(codes, [Some("FEL_ARITHMETIC_OVERFLOW")], "{expression}");
     }
 }
+
+#[test]
+fn static_arity_check_reports_what_the_evaluator_refuses() {
+    let source = "let d = date(2027, 10, 1) in if(true, sum(), [abs(1, 2)])";
+    let expr = parse(source).unwrap();
+    let names: Vec<_> = builtin_arity_mismatches(&expr)
+        .into_iter()
+        .map(|d| match d.kind {
+            Some(DiagnosticKind::ArityMismatch { name, got, .. }) => (name, got),
+            other => panic!("expected an arity mismatch, got {other:?}"),
+        })
+        .collect();
+    assert_eq!(
+        names,
+        [("date".into(), 3), ("sum".into(), 0), ("abs".into(), 2)]
+    );
+    assert!(
+        builtin_arity_mismatches(&parse("date('2027-10-01') + countWhere([1], $ > 0)").unwrap())
+            .is_empty()
+    );
+
+    for entry in builtin_function_catalog() {
+        let (min, max) = entry.arity();
+        let counts = (min > 0)
+            .then(|| min - 1)
+            .into_iter()
+            .chain(max.map(|max| max + 1));
+        for got in counts {
+            let call = format!("{}({})", entry.name, vec!["1"; got].join(", "));
+            let Ok(expr) = parse(&call) else { continue };
+            let reported: Vec<_> = builtin_arity_mismatches(&expr)
+                .into_iter()
+                .map(|d| d.message)
+                .collect();
+            let refused: Vec<_> = eval_result(&call)
+                .diagnostics
+                .into_iter()
+                .filter(|d| matches!(d.kind, Some(DiagnosticKind::ArityMismatch { .. })))
+                .map(|d| d.message)
+                .collect();
+            assert_eq!(reported, refused, "{call}");
+            assert_eq!(reported.len(), 1, "{call}");
+        }
+    }
+}
