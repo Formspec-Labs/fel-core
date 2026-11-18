@@ -87,22 +87,22 @@ pub fn json_to_fel(val: &Value) -> TypeValue {
         Value::Array(arr) => TypeValue::Array(arr.iter().map(json_to_fel).collect()),
         Value::Object(map) => {
             if let Some(value_type) = map.get("$type").and_then(|v| v.as_str()) {
-                if value_type == "number" {
-                    if let Some(raw) = map.get("value") {
-                        return match raw {
-                            Value::Number(n) => n
-                                .as_i64()
-                                .map(Decimal::from)
-                                .or_else(|| n.as_u64().map(Decimal::from))
-                                .or_else(|| n.as_f64().and_then(Decimal::from_f64))
-                                .map(TypeValue::Number)
-                                .unwrap_or(TypeValue::Null),
-                            Value::String(s) => Decimal::from_str_exact(s)
-                                .map(TypeValue::Number)
-                                .unwrap_or(TypeValue::Null),
-                            _ => TypeValue::Null,
-                        };
-                    }
+                if value_type == "number"
+                    && let Some(raw) = map.get("value")
+                {
+                    return match raw {
+                        Value::Number(n) => n
+                            .as_i64()
+                            .map(Decimal::from)
+                            .or_else(|| n.as_u64().map(Decimal::from))
+                            .or_else(|| n.as_f64().and_then(Decimal::from_f64))
+                            .map(TypeValue::Number)
+                            .unwrap_or(TypeValue::Null),
+                        Value::String(s) => Decimal::from_str_exact(s)
+                            .map(TypeValue::Number)
+                            .unwrap_or(TypeValue::Null),
+                        _ => TypeValue::Null,
+                    };
                 }
                 if value_type == "date" {
                     if let Some(s) = map.get("value").and_then(|v| v.as_str()) {
@@ -128,13 +128,13 @@ pub fn json_to_fel(val: &Value) -> TypeValue {
                         Value::String(s) => Decimal::from_str_exact(s).ok(),
                         _ => None,
                     };
-                    if let Some(amount_decimal) = maybe_decimal {
-                        if let Some(cc) = CurrencyCode::parse(currency) {
-                            return TypeValue::Money(TypeMoney {
-                                amount: amount_decimal,
-                                currency: cc,
-                            });
-                        }
+                    if let Some(amount_decimal) = maybe_decimal
+                        && let Some(cc) = CurrencyCode::parse(currency)
+                    {
+                        return TypeValue::Money(TypeMoney {
+                            amount: amount_decimal,
+                            currency: cc,
+                        });
                     }
                 }
             }

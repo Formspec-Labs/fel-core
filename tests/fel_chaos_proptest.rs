@@ -87,11 +87,10 @@ proptest! {
     ) {
         let mut base = String::from_utf8_lossy(&bytes).into_owned();
         for cp in extra {
-            if let Some(ch) = char::from_u32(cp) {
-                if !ch.is_control() {
+            if let Some(ch) = char::from_u32(cp)
+                && !ch.is_control() {
                     base.push(ch);
                 }
-            }
         }
         tokenize_parse_eval_do_not_panic(&base);
     }

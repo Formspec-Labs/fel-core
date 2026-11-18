@@ -2,7 +2,7 @@
 name = "fel-core"
 version = "0.3.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.88"
 license = "Apache-2.0"
 description = "Formspec Expression Language — parser, evaluator, and dependency analysis"
 repository = "https://github.com/Formspec-Labs/fel-core"

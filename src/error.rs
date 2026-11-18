@@ -396,10 +396,10 @@ pub fn undefined_function_names_from_diagnostics(diagnostics: &[Diagnostic]) -> 
     diagnostics
         .iter()
         .filter_map(|d| {
-            if let Some(DiagnosticKind::UndefinedFunction { name }) = &d.kind {
-                if !name.trim().is_empty() {
-                    return Some(name.trim().to_string());
-                }
+            if let Some(DiagnosticKind::UndefinedFunction { name }) = &d.kind
+                && !name.trim().is_empty()
+            {
+                return Some(name.trim().to_string());
             }
             d.message
                 .strip_prefix("undefined function: ")

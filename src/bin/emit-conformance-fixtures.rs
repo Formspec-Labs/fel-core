@@ -410,7 +410,7 @@ fn main() {
                     let fixture = eval(&source);
                     emit(&mut writer, &fixture);
                     count += 1;
-                    if count % 64 == 0 {
+                    if count.is_multiple_of(64) {
                         eprintln!(
                             "emitted {}/{} random ({} total)",
                             count,

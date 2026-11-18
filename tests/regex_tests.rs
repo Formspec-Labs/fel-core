@@ -36,7 +36,7 @@ fn contains_unescaped_single_quote(s: &str) -> bool {
                 backslashes += 1;
                 j -= 1;
             }
-            if backslashes % 2 == 0 {
+            if backslashes.is_multiple_of(2) {
                 return true;
             }
         }

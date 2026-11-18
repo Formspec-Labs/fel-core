@@ -80,10 +80,10 @@ impl EvalBudget {
         if alloc_bytes > self.max_alloc_bytes {
             return Err(BudgetExceededKind::Alloc);
         }
-        if let Some(deadline) = self.deadline {
-            if Instant::now() >= deadline {
-                return Err(BudgetExceededKind::Deadline);
-            }
+        if let Some(deadline) = self.deadline
+            && Instant::now() >= deadline
+        {
+            return Err(BudgetExceededKind::Deadline);
         }
         Ok(())
     }

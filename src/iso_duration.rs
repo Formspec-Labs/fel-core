@@ -222,10 +222,10 @@ fn fractional_seconds_to_ms(frac: &str) -> i64 {
     }
 
     // Round to nearest millisecond using the next digit.
-    if let Some(c) = chars.next() {
-        if c.to_digit(10).unwrap_or(0) >= 5 {
-            ms += 1;
-        }
+    if let Some(c) = chars.next()
+        && c.to_digit(10).unwrap_or(0) >= 5
+    {
+        ms += 1;
     }
 
     ms
