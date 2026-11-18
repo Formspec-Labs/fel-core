@@ -19,6 +19,9 @@ conformance corpus.
   overlap. A `$name` bound by an enclosing `let` is a local and yields no site.
   Tools that edit authored text, such as renames, splice these ranges instead of
   parsing FEL again.
+- `SiteKind::UnboundName` locates a bare name that no enclosing `let` binds, such
+  as `amount` in `amount > 0`. The grammar has no bare field reference, so linters
+  report it and suggest `$amount`; evaluation is unchanged.
 
 ### Fixed
 

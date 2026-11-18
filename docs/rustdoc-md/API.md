@@ -2715,17 +2715,18 @@ Reference syntax the FEL parser located. Consumers decide which sites to act on.
 - `FirstStringArgument{ function: String, value: String }` - A string literal that is a function's whole first argument; the range covers the quotes.
 - `RowKey{ rows: String, key: String }` - The key path of a keyed row lookup `$rows[key = value]`.
 - `RowTail{ rows: String, tail: String }` - The postfix path on a selected row, as in `$rows[id = 1].name`.
+- `UnboundName{ name: String }` - A bare name no enclosing `let` binds, as in `amount > 0`; the field read is `$amount`.
 
 **Traits:** Eq
 
 **Trait Implementations:**
 
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Clone**
   - `fn clone(self: &Self) -> SiteKind`
 - **PartialEq**
   - `fn eq(self: &Self, other: &SiteKind) -> bool`
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 
 
 
@@ -2771,8 +2772,8 @@ fn parse(input: &str) -> Result<Expr, crate::error::Error>
 Parse an expression and locate its reference-bearing syntax in the original text.
 
 Ranges are UTF-8 byte offsets into `input`; sites come in source order and never overlap.
-A `$name` bound by an enclosing `let` is a local, not a field, and yields no site.
-A parse error returns no sites.
+A `$name` or bare name bound by an enclosing `let` is a local, not a field, and yields no
+site; any other bare name is a [`SiteKind::UnboundName`]. A parse error returns no sites.
 
 # Errors
 
@@ -2850,14 +2851,14 @@ error-explainer) can render the sequence top-to-bottom to reconstruct
 
 **Trait Implementations:**
 
-- **Default**
-  - `fn default() -> Trace`
 - **Clone**
   - `fn clone(self: &Self) -> Trace`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Serialize**
   - `fn serialize<__S>(self: &Self, __serializer: __S) -> _serde::__private229::Result<<__S as >::Ok, <__S as >::Error>`
+- **Default**
+  - `fn default() -> Trace`
 
 
 
@@ -2880,12 +2881,12 @@ rather than emitting noise — correctness over completeness.
 
 **Trait Implementations:**
 
-- **Clone**
-  - `fn clone(self: &Self) -> TraceStep`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Serialize**
   - `fn serialize<__S>(self: &Self, __serializer: __S) -> _serde::__private229::Result<<__S as >::Ok, <__S as >::Error>`
+- **Clone**
+  - `fn clone(self: &Self) -> TraceStep`
 
 ---
 
@@ -2934,8 +2935,6 @@ ISO 4217 alphabetic currency code (three ASCII letters), normalized to uppercase
 
 **Trait Implementations:**
 
-- **PartialEq**
-  - `fn eq(self: &Self, other: &CurrencyCode) -> bool`
 - **Hash**
   - `fn hash<__H>(self: &Self, state: & mut __H)`
 - **Clone**
@@ -2944,6 +2943,8 @@ ISO 4217 alphabetic currency code (three ASCII letters), normalized to uppercase
   - `fn fmt(self: &Self, f: & mut fmt::Formatter) -> fmt::Result`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **PartialEq**
+  - `fn eq(self: &Self, other: &CurrencyCode) -> bool`
 
 
 
@@ -2971,12 +2972,12 @@ Calendar date or date-time (no timezone model; used by date functions).
 
 **Trait Implementations:**
 
+- **Clone**
+  - `fn clone(self: &Self) -> Date`
 - **PartialEq**
   - `fn eq(self: &Self, other: &Date) -> bool`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
-- **Clone**
-  - `fn clone(self: &Self) -> Date`
 
 
 
@@ -3033,14 +3034,14 @@ Runtime value for FEL evaluation (mirrors JSON + dates + money).
 
 **Trait Implementations:**
 
-- **PartialEq**
-  - `fn eq(self: &Self, other: &Self) -> bool`
 - **Clone**
   - `fn clone(self: &Self) -> Value`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Display**
   - `fn fmt(self: &Self, f: & mut fmt::Formatter) -> fmt::Result`
+- **PartialEq**
+  - `fn eq(self: &Self, other: &Self) -> bool`
 
 
 
@@ -3145,11 +3146,11 @@ JSON object key style for WASM (`camelCase`) vs Python (`snake_case`) bindings.
 
 **Trait Implementations:**
 
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **PartialEq**
   - `fn eq(self: &Self, other: &JsonWireStyle) -> bool`
 - **Clone**
   - `fn clone(self: &Self) -> JsonWireStyle`
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 
 ---

@@ -95,6 +95,14 @@ pub enum SiteKind {
         /// Postfix path including its leading `.` or `[`.
         tail: String,
     },
+    /// A bare name no enclosing `let` binds, as in `amount > 0`; the field read is `$amount`.
+    ///
+    /// FEL has no bare field reference (grammar §6). The range covers the identifier.
+    #[non_exhaustive]
+    UnboundName {
+        /// The identifier.
+        name: String,
+    },
 }
 
 /// Source locations are optional so evaluation only pays for the syntax tree.
@@ -140,8 +148,8 @@ pub fn parse(input: &str) -> Result<Expr, Error> {
 /// Parse an expression and locate its reference-bearing syntax in the original text.
 ///
 /// Ranges are UTF-8 byte offsets into `input`; sites come in source order and never overlap.
-/// A `$name` bound by an enclosing `let` is a local, not a field, and yields no site.
-/// A parse error returns no sites.
+/// A `$name` or bare name bound by an enclosing `let` is a local, not a field, and yields no
+/// site; any other bare name is a [`SiteKind::UnboundName`]. A parse error returns no sites.
 ///
 /// # Errors
 ///
@@ -777,12 +785,19 @@ impl Parser {
             Token::LBrace => self.parse_object_literal(),
             Token::Identifier(name) => {
                 let name = name.clone();
+                let span = self.current().span.clone();
                 self.advance();
                 // Check for function call
                 if matches!(self.peek(), Token::LParen) {
                     self.parse_function_call(name)
                 } else {
-                    // Bare identifier — let-bound variable or unqualified field path
+                    // Bare identifier: a `let` local, or a name hosts resolve as a field path.
+                    if let Some(sites) = &mut self.sites
+                        && !sites.let_vars.contains(&name)
+                    {
+                        let kind = SiteKind::UnboundName { name: name.clone() };
+                        sites.push(span.start, span.end, kind);
+                    }
                     Ok(Expr::VarRef { name, path: vec![] })
                 }
             }
@@ -1037,6 +1052,32 @@ mod tests {
         assert_eq!(
             sites.into_iter().map(|site| site.kind).collect::<Vec<_>>(),
             [SiteKind::Field { path: s("amt") }]
+        );
+    }
+
+    #[test]
+    fn bare_names_no_let_binds_are_unbound_name_sites() {
+        let source = "let x = x in x + amount + f(y) + {k: z} + $r[id = w] + first.g.gon + (let b = 1 in b) + b";
+        let (_, sites) = parse_with_sites(source).unwrap();
+        let unbound: Vec<_> = sites
+            .into_iter()
+            .filter_map(|site| match site.kind {
+                SiteKind::UnboundName { name } => Some((source[site.bytes].to_owned(), name)),
+                _ => None,
+            })
+            .collect();
+        let pair = |name: &str| (name.to_owned(), name.to_owned());
+        assert_eq!(
+            unbound,
+            [
+                pair("x"),
+                pair("amount"),
+                pair("y"),
+                pair("z"),
+                pair("w"),
+                pair("first"),
+                pair("b")
+            ]
         );
     }
 
