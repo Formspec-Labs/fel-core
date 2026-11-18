@@ -31,7 +31,7 @@ use crate::error::{Error, ParseError};
 use crate::lexer::{Lexer, SpannedToken, Token};
 
 /// A reference-bearing part of a parsed expression, with its UTF-8 byte range.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceSite {
     /// Half-open range into the original input, excluding surrounding trivia.
     pub bytes: std::ops::Range<usize>,
@@ -39,23 +39,55 @@ pub struct SourceSite {
     pub kind: SiteKind,
 }
 
-/// Syntax recognized by the FEL parser. Consumers decide which names to edit.
-#[derive(Debug)]
+/// Reference syntax the FEL parser located. Consumers decide which sites to act on.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum SiteKind {
-    /// A named field path, excluding its leading dollar from the value only.
-    Field(String),
-    /// Name after `@`, with no string argument.
-    ContextName(String),
-    /// Quoted argument of a context reference (context name, decoded literal).
-    ContextArgument(String, String),
-    /// Dotted tail of a context reference (context name, dotted path).
-    ContextTail(String, String),
-    /// A function's literal first argument (function name, decoded literal).
-    FirstStringArgument(String, String),
-    /// Key path of a selector (wildcard row path, dotted key).
-    RowKey(String, String),
-    /// Postfix path on a selected row (wildcard row path, suffix including punctuation).
-    RowTail(String, String),
+    /// `$name.path`: the range covers the dollar sign and path; `path` omits the dollar sign.
+    Field {
+        /// Dotted field path, with `[n]` and `[*]` segments.
+        path: String,
+    },
+    /// The name after `@` in a context reference that has no string argument.
+    ContextName {
+        /// Context name.
+        name: String,
+    },
+    /// The quoted argument of `@name('value')`; the range covers the quotes.
+    ContextArgument {
+        /// Context name.
+        context: String,
+        /// Decoded string literal.
+        value: String,
+    },
+    /// The dotted tail after a context reference, as in `@current.a.b`.
+    ContextTail {
+        /// Context name.
+        context: String,
+        /// Dotted tail without the leading dot.
+        path: String,
+    },
+    /// A string literal that is a function's whole first argument; the range covers the quotes.
+    FirstStringArgument {
+        /// Function name.
+        function: String,
+        /// Decoded string literal.
+        value: String,
+    },
+    /// The key path of a keyed row lookup `$rows[key = value]`.
+    RowKey {
+        /// Path of the selected row, ending in `[*]`.
+        rows: String,
+        /// Dotted key path.
+        key: String,
+    },
+    /// The postfix path on a selected row, as in `$rows[id = 1].name`.
+    RowTail {
+        /// Path of the selected row, ending in `[*]`.
+        rows: String,
+        /// Postfix path including its leading `.` or `[`.
+        tail: String,
+    },
 }
 
 /// Source locations are optional so evaluation only pays for the syntax tree.
@@ -562,7 +594,7 @@ impl Parser {
                 sites.push(
                     start,
                     self.tokens[self.pos - 1].span.end,
-                    SiteKind::RowTail(row, tail),
+                    SiteKind::RowTail { rows: row, tail },
                 );
             }
             if !matches!(self.peek(), Token::LBracket) {
@@ -619,7 +651,10 @@ impl Parser {
             sites.push(
                 start,
                 self.tokens[self.pos - 1].span.end,
-                SiteKind::RowKey(row, key_path.join(".")),
+                SiteKind::RowKey {
+                    rows: row,
+                    key: key_path.join("."),
+                },
             );
         }
         self.expect(&Token::Eq)?;
@@ -777,7 +812,7 @@ impl Parser {
             sites.push(
                 start,
                 self.tokens[self.pos - 1].span.end,
-                SiteKind::Field(path),
+                SiteKind::Field { path },
             );
         }
         Ok(expr)
@@ -800,7 +835,10 @@ impl Parser {
                     sites.push(
                         span.start,
                         span.end,
-                        SiteKind::ContextArgument(name.clone(), s.clone()),
+                        SiteKind::ContextArgument {
+                            context: name.clone(),
+                            value: s.clone(),
+                        },
                     );
                 }
                 arg = Some(s);
@@ -815,7 +853,7 @@ impl Parser {
             sites.push(
                 name_span.start,
                 name_span.end,
-                SiteKind::ContextName(name.clone()),
+                SiteKind::ContextName { name: name.clone() },
             );
         }
         let first_tail_token = self.pos + 1;
@@ -831,7 +869,10 @@ impl Parser {
             sites.push(
                 self.tokens[first_tail_token].span.start,
                 self.tokens[self.pos - 1].span.end,
-                SiteKind::ContextTail(name.clone(), tail.join(".")),
+                SiteKind::ContextTail {
+                    context: name.clone(),
+                    path: tail.join("."),
+                },
             );
         }
         Ok(Expr::ContextRef {
@@ -859,7 +900,10 @@ impl Parser {
                     sites.push(
                         literal.span.start,
                         literal.span.end,
-                        SiteKind::FirstStringArgument(name.clone(), value.clone()),
+                        SiteKind::FirstStringArgument {
+                            function: name.clone(),
+                            value: value.clone(),
+                        },
                     );
                 }
             }
@@ -954,6 +998,60 @@ mod tests {
         assert_eq!(
             parse_with_sites(invalid).unwrap_err().to_string(),
             parse(invalid).unwrap_err().to_string()
+        );
+    }
+
+    #[test]
+    fn sites_name_each_reference_form() {
+        let source = "@current.a.b + @instance('x') + @v + prev(\"m\") + $r[id = 1].n";
+        let (_, sites) = parse_with_sites(source).unwrap();
+        let found: Vec<_> = sites
+            .into_iter()
+            .map(|site| (&source[site.bytes], site.kind))
+            .collect();
+        let s = String::from;
+        assert_eq!(
+            found,
+            [
+                ("current", SiteKind::ContextName { name: s("current") }),
+                (
+                    "a.b",
+                    SiteKind::ContextTail {
+                        context: s("current"),
+                        path: s("a.b")
+                    }
+                ),
+                (
+                    "'x'",
+                    SiteKind::ContextArgument {
+                        context: s("instance"),
+                        value: s("x")
+                    }
+                ),
+                ("v", SiteKind::ContextName { name: s("v") }),
+                (
+                    "\"m\"",
+                    SiteKind::FirstStringArgument {
+                        function: s("prev"),
+                        value: s("m")
+                    }
+                ),
+                ("$r", SiteKind::Field { path: s("r") }),
+                (
+                    "id",
+                    SiteKind::RowKey {
+                        rows: s("r[*]"),
+                        key: s("id")
+                    }
+                ),
+                (
+                    ".n",
+                    SiteKind::RowTail {
+                        rows: s("r[*]"),
+                        tail: s(".n")
+                    }
+                ),
+            ]
         );
     }
 

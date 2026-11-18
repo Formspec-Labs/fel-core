@@ -278,13 +278,6 @@ fn extract_field_path_str(expr: &Expr) -> String {
     }
 }
 
-/// Return the syntactic field path, using `[*]` for each selected row.
-///
-/// This is a source-level path. It does not resolve let bindings.
-pub fn source_field_path(expr: &Expr) -> Option<String> {
-    field_path_from_root(expr, |_, _| true)
-}
-
 /// Return a path only when the source explicitly names a field with `$`.
 pub(crate) fn explicit_field_path(expr: &Expr) -> Option<String> {
     field_path_from_root(expr, |root, _| matches!(root, Expr::FieldRef { .. }))
