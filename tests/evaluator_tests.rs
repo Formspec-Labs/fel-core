@@ -2186,7 +2186,12 @@ fn test_where_functions_require_two_args() {
 #[test]
 fn overflowing_decimal_aggregates_return_diagnostics() {
     let max = "79228162514264337593543950335";
+    for boundary in [max.to_owned(), format!("-{max}")] {
+        assert_eq!(eval(&format!("sum([{boundary}, 0])")), dec(&boundary));
+    }
     for expression in [
+        format!("sum([-{max}, -1])"),
+        format!("avg([-{max}, -1])"),
         format!("sum([{max}, 1])"),
         format!("avg([{max}, 1])"),
         format!("sumWhere([{max}, 1], true)"),
