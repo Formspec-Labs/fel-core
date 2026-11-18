@@ -126,6 +126,9 @@ fn elements(origins: Origins) -> Origins {
 
 fn follow(mut origins: Origins, path: &[PathSegment]) -> Origins {
     for (index, segment) in path.iter().enumerate() {
+        if origins.is_empty() {
+            break;
+        }
         if *segment == PathSegment::Wildcard {
             let rows = follow(elements(origins), &path[index + 1..]);
             return vec![Origin::Projection(Rc::new(rows))];
@@ -239,7 +242,11 @@ fn walk(expr: &Expr, deps: &mut Dependencies, bindings: &mut Bindings) -> Origin
             for arg in args {
                 visit(arg, deps, bindings);
             }
-            if name == "instance" && args.first().is_some_and(|arg| !matches!(arg, Expr::String(_))) {
+            if name == "instance"
+                && args
+                    .first()
+                    .is_some_and(|arg| !matches!(arg, Expr::String(_)))
+            {
                 deps.has_dynamic_instance = true;
             }
             if name == "instance"
@@ -304,8 +311,15 @@ fn walk(expr: &Expr, deps: &mut Dependencies, bindings: &mut Bindings) -> Origin
             key_path,
             key,
         } => {
-            let rows = elements(visit(source, deps, bindings));
+            let source_origins = visit(source, deps, bindings);
             visit(key, deps, bindings);
+            let rows = field_path_from_root(expr, |_, name| {
+                !bindings.iter().any(|(bound, _)| bound == name)
+            })
+            .map_or_else(
+                || elements(source_origins),
+                |path| vec![Origin::Path(Root::Field, path)],
+            );
             let columns = key_path
                 .iter()
                 .cloned()
@@ -325,7 +339,12 @@ fn walk(expr: &Expr, deps: &mut Dependencies, bindings: &mut Bindings) -> Origin
             }
             let path: Vec<_> = suffixes.into_iter().rev().flatten().cloned().collect();
             deps.has_wildcard |= path.contains(&PathSegment::Wildcard);
-            return follow(walk(base, deps, bindings), &path);
+            let origins = walk(base, deps, bindings);
+            let reads = follow(origins.clone(), &path);
+            if reads.is_empty() {
+                record(&origins, deps);
+            }
+            return reads;
         }
         Expr::Array(elems) => {
             return vec![Origin::Array(Rc::new(
@@ -653,12 +672,13 @@ mod tests {
 
     mod path_segment_append {
         use super::deps;
-        use crate::ast::PathSegment;
+        use crate::ast::{PathDotJoin, PathSegment};
 
         #[test]
         fn walk_style_always_prefixes_dot_segments() {
             let mut path = "items".to_string();
-            PathSegment::Dot("qty".into()).append_to_path(&mut path, PathDotJoin::PrefixWhenNonempty);
+            PathSegment::Dot("qty".into())
+                .append_to_path(&mut path, PathDotJoin::PrefixWhenNonempty);
             assert_eq!(path, "items.qty");
         }
 
@@ -672,7 +692,8 @@ mod tests {
         #[test]
         fn extract_style_prefixes_dot_when_base_nonempty() {
             let mut path = "items".to_string();
-            PathSegment::Dot("qty".into()).append_to_path(&mut path, PathDotJoin::PrefixWhenNonempty);
+            PathSegment::Dot("qty".into())
+                .append_to_path(&mut path, PathDotJoin::PrefixWhenNonempty);
             assert_eq!(path, "items.qty");
         }
 
@@ -681,7 +702,8 @@ mod tests {
             let mut path = "items".to_string();
             PathSegment::Index(2).append_to_path(&mut path, PathDotJoin::PrefixWhenNonempty);
             PathSegment::Wildcard.append_to_path(&mut path, PathDotJoin::PrefixWhenNonempty);
-            PathSegment::Dot("qty".into()).append_to_path(&mut path, PathDotJoin::PrefixWhenNonempty);
+            PathSegment::Dot("qty".into())
+                .append_to_path(&mut path, PathDotJoin::PrefixWhenNonempty);
             assert_eq!(path, "items[2][*].qty");
         }
 

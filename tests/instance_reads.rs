@@ -104,3 +104,15 @@ fn current_field_reads_differ_from_nested_predicate_columns() {
     assert!(deps.has_self_ref);
     assert!(deps.fields.is_empty());
 }
+
+#[test]
+fn invalid_postfix_keeps_the_field_read_it_attempts() {
+    for expression in ["($rows[*].value).missing", "($rows[*].value).missing[*]"] {
+        let deps = extract_dependencies(&parse(expression).unwrap());
+        assert_eq!(
+            deps.fields,
+            ["rows[*].value".to_owned()].into(),
+            "{expression}"
+        );
+    }
+}
