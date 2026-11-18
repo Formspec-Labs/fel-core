@@ -83,7 +83,7 @@ fn dependencies_top_level_keys(style: JsonWireStyle) -> [&'static str; 7] {
         JsonWireStyle::JsCamel => [
             "fields",
             "contextRefs",
-            "instanceRefs",
+            "instanceReads",
             "mipDeps",
             "hasSelfRef",
             "hasWildcard",
@@ -92,7 +92,7 @@ fn dependencies_top_level_keys(style: JsonWireStyle) -> [&'static str; 7] {
         JsonWireStyle::PythonSnake => [
             "fields",
             "context_refs",
-            "instance_refs",
+            "instance_reads",
             "mip_deps",
             "has_self_ref",
             "has_wildcard",
@@ -107,7 +107,7 @@ fn dependencies_top_level_keys(style: JsonWireStyle) -> [&'static str; 7] {
 fn dependencies_key_pairs() -> [(&'static str, &'static str); 6] {
     [
         ("contextRefs", "context_refs"),
-        ("instanceRefs", "instance_refs"),
+        ("instanceReads", "instance_reads"),
         ("mipDeps", "mip_deps"),
         ("hasSelfRef", "has_self_ref"),
         ("hasWildcard", "has_wildcard"),

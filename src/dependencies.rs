@@ -5,7 +5,7 @@
 //!
 //! The `walk` helper and related functions recurse the AST to populate [`Dependencies`].
 #![allow(clippy::missing_docs_in_private_items)]
-use std::collections::HashSet;
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use crate::ast::{Expr, PathDotJoin, PathSegment};
 
@@ -16,8 +16,10 @@ pub struct Dependencies {
     pub fields: HashSet<String>,
     /// Context references (e.g., `["@current", "@index"]`).
     pub context_refs: HashSet<String>,
-    /// Instance references from `@instance('name')`.
-    pub instance_refs: HashSet<String>,
+    /// Paths read per named instance. An empty path reads the instance root.
+    pub instance_reads: BTreeMap<String, BTreeSet<String>>,
+    /// Function calls in traversal order, including their argument counts.
+    pub function_calls: Vec<(String, usize)>,
     /// An instance lookup computes its source name at evaluation time.
     pub has_dynamic_instance: bool,
     /// MIP dependencies: fields used in valid/relevant/readonly/required.
@@ -30,157 +32,177 @@ pub struct Dependencies {
     pub uses_prev_next: bool,
 }
 
+impl Dependencies {
+    /// Iterate over the functions called in this expression.
+    pub fn functions(&self) -> impl Iterator<Item = &str> {
+        self.function_calls.iter().map(|(name, _)| name.as_str())
+    }
+
+    /// Iterate over context names without their call arguments or property paths.
+    pub fn context_names(&self) -> impl Iterator<Item = &str> {
+        self.context_refs
+            .iter()
+            .filter_map(|reference| reference.strip_prefix('@')?.split(['.', '(']).next())
+    }
+}
+
 /// Extract dependencies from an AST expression.
 pub fn extract_dependencies(expr: &Expr) -> Dependencies {
     let mut deps = Dependencies::default();
-    let mut let_vars: Vec<String> = Vec::new();
-    walk(expr, &mut deps, &mut let_vars);
+    visit(expr, &mut deps, &mut Vec::new());
     deps
 }
 
-fn walk(expr: &Expr, deps: &mut Dependencies, let_vars: &mut Vec<String>) {
+#[derive(Clone)]
+struct ReadPath {
+    instance: Option<String>,
+    path: String,
+}
+
+impl ReadPath {
+    fn extend(&mut self, segments: &[PathSegment]) {
+        for segment in segments {
+            segment.append_to_path(&mut self.path);
+        }
+    }
+
+    fn row(mut self) -> Self {
+        if !self.path.ends_with("[*]") {
+            self.path.push_str("[*]");
+        }
+        self
+    }
+
+    fn record(&self, deps: &mut Dependencies) {
+        if let Some(name) = &self.instance {
+            deps.instance_reads
+                .entry(name.clone())
+                .or_default()
+                .insert(self.path.clone());
+        } else if !self.path.is_empty() {
+            deps.fields.insert(self.path.clone());
+        }
+    }
+}
+
+// A let binding or predicate's rebound dollar can point to several statically known paths.
+type Bindings = Vec<(String, Vec<ReadPath>)>;
+
+fn visit(expr: &Expr, deps: &mut Dependencies, bindings: &mut Bindings) -> Vec<ReadPath> {
+    let paths = walk(expr, deps, bindings);
+    // A lookup already records its source collection and key column.
+    let bare_dollar = matches!(expr, Expr::FieldRef { name: None, path } if path.is_empty());
+    if !bare_dollar && !matches!(expr, Expr::RowLookup { .. }) {
+        for path in &paths {
+            path.record(deps);
+        }
+    }
+    paths
+}
+
+fn walk(expr: &Expr, deps: &mut Dependencies, bindings: &mut Bindings) -> Vec<ReadPath> {
     match expr {
         Expr::FieldRef { name, path } => {
-            match name {
-                None => {
-                    // Bare `$` is rebound inside countWhere / every / some and *Where predicates;
-                    // only mark self-ref if not suppressed.
-                    if !let_vars.contains(&"$".to_string()) {
-                        deps.has_self_ref = true;
-                    }
-                }
-                Some(n) => {
-                    // Skip let-bound variables
-                    if !let_vars.contains(n) {
-                        let mut full_path = n.clone();
-                        for seg in path {
-                            if matches!(seg, PathSegment::Wildcard) {
-                                deps.has_wildcard = true;
-                            }
-                            seg.append_to_path(&mut full_path, PathDotJoin::AlwaysPrefix);
-                        }
-                        deps.fields.insert(full_path);
-                    }
-                }
-            }
+            return reference(name.as_deref(), path, deps, bindings);
         }
-
         Expr::VarRef { name, path } => {
-            if !let_vars.contains(name) {
-                let mut full_path = name.clone();
-                for seg in path {
-                    if matches!(seg, PathSegment::Wildcard) {
-                        deps.has_wildcard = true;
-                    }
-                    seg.append_to_path(&mut full_path, PathDotJoin::AlwaysPrefix);
-                }
-                deps.fields.insert(full_path);
-            }
+            return reference(Some(name), path, deps, bindings);
         }
-
         Expr::ContextRef {
             name,
             called,
             arg,
             tail,
         } => {
-            if name == "instance"
-                && let Some(instance_name) = arg
-            {
-                deps.instance_refs.insert(instance_name.clone());
-            }
-            let mut ref_str = String::with_capacity(
-                1 + name.len() + arg.as_ref().map(|a| 4 + a.len()).unwrap_or(0) + tail.len() * 2,
-            );
-            ref_str.push('@');
-            ref_str.push_str(name);
+            let mut context = format!("@{name}");
             if *called {
-                if let Some(a) = arg {
-                    ref_str.push_str("('");
-                    ref_str.push_str(a);
-                    ref_str.push_str("')");
-                } else {
-                    ref_str.push_str("()");
-                }
+                context.push_str(
+                    &arg.as_ref()
+                        .map_or_else(|| "()".into(), |a| format!("('{a}')")),
+                );
             }
-            for t in tail {
-                ref_str.push('.');
-                ref_str.push_str(t);
+            for segment in tail {
+                context.push('.');
+                context.push_str(segment);
             }
-            deps.context_refs.insert(ref_str);
+            deps.context_refs.insert(context);
+            if name == "instance"
+                && let Some(instance) = arg
+            {
+                return vec![ReadPath {
+                    instance: Some(instance.clone()),
+                    path: tail.join("."),
+                }];
+            }
         }
-
         Expr::FunctionCall { name, args } => {
+            deps.function_calls.push((name.clone(), args.len()));
             match name.as_str() {
                 "valid" | "relevant" | "readonly" | "required" => {
-                    // MIP: extract field path from first arg
                     if let Some(first) = args.first() {
                         let path = extract_field_path_str(first);
                         if !path.is_empty() {
                             deps.mip_deps.insert(path);
                         }
                     }
-                    // Still walk args for other deps
-                    for arg in args {
-                        walk(arg, deps, let_vars);
-                    }
                 }
-                "prev" | "next" => {
-                    deps.uses_prev_next = true;
-                }
-                "parent" => {
-                    deps.uses_prev_next = true;
-                }
-                "instance" => {
-                    match args.first() {
-                        Some(Expr::String(name)) => {
-                            deps.instance_refs.insert(name.clone());
-                        }
-                        Some(_) => deps.has_dynamic_instance = true,
-                        None => {}
-                    }
-                    for arg in args {
-                        walk(arg, deps, let_vars);
-                    }
-                }
+                "prev" | "next" | "parent" => deps.uses_prev_next = true,
                 "countWhere" | "every" | "some" | "sumWhere" | "avgWhere" | "minWhere"
-                | "maxWhere" | "moneySumWhere" => {
-                    // First arg: normal walk
-                    if let Some(first) = args.first() {
-                        walk(first, deps, let_vars);
-                    }
-                    // Second arg: bare $ is rebound, so don't count it
-                    // But still walk for other refs
-                    if let Some(second) = args.get(1) {
-                        let mut inner_vars = let_vars.clone();
-                        inner_vars.push("$".to_string());
-                        walk(second, deps, &mut inner_vars);
-                    }
+                | "maxWhere" | "moneySumWhere"
+                    if args.len() == 2 =>
+                {
+                    let rows = visit(&args[0], deps, bindings)
+                        .into_iter()
+                        .map(ReadPath::row)
+                        .collect();
+                    bindings.push(("$".into(), rows));
+                    visit(&args[1], deps, bindings);
+                    bindings.pop();
+                    return Vec::new();
                 }
-                _ => {
-                    for arg in args {
-                        walk(arg, deps, let_vars);
+                _ => {}
+            }
+            for arg in args {
+                visit(arg, deps, bindings);
+            }
+            if name == "instance" && args.first().is_some_and(|arg| !matches!(arg, Expr::String(_))) {
+                deps.has_dynamic_instance = true;
+            }
+            if name == "instance"
+                && let Some(Expr::String(instance)) = args.first()
+            {
+                let path = match args.get(1) {
+                    None => String::new(),
+                    Some(Expr::String(path)) => path.clone(),
+                    // The instance is known but its path depends on runtime data.
+                    Some(_) => {
+                        deps.instance_reads
+                            .entry(instance.clone())
+                            .or_default()
+                            .insert(String::new());
+                        return Vec::new();
                     }
-                }
+                };
+                return vec![ReadPath {
+                    instance: Some(instance.clone()),
+                    path,
+                }];
             }
         }
-
         Expr::LetBinding { name, value, body } => {
-            walk(value, deps, let_vars);
-            let_vars.push(name.clone());
-            walk(body, deps, let_vars);
-            let_vars.pop();
+            let value_paths = visit(value, deps, bindings);
+            bindings.push((name.clone(), value_paths));
+            let result = walk(body, deps, bindings);
+            bindings.pop();
+            return result;
         }
-
         Expr::BinaryOp { left, right, .. } => {
-            walk(left, deps, let_vars);
-            walk(right, deps, let_vars);
+            visit(left, deps, bindings);
+            visit(right, deps, bindings);
         }
-
         Expr::UnaryOp { operand, .. } => {
-            walk(operand, deps, let_vars);
+            visit(operand, deps, bindings);
         }
-
         Expr::Ternary {
             condition,
             then_branch,
@@ -191,70 +213,59 @@ fn walk(expr: &Expr, deps: &mut Dependencies, let_vars: &mut Vec<String>) {
             then_branch,
             else_branch,
         } => {
-            walk(condition, deps, let_vars);
-            walk(then_branch, deps, let_vars);
-            walk(else_branch, deps, let_vars);
+            visit(condition, deps, bindings);
+            let mut paths = visit(then_branch, deps, bindings);
+            paths.extend(visit(else_branch, deps, bindings));
+            return paths;
         }
-
+        Expr::NullCoalesce { left, right } => {
+            let mut paths = visit(left, deps, bindings);
+            paths.extend(visit(right, deps, bindings));
+            return paths;
+        }
         Expr::Membership {
             value, container, ..
         } => {
-            walk(value, deps, let_vars);
-            walk(container, deps, let_vars);
+            visit(value, deps, bindings);
+            visit(container, deps, bindings);
         }
-
-        Expr::NullCoalesce { left, right } => {
-            walk(left, deps, let_vars);
-            walk(right, deps, let_vars);
-        }
-
         Expr::RowLookup {
             source,
             key_path,
             key,
         } => {
-            walk(source, deps, let_vars);
-            walk(key, deps, let_vars);
-            if let Some(path) = field_path(expr, let_vars) {
-                deps.has_wildcard = true;
-                deps.fields.insert(format!("{path}.{}", key_path.join(".")));
+            let rows: Vec<_> = visit(source, deps, bindings)
+                .into_iter()
+                .map(ReadPath::row)
+                .collect();
+            visit(key, deps, bindings);
+            for row in &rows {
+                let mut column = row.clone();
+                column.path.push('.');
+                column.path.push_str(&key_path.join("."));
+                column.record(deps);
             }
+            deps.has_wildcard = true;
+            return rows;
         }
-
-        Expr::PostfixAccess { expr: inner, path } => {
-            let mut base = inner.as_ref();
-            while let Expr::PostfixAccess { expr, path } = base {
-                deps.has_wildcard |= path.contains(&PathSegment::Wildcard);
-                base = expr;
+        Expr::PostfixAccess { expr, path } => {
+            let mut paths = walk(expr, deps, bindings);
+            deps.has_wildcard |= path.contains(&PathSegment::Wildcard);
+            for base in &mut paths {
+                base.extend(path);
             }
-            if matches!(base, Expr::RowLookup { .. }) {
-                if let Some(result_path) = field_path(expr, let_vars) {
-                    deps.fields.insert(result_path);
-                }
-                walk(base, deps, let_vars);
-            } else if let Some(field_path) = extend_field_path(inner, path) {
-                deps.fields.insert(field_path);
-            } else {
-                walk(inner, deps, let_vars);
-            }
-            if path.contains(&PathSegment::Wildcard) {
-                deps.has_wildcard = true;
-            }
+            return paths;
         }
-
         Expr::Array(elems) => {
             for elem in elems {
-                walk(elem, deps, let_vars);
+                visit(elem, deps, bindings);
             }
         }
-
         Expr::Object(entries) => {
-            for (_, val) in entries {
-                walk(val, deps, let_vars);
+            for (_, value) in entries {
+                visit(value, deps, bindings);
             }
         }
-
-        // Leaf nodes — no deps
         Expr::Null
         | Expr::Boolean(_)
         | Expr::Number(_)
@@ -262,6 +273,35 @@ fn walk(expr: &Expr, deps: &mut Dependencies, let_vars: &mut Vec<String>) {
         | Expr::DateLiteral(_)
         | Expr::DateTimeLiteral(_) => {}
     }
+    Vec::new()
+}
+
+fn reference(
+    name: Option<&str>,
+    path: &[PathSegment],
+    deps: &mut Dependencies,
+    bindings: &Bindings,
+) -> Vec<ReadPath> {
+    deps.has_wildcard |= path.contains(&PathSegment::Wildcard);
+    let mut roots = if let Some((_, paths)) = bindings
+        .iter()
+        .rev()
+        .find(|(key, _)| key == name.unwrap_or("$"))
+    {
+        paths.clone()
+    } else if let Some(name) = name {
+        vec![ReadPath {
+            instance: None,
+            path: name.to_owned(),
+        }]
+    } else {
+        deps.has_self_ref = true;
+        Vec::new()
+    };
+    for root in &mut roots {
+        root.extend(path);
+    }
+    roots
 }
 
 fn extract_field_path_str(expr: &Expr) -> String {
@@ -289,10 +329,6 @@ pub(crate) fn explicit_field_path(expr: &Expr, let_vars: &[String]) -> Option<St
     field_path_from_root(expr, |root, name| {
         matches!(root, Expr::FieldRef { .. }) && !let_vars.iter().any(|bound| bound == name)
     })
-}
-
-fn field_path(expr: &Expr, let_vars: &[String]) -> Option<String> {
-    field_path_from_root(expr, |_, name| !let_vars.iter().any(|bound| bound == name))
 }
 
 /// Postfix chains are parsed iteratively. Walk back to their root without recursion.
@@ -328,26 +364,6 @@ fn field_path_from_root(mut expr: &Expr, accept: impl Fn(&Expr, &str) -> bool) -
     Some(path)
 }
 
-fn extend_field_path(expr: &Expr, extra_path: &[PathSegment]) -> Option<String> {
-    match expr {
-        Expr::FieldRef { path, .. } | Expr::VarRef { path, .. }
-            if !path.contains(&PathSegment::Wildcard) =>
-        {
-            let mut path = extract_field_path_str(expr);
-            for seg in extra_path {
-                seg.append_to_path(&mut path, PathDotJoin::PrefixWhenNonempty);
-            }
-            if path.is_empty() { None } else { Some(path) }
-        }
-        Expr::PostfixAccess { expr, path } => {
-            let mut combined = path.clone();
-            combined.extend_from_slice(extra_path);
-            extend_field_path(expr, &combined)
-        }
-        _ => None,
-    }
-}
-
 use crate::wire_style::JsonWireStyle;
 
 /// Serialize [`Dependencies`] for WASM / JSON FFI (camelCase keys).
@@ -364,7 +380,7 @@ pub fn dependencies_to_json_value_styled(
         JsonWireStyle::JsCamel => serde_json::json!({
             "fields": deps.fields.iter().collect::<Vec<_>>(),
             "contextRefs": deps.context_refs.iter().collect::<Vec<_>>(),
-            "instanceRefs": deps.instance_refs.iter().collect::<Vec<_>>(),
+            "instanceReads": deps.instance_reads,
             "mipDeps": deps.mip_deps.iter().collect::<Vec<_>>(),
             "hasSelfRef": deps.has_self_ref,
             "hasWildcard": deps.has_wildcard,
@@ -373,7 +389,7 @@ pub fn dependencies_to_json_value_styled(
         JsonWireStyle::PythonSnake => serde_json::json!({
             "fields": deps.fields.iter().collect::<Vec<_>>(),
             "context_refs": deps.context_refs.iter().collect::<Vec<_>>(),
-            "instance_refs": deps.instance_refs.iter().collect::<Vec<_>>(),
+            "instance_reads": deps.instance_reads,
             "mip_deps": deps.mip_deps.iter().collect::<Vec<_>>(),
             "has_self_ref": deps.has_self_ref,
             "has_wildcard": deps.has_wildcard,
@@ -442,7 +458,7 @@ mod tests {
     #[test]
     fn test_instance_ref() {
         let d = deps("@instance('priorYear').total");
-        assert!(d.instance_refs.contains("priorYear"));
+        assert!(d.instance_reads.contains_key("priorYear"));
     }
 
     #[test]
@@ -564,12 +580,12 @@ mod tests {
 
     mod path_segment_append {
         use super::deps;
-        use crate::ast::{PathDotJoin, PathSegment};
+        use crate::ast::PathSegment;
 
         #[test]
         fn walk_style_always_prefixes_dot_segments() {
             let mut path = "items".to_string();
-            PathSegment::Dot("qty".into()).append_to_path(&mut path, PathDotJoin::AlwaysPrefix);
+            PathSegment::Dot("qty".into()).append_to_path(&mut path, PathDotJoin::PrefixWhenNonempty);
             assert_eq!(path, "items.qty");
         }
 
@@ -583,17 +599,16 @@ mod tests {
         #[test]
         fn extract_style_prefixes_dot_when_base_nonempty() {
             let mut path = "items".to_string();
-            PathSegment::Dot("qty".into())
-                .append_to_path(&mut path, PathDotJoin::PrefixWhenNonempty);
+            PathSegment::Dot("qty".into()).append_to_path(&mut path, PathDotJoin::PrefixWhenNonempty);
             assert_eq!(path, "items.qty");
         }
 
         #[test]
         fn index_and_wildcard_rendering() {
             let mut path = "items".to_string();
-            PathSegment::Index(2).append_to_path(&mut path, PathDotJoin::AlwaysPrefix);
-            PathSegment::Wildcard.append_to_path(&mut path, PathDotJoin::AlwaysPrefix);
-            PathSegment::Dot("qty".into()).append_to_path(&mut path, PathDotJoin::AlwaysPrefix);
+            PathSegment::Index(2).append_to_path(&mut path, PathDotJoin::PrefixWhenNonempty);
+            PathSegment::Wildcard.append_to_path(&mut path, PathDotJoin::PrefixWhenNonempty);
+            PathSegment::Dot("qty".into()).append_to_path(&mut path, PathDotJoin::PrefixWhenNonempty);
             assert_eq!(path, "items[2][*].qty");
         }
 

@@ -51,7 +51,10 @@ fn keyed_lookup_uses_row_paths_and_ambient_dependencies() {
     let deps = extract_dependencies(&expr);
     assert_eq!(deps.fields, ["id".to_string()].into());
     assert_eq!(
-        deps.instance_refs,
+        deps.instance_reads
+            .keys()
+            .cloned()
+            .collect::<std::collections::HashSet<_>>(),
         ["list".to_string(), "fallback".to_string()].into()
     );
     let dynamic = extract_dependencies(&parse("$rows[id = subject($keyName)]").unwrap());

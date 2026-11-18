@@ -52,7 +52,7 @@ proptest! {
         let second = extract_dependencies(&expr);
         prop_assert_eq!(first.fields, second.fields);
         prop_assert_eq!(first.context_refs, second.context_refs);
-        prop_assert_eq!(first.instance_refs, second.instance_refs);
+        prop_assert_eq!(first.instance_reads, second.instance_reads);
         prop_assert_eq!(first.mip_deps, second.mip_deps);
         prop_assert_eq!(first.has_self_ref, second.has_self_ref);
         prop_assert_eq!(first.has_wildcard, second.has_wildcard);
@@ -221,16 +221,16 @@ fn parent_function_call_marks_uses_prev_next() {
     );
 }
 
-/// `instance('name')` records the named instance in `instance_refs`.
+/// `instance('name')` records the named instance in `instance_reads`.
 /// Kills the "instance" match-arm deletion at `src/dependencies.rs:132`.
 #[test]
 fn instance_function_call_records_instance_ref() {
     let expr = parse("instance('foo')").expect("parse");
     let deps = extract_dependencies(&expr);
     assert!(
-        deps.instance_refs.contains("foo"),
-        "instance('foo') should record 'foo' in instance_refs; got {:?}",
-        deps.instance_refs
+        deps.instance_reads.contains_key("foo"),
+        "instance('foo') should record 'foo' in instance_reads; got {:?}",
+        deps.instance_reads
     );
 }
 
