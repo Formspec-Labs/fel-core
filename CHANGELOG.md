@@ -37,12 +37,17 @@ conformance corpus.
   decimal range. Every decimal overflow, from these and from `+`, `-`, `*`,
   `/`, `%` and `power`, now yields `null` with the diagnostic code
   `FEL_ARITHMETIC_OVERFLOW`.
+- `dateAdd` no longer panics, wraps, or silently adds zero when the result
+  leaves the `Date` year range or the count does not fit an integer; it
+  yields `null` with `FEL_ARITHMETIC_OVERFLOW`.
 - `ParseError::span`, `Diagnostic::span` and lexer `Span` are documented as
   Unicode scalar (char) indices, which the lexer has always produced. They were
   documented as byte offsets.
 
 ### Changed (BREAKING)
 
+- `types::date_add_days` returns `Option<Date>`: `None` when the result's year
+  does not fit a `Date`.
 - FEL accepts `rows[key = value]` to select a unique row. Update exhaustive
   Rust matches for `Expr::RowLookup { source, key_path, key }`. For a field
   source, `Dependencies::fields` and the JSON `fields` key include wildcard

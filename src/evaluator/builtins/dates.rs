@@ -180,7 +180,10 @@ impl<'a> Evaluator<'a> {
             DateOperand::Null | DateOperand::Invalid => return Value::Null,
         };
         let n = match self.eval_arg(args, 1) {
-            Value::Number(n) => n.to_i64().unwrap_or(0),
+            Value::Number(n) => match n.to_i64() {
+                Some(n) => n,
+                None => return self.overflow("dateAdd: date out of range"),
+            },
             _ => return Value::Null,
         };
         let unit = match self.eval_arg(args, 2) {
@@ -188,10 +191,19 @@ impl<'a> Evaluator<'a> {
             _ => return Value::Null,
         };
         match unit.as_str() {
-            "days" => Value::Date(date_add_days(&d, n)),
+            "days" => match date_add_days(&d, n) {
+                Some(date) => Value::Date(date),
+                None => self.overflow("dateAdd: date out of range"),
+            },
             "months" => {
-                let total = d.year() as i64 * 12 + (d.month() as i64 - 1) + n;
-                let new_year = (total.div_euclid(12)) as i32;
+                let Some(total) =
+                    (i64::from(d.year()) * 12 + (i64::from(d.month()) - 1)).checked_add(n)
+                else {
+                    return self.overflow("dateAdd: date out of range");
+                };
+                let Ok(new_year) = i32::try_from(total.div_euclid(12)) else {
+                    return self.overflow("dateAdd: date out of range");
+                };
                 let new_month = (total.rem_euclid(12) + 1) as u32;
                 let max_day = days_in_month(new_year, new_month);
                 let new_day = d.day().min(max_day);
@@ -202,7 +214,12 @@ impl<'a> Evaluator<'a> {
                 })
             }
             "years" => {
-                let new_year = d.year() + n as i32;
+                let Some(new_year) = i64::from(d.year())
+                    .checked_add(n)
+                    .and_then(|year| i32::try_from(year).ok())
+                else {
+                    return self.overflow("dateAdd: date out of range");
+                };
                 let max_day = days_in_month(new_year, d.month());
                 let new_day = d.day().min(max_day);
                 Value::Date(Date::Date {

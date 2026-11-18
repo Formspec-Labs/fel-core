@@ -410,10 +410,12 @@ fn parse_clock(time_part: &str) -> Option<(u32, u32, u32)> {
     }
 }
 
-/// Add days to a date.
-pub fn date_add_days(d: &Date, n: i64) -> Date {
-    let total_days = d.ordinal_days() + n;
-    civil_from_days(total_days)
+/// Add days to a date; `None` when the result's year does not fit a [`Date`].
+pub fn date_add_days(d: &Date, n: i64) -> Option<Date> {
+    let total_days = d.ordinal_days().checked_add(n)?;
+    (days_from_civil(i32::MIN, 1, 1)..=days_from_civil(i32::MAX, 12, 31))
+        .contains(&total_days)
+        .then(|| civil_from_days(total_days))
 }
 
 /// Convert days since the FEL epoch (1970-01-01) back to a civil [`Date`] (date-only).

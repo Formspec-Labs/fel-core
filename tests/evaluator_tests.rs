@@ -2251,6 +2251,29 @@ fn static_arity_check_reports_what_the_evaluator_refuses() {
         builtin_arity_mismatches(&parse("date('2027-10-01') + countWhere([1], $ > 0)").unwrap())
             .is_empty()
     );
+    // One wrong call inside each kind of expression the walk descends into.
+    for nested in [
+        "[abs(1, 2)]",
+        "{a: abs()}",
+        "-abs()",
+        "not abs()",
+        "1 + abs()",
+        "null ?? abs()",
+        "true ? abs() : 1",
+        "if true then 1 else abs()",
+        "abs() in [1]",
+        "let x = abs() in x",
+        "let x = 1 in abs()",
+        "[abs()][0]",
+        "$rows[id = abs()].name",
+    ] {
+        let reported: Vec<_> = builtin_arity_mismatches(&parse(nested).unwrap())
+            .into_iter()
+            .map(|d| d.message)
+            .collect();
+        assert_eq!(reported.len(), 1, "{nested}: {reported:?}");
+        assert!(reported[0].starts_with("abs: "), "{nested}: {reported:?}");
+    }
 
     for entry in builtin_function_catalog() {
         let (min, max) = entry.arity();
@@ -2275,4 +2298,33 @@ fn static_arity_check_reports_what_the_evaluator_refuses() {
             assert_eq!(reported.len(), 1, "{call}");
         }
     }
+}
+
+#[test]
+fn date_add_outside_the_date_range_is_an_overflow() {
+    let max = i64::MAX;
+    for expression in [
+        format!("dateAdd(@2020-01-31, {max}, 'days')"),
+        format!("dateAdd(@2020-01-31, -{max}, 'days')"),
+        format!("dateAdd(@2020-01-31, {max}, 'months')"),
+        "dateAdd(@2020-01-31, 99999999999, 'years')".to_owned(),
+        "dateAdd(@2020-01-31, 100000000000000000000, 'days')".to_owned(),
+    ] {
+        let result = eval_result(&expression);
+        assert_eq!(result.value, Value::Null, "{expression}");
+        let codes: Vec<_> = result
+            .diagnostics
+            .iter()
+            .map(|d| d.code.as_deref())
+            .collect();
+        assert_eq!(codes, [Some("FEL_ARITHMETIC_OVERFLOW")], "{expression}");
+    }
+    assert_eq!(
+        eval("dateAdd(@2020-01-31, 1, 'months')"),
+        Value::Date(Date::Date {
+            year: 2020,
+            month: 2,
+            day: 29
+        })
+    );
 }
