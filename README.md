@@ -77,6 +77,12 @@ The converter accepts up to 256 KiB per expression, 64 nested delimiters and
 `make test-cel-bridge` for the Rust API tests and the independent Go CEL checks.
 [Rust API and examples](src/cel/mod.rs) · [Function coverage](conformance/cel/README.md)
 
+For a browser build with the shipped lockfile, use LLVM's archiver so the
+WebAssembly module includes the parser's stack support. Set
+`AR_wasm32_unknown_unknown=llvm-ar` or give the full path to `llvm-ar`.
+With Node and the `wasm32-unknown-unknown` Rust target installed, run
+`sh conformance/cel/check-wasm.sh` to load the module and round-trip an expression.
+
 ## Features
 
 - **Decimal arithmetic** via `rust_decimal` — no `NaN`, no precision drift on money-like values.

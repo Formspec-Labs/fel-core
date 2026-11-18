@@ -19,12 +19,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
       - uses: actions/setup-go@v5
         with:
           go-version-file: conformance/cel/go.mod
           cache-dependency-path: conformance/cel/go.sum
       - run: make test-cel-bridge
+      - run: sh conformance/cel/check-wasm.sh
 
   ratification-gate:
     runs-on: ubuntu-latest
