@@ -357,8 +357,10 @@ ContextRef     ← '@' Identifier ('(' _ StringLiteral? _ ')')?
 
 ### 6.2 Path Resolution Rules
 
-1. **Scope:** Field references are lexically scoped. Inside a repeatable
-   group, `$sibling` resolves within the **same repeat instance**.
+1. **Scope:** The host defines how field names resolve. Formspec Definitions
+   follow [Core §3.2.1](https://formspec.org/specs/core/#321-simple-references)
+   and [§3.2.2](https://formspec.org/specs/core/#322-repeat-references). A
+   sibling key reads this row, and `$repeat[*].field` reads across rows.
 2. **Index bounds:** An explicit index `$repeat[n]` where `n < 1` or
    `n >` the number of instances MUST signal an evaluation error.
 3. **Instance lookup:** `@instance('name')` MUST match a declared Data Source.

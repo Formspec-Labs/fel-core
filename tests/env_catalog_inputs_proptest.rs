@@ -3,7 +3,7 @@
 //! Covers the remaining ~10 GAP symbols clustered by surface:
 //!
 //! - **JSON-input parsers**: `field_map_from_json_str`, `json_object_to_field_map`,
-//!   `host_options_from_json`, `formspec_environment_from_json_map`.
+//!   `formspec_environment_from_json_map`.
 //! - **Catalog export**: `builtin_function_catalog_for`, `builtin_arity`,
 //!   `builtin_function_catalog_json_value`, `builtin_function_catalog_json_value_for`.
 //! - **Environment + struct**: `FormspecEnvironment::new` + setters, `MipState::default`,
@@ -22,8 +22,8 @@ use fel_core::extensions::{
 use fel_core::testing::strategies::arb_value;
 use fel_core::{
     FormspecEnvironment, IndexMap, MipState, RepeatContext, Value as TypeValue, fel_to_wire_json,
-    field_map_from_json_str, formspec_environment_from_json_map, host_options_from_json,
-    json_object_to_field_map, resolve_value_path,
+    field_map_from_json_str, formspec_environment_from_json_map, json_object_to_field_map,
+    resolve_value_path,
 };
 use proptest::prelude::*;
 use serde_json::{Map, Value as JsonValue, json};
@@ -148,61 +148,6 @@ proptest! {
         prop_assume!(!leaf.is_object());
         let map = json_object_to_field_map(&leaf);
         prop_assert!(map.is_empty(), "non-object should yield empty map, got {:?}", map);
-    }
-
-    /// `host_options_from_json`:
-    /// - When required `expression` is present, parsing succeeds.
-    /// - Unknown keys are ignored gracefully (don't cause failure).
-    /// - Recognized keys (`currentItemPath`, `replaceSelfRef`) round-trip into the parsed options.
-    #[test]
-    fn host_options_from_json_round_trips_recognized_keys(
-        expr in "[a-zA-Z0-9_$ +*]{1,20}",
-        path in arb_key().prop_map(|n| format!("{n}[0].field")),
-        replace in any::<bool>(),
-        unknown_key in arb_key(),
-        unknown_val in arb_leaf_json(),
-    ) {
-        let mut obj = Map::new();
-        obj.insert("expression".into(), JsonValue::String(expr.clone()));
-        obj.insert("currentItemPath".into(), JsonValue::String(path.clone()));
-        obj.insert("replaceSelfRef".into(), JsonValue::Bool(replace));
-        // Inject an unknown key — must be ignored, NOT cause an error.
-        // Skip names that collide with recognized keys.
-        if !matches!(
-            unknown_key.as_str(),
-            "expression"
-                | "currentItemPath"
-                | "current_item_path"
-                | "replaceSelfRef"
-                | "replace_self_ref"
-                | "repeatCounts"
-                | "repeat_counts"
-                | "fieldPaths"
-                | "field_paths"
-                | "valuesByPath"
-                | "values_by_path"
-        ) {
-            obj.insert(unknown_key, unknown_val);
-        }
-
-        let parsed = host_options_from_json(&obj).expect("valid options");
-        prop_assert_eq!(parsed.expression, expr);
-        prop_assert_eq!(parsed.current_item_path, path);
-        prop_assert_eq!(parsed.replace_self_ref, replace);
-    }
-
-    /// `host_options_from_json` fails cleanly when `expression` is missing.
-    #[test]
-    fn host_options_from_json_requires_expression(
-        path in arb_key(),
-        replace in any::<bool>(),
-    ) {
-        let mut obj = Map::new();
-        obj.insert("currentItemPath".into(), JsonValue::String(path));
-        obj.insert("replaceSelfRef".into(), JsonValue::Bool(replace));
-        // No "expression" key.
-        let result = host_options_from_json(&obj);
-        prop_assert!(result.is_err(), "missing expression should error");
     }
 
     /// `formspec_environment_from_json_map`: for arbitrary JSON object inputs,

@@ -61,6 +61,17 @@ pub trait Environment {
     /// Resolve `@name`, `@name('arg')`, `@name.tail`.
     fn resolve_context(&self, name: &str, arg: Option<&str>, tail: &[String]) -> Value;
 
+    /// Resolve a typed context path directly when the host knows the collection.
+    /// Return `None` to use the host's dotted context lookup and ordinary postfix traversal.
+    fn resolve_context_path(
+        &self,
+        _name: &str,
+        _arg: Option<&str>,
+        _path: &[PathSegment],
+    ) -> Option<Result<Value, FieldError>> {
+        None
+    }
+
     /// `valid($path)` — default `true` when not overridden.
     fn mip_valid(&self, _path: &[String]) -> Value {
         Value::Boolean(true)
@@ -90,6 +101,16 @@ pub trait Environment {
     fn repeat_parent(&self) -> Value {
         Value::Null
     }
+    /// Read a postfix path from a navigation result without materializing the row.
+    /// Return `None` to apply the path to the result of the regular navigation call.
+    fn resolve_repeat_path(
+        &self,
+        _name: &str,
+        _path: &[PathSegment],
+    ) -> Option<Result<Value, FieldError>> {
+        None
+    }
+
     /// Calendar date for `today()` per ADR 0069 D-6 — hosts MUST configure a
     /// timezone-equivalent clock or return [`MissingTimezoneContextError`].
     ///
@@ -628,6 +649,14 @@ impl<'a> Evaluator<'a> {
         path: &[PathSegment],
     ) -> Value {
         if is_grammar_reserved_context(name) || self.context_bindings.is_none() {
+            if self.budget.max_alloc_bytes == u64::MAX
+                && let Some(result) = self.env.resolve_context_path(name, arg, path)
+            {
+                return result.unwrap_or_else(|error| {
+                    self.diag(error.to_string());
+                    Value::Null
+                });
+            }
             let (env_tail, remaining_path) = split_context_env_path(path);
             let base = self.env.resolve_context(name, arg, &env_tail);
             return if remaining_path.is_empty() {
@@ -834,7 +863,15 @@ impl<'a> Evaluator<'a> {
                 result
             }
             Expr::FunctionCall { name, args } => {
-                if let Some(value) = self.env.precomputed(expr) {
+                // The host cannot see FEL locals, trace argument reads, or
+                // account for a cached call against an explicit resource budget.
+                if self.let_scopes.is_empty()
+                    && !self.tracing()
+                    && self.budget.max_alloc_bytes == u64::MAX
+                    && self.budget.max_steps == u64::MAX
+                    && self.budget.deadline.is_none()
+                    && let Some(value) = self.env.precomputed(expr)
+                {
                     return value;
                 }
                 // Eager traceable builtins rely on per-call arg caching (see `CallArgCache`);
@@ -892,6 +929,27 @@ impl<'a> Evaluator<'a> {
                     .chain(tail)
                     .collect();
                 self.eval_context_ref_path(name, *called, arg.as_deref(), &path)
+            }
+            Expr::FunctionCall { name, args }
+                if args.is_empty()
+                    && matches!(name.as_str(), "prev" | "next" | "parent")
+                    && !self.tracing()
+                    && self.budget.max_alloc_bytes == u64::MAX
+                    && self.budget.max_steps == u64::MAX
+                    && self.budget.deadline.is_none() =>
+            {
+                let path: Vec<_> = tail.collect();
+                match self.env.resolve_repeat_path(name, &path) {
+                    Some(Ok(value)) => value,
+                    Some(Err(error)) => {
+                        self.diag(error.to_string());
+                        Value::Null
+                    }
+                    None => {
+                        let value = self.eval(base);
+                        self.access_path(value, &path)
+                    }
+                }
             }
             _ => {
                 let value = self.eval(base);

@@ -13,7 +13,7 @@ RUSTUP_HOME ?= $(HOME)/.rustup
 NIGHTLY_LLVM_PROFDATA = $(RUSTUP_HOME)/toolchains/nightly-$(RUST_TRIPLE)/lib/rustlib/$(RUST_TRIPLE)/bin/llvm-profdata
 
 .PHONY: all help build test test-full test-differential test-differential-python test-differential-wasm test-all check-ratification ratify ratify-external conformance lint deny docs package ci fuzz-extract fuzz-regression-refresh fuzz-setup fuzz-coverage fuzz-all fuzz-run fuzz-run-pipeline fuzz-run-structured fuzz-run-budget fuzz-run-all seed-fuzz clean \
-        mutants-install mutants-p0 mutants-parser mutants-lexer mutants-evaluator mutants-budget mutants-deps mutants-convert mutants-error mutants-prepare-host mutants-extensions mutants-money-dates \
+        mutants-install mutants-p0 mutants-parser mutants-lexer mutants-evaluator mutants-budget mutants-deps mutants-convert mutants-error mutants-extensions mutants-money-dates \
         mutants-interpolation mutants-iso-duration mutants-tier2 \
         mutants-shard-1 mutants-shard-2 mutants-shard-3 mutants-shard-4
 
@@ -160,9 +160,6 @@ mutants-convert:
 mutants-error:
 	$(MUTANTS_ENV) cargo mutants $(MUTANTS_COMMON_ARGS) --file 'src/error.rs'
 
-mutants-prepare-host:
-	$(MUTANTS_ENV) cargo mutants $(MUTANTS_COMMON_ARGS) --file 'src/prepare_host.rs'
-
 mutants-extensions:
 	$(MUTANTS_ENV) cargo mutants $(MUTANTS_COMMON_ARGS) --file 'src/extensions/registry.rs' --file 'src/extensions/catalog.rs'
 
@@ -191,7 +188,6 @@ mutants-p0:
 	  --file 'src/dependencies.rs' \
 	  --file 'src/convert.rs' \
 	  --file 'src/error.rs' \
-	  --file 'src/prepare_host.rs' \
 	  --file 'src/extensions/registry.rs' \
 	  --file 'src/extensions/catalog.rs' \
 	  --file 'src/evaluator/builtins/money.rs' \
@@ -204,7 +200,7 @@ mutants-shard-1:
 	$(MUTANTS_ENV) cargo mutants $(MUTANTS_COMMON_ARGS) --shard 0/4 \
 	  --file 'src/parser.rs' --file 'src/lexer.rs' --file 'src/evaluator/core.rs' \
 	  --file 'src/evaluator/budget.rs' --file 'src/dependencies.rs' --file 'src/convert.rs' \
-	  --file 'src/error.rs' --file 'src/prepare_host.rs' \
+	  --file 'src/error.rs' \
 	  --file 'src/extensions/registry.rs' --file 'src/extensions/catalog.rs' \
 	  --file 'src/evaluator/builtins/money.rs' --file 'src/evaluator/builtins/dates.rs'
 
@@ -212,7 +208,7 @@ mutants-shard-2:
 	$(MUTANTS_ENV) cargo mutants $(MUTANTS_COMMON_ARGS) --shard 1/4 \
 	  --file 'src/parser.rs' --file 'src/lexer.rs' --file 'src/evaluator/core.rs' \
 	  --file 'src/evaluator/budget.rs' --file 'src/dependencies.rs' --file 'src/convert.rs' \
-	  --file 'src/error.rs' --file 'src/prepare_host.rs' \
+	  --file 'src/error.rs' \
 	  --file 'src/extensions/registry.rs' --file 'src/extensions/catalog.rs' \
 	  --file 'src/evaluator/builtins/money.rs' --file 'src/evaluator/builtins/dates.rs'
 
@@ -220,7 +216,7 @@ mutants-shard-3:
 	$(MUTANTS_ENV) cargo mutants $(MUTANTS_COMMON_ARGS) --shard 2/4 \
 	  --file 'src/parser.rs' --file 'src/lexer.rs' --file 'src/evaluator/core.rs' \
 	  --file 'src/evaluator/budget.rs' --file 'src/dependencies.rs' --file 'src/convert.rs' \
-	  --file 'src/error.rs' --file 'src/prepare_host.rs' \
+	  --file 'src/error.rs' \
 	  --file 'src/extensions/registry.rs' --file 'src/extensions/catalog.rs' \
 	  --file 'src/evaluator/builtins/money.rs' --file 'src/evaluator/builtins/dates.rs'
 
@@ -228,7 +224,7 @@ mutants-shard-4:
 	$(MUTANTS_ENV) cargo mutants $(MUTANTS_COMMON_ARGS) --shard 3/4 \
 	  --file 'src/parser.rs' --file 'src/lexer.rs' --file 'src/evaluator/core.rs' \
 	  --file 'src/evaluator/budget.rs' --file 'src/dependencies.rs' --file 'src/convert.rs' \
-	  --file 'src/error.rs' --file 'src/prepare_host.rs' \
+	  --file 'src/error.rs' \
 	  --file 'src/extensions/registry.rs' --file 'src/extensions/catalog.rs' \
 	  --file 'src/evaluator/builtins/money.rs' --file 'src/evaluator/builtins/dates.rs'
 

@@ -23,7 +23,6 @@ pub(crate) mod interpolation;
 pub(crate) mod iso_duration;
 pub mod lexer;
 pub mod parser;
-pub mod prepare_host;
 pub mod printer;
 pub(crate) mod trace;
 pub mod types;
@@ -71,10 +70,6 @@ pub use lexer::{
     tokenize_to_json_value, tokenize_to_json_value_styled,
 };
 pub use parser::parse;
-pub use prepare_host::{
-    PrepareHostInput, PrepareHostOptions, RepeatAliases, host_options_from_json, prepare,
-    prepare_for_host, prepare_with_aliases,
-};
 pub use printer::print_expr;
 pub use trace::{Trace, TraceStep};
 pub use types::{

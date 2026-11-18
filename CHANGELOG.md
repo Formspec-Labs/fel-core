@@ -15,6 +15,18 @@ conformance corpus.
 
 ### Changed (BREAKING)
 
+- Removed the `prepare_host` module and its crate-root exports
+  `PrepareHostInput`, `PrepareHostOptions`, `RepeatAliases`,
+  `host_options_from_json`, `prepare`, `prepare_for_host`, and
+  `prepare_with_aliases`. Pass authored expressions to the evaluator and
+  resolve field paths in the host environment.
+- `FormspecEnvironment` and `MapEnvironment` resolve repeat subscripts
+  against arrays. The evaluator removed the flat-key fallback for indexed
+  fields and removed `project_repeat_field` and its flat-key projection.
+  Supply repeat data as arrays of row objects.
+- `Environment` adds the optional `resolve_context_path` and
+  `resolve_repeat_path` hooks for typed context and navigation paths. Return
+  `None` to use the default resolution.
 - `FormspecEnvironment` gains the public `subject_keys` field for `subject(key)`.
   Downstream struct literals must initialize the field or use `..Default::default()`.
 - `Environment::resolve_field` takes the root (`Option<&str>`) and the full typed

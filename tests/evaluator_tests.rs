@@ -460,23 +460,29 @@ fn test_index_out_of_bounds_is_null_with_diagnostic() {
     );
 }
 
-/// FUT-15 / cluster E6: eval_field_ref flat-key fallback non-null hit
-/// path (`src/evaluator/core.rs:970`).
-///
-/// When the structured lookup `resolve_field(["rows"])` returns Null
-/// and the path contains an Index segment, the evaluator falls back to
-/// a flattened key like `["rows[0]"]` to support hosts that index
-/// repeats by composite key. If the flat lookup succeeds (non-null),
-/// the value MUST be returned. Mutating `if !matches!(flat, Null)` →
-/// `if matches!(flat, Null)` inverts the polarity, returning Null even
-/// when a registered flat-key value exists. Existing host_bindings
-/// tests cover the structured path but not this flat-key hit path.
+/// Repeat subscripts address array elements. Flat composite keys used to bypass
+/// the collection and interpreted the authored index as part of a map key.
 #[test]
-fn field_ref_index_fallback_returns_registered_flat_key_value() {
-    let mut fields = std::collections::HashMap::new();
-    fields.insert("rows[0]".to_string(), num(99));
-    let result = eval_with_fields("$rows[0]", fields).unwrap();
-    assert_eq!(result.value, num(99));
+fn repeat_subscripts_are_one_based_and_read_arrays() {
+    let fields = std::collections::HashMap::from([(
+        "rows".to_string(),
+        arr(vec![
+            obj(vec![("x".to_string(), num(11))]),
+            obj(vec![("x".to_string(), num(22))]),
+        ]),
+    )]);
+    assert_eq!(
+        eval_with_fields("$rows[1].x", fields).unwrap().value,
+        num(11)
+    );
+
+    let flat = std::collections::HashMap::from([("rows[1].x".to_string(), num(22))]);
+    assert!(
+        eval_with_fields("$rows[1].x", flat)
+            .unwrap()
+            .value
+            .is_null()
+    );
 }
 
 /// Postfix `.field` access works on the result of a function call /

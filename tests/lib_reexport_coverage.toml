@@ -547,69 +547,6 @@ proptests = [
 ]
 notes = "P0 parser entry; covered by parse-round-trip plus adversarial chaos proptests."
 
-# ── prepare_host ─────────────────────────────────────────────────────────────
-
-[[entries]]
-symbol = "prepare_host::PrepareHostInput"
-proptests = [
-    "tests/prepare_host_proptest.rs::prepare_is_idempotent",
-    "tests/prepare_host_proptest.rs::self_ref_replacement_eliminates_bare_dollar",
-    "tests/prepare_host_proptest.rs::prepared_output_parses",
-]
-notes = "Borrowed-input shape fed to prepare_for_host; pinned by Phase 2 FUT-4."
-
-[[entries]]
-symbol = "prepare_host::PrepareHostOptions"
-exemption = "E3"
-consumer_proptests = [
-    "tests/prepare_host_proptest.rs::prepare_owned_is_idempotent",
-    "tests/prepare_host_proptest.rs::prepare_equivalent_to_prepare_for_host",
-]
-notes = "Owned-options struct fed to prepare(); consumer pinned by Phase 3a P0 #4 (ba30c81)."
-
-[[entries]]
-symbol = "prepare_host::host_options_from_json"
-proptests = [
-    "tests/env_catalog_inputs_proptest.rs::host_options_from_json_round_trips_recognized_keys",
-    "tests/env_catalog_inputs_proptest.rs::host_options_from_json_requires_expression",
-]
-notes = "Phase 3b closed: recognized-keys round-trip + expression-required error path (design §Gap item 13)."
-
-[[entries]]
-symbol = "prepare_host::prepare"
-proptests = [
-    "tests/prepare_host_proptest.rs::prepare_equivalent_to_prepare_for_host",
-    "tests/prepare_host_proptest.rs::prepare_owned_is_idempotent",
-    "tests/prepare_host_proptest.rs::prepare_owned_terminates_on_arbitrary_input",
-    "tests/prepare_host_proptest.rs::prepare_owned_output_parses",
-]
-notes = "Phase 3a P0 #4 — closed by ba30c81. Owned-options shape adapter over prepare_for_host with equivalence pin."
-
-[[entries]]
-symbol = "prepare_host::prepare_for_host"
-proptests = [
-    "tests/prepare_host_proptest.rs::prepare_is_idempotent",
-    "tests/prepare_host_proptest.rs::self_ref_replacement_eliminates_bare_dollar",
-    "tests/prepare_host_proptest.rs::prepared_output_parses",
-    "tests/prepare_host_proptest.rs::prepare_terminates_on_arbitrary_input",
-]
-notes = "Phase 2 FUT-4; canonical prepare entry point."
-
-[[entries]]
-symbol = "prepare_host::RepeatAliases"
-proptests = [
-    "tests/prepare_host_proptest.rs::repeat_aliases_are_distinct_and_longest_first",
-    "tests/prepare_host_proptest.rs::prepare_with_aliases_equivalent_to_prepare_for_host",
-]
-notes = "Prebuilt repeat alias set for hosts that prepare many expressions against one field set: distinct, longest first, equivalent to per-call inference."
-
-[[entries]]
-symbol = "prepare_host::prepare_with_aliases"
-proptests = [
-    "tests/prepare_host_proptest.rs::prepare_with_aliases_equivalent_to_prepare_for_host",
-]
-notes = "Byte-for-byte equivalent to prepare_for_host on the same field paths; idempotence, termination, and parseability follow transitively."
-
 # ── printer ──────────────────────────────────────────────────────────────────
 
 [[entries]]

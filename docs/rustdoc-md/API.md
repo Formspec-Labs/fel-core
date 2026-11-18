@@ -40,7 +40,7 @@ Uses `rust_decimal` for base-10 arithmetic per spec S3.4.1 (minimum 18 significa
 
 ### [`fel_core`](fel_core.md)
 
-*1 macro, 13 modules*
+*1 macro, 12 modules*
 
 ### [`ast`](ast.md)
 
@@ -114,10 +114,6 @@ Uses `rust_decimal` for base-10 arithmetic per spec S3.4.1 (minimum 18 significa
 
 *1 function, 1 struct*
 
-### [`prepare_host`](prepare_host.md)
-
-*3 structs, 4 functions*
-
 ### [`printer`](printer.md)
 
 *1 function*
@@ -156,7 +152,6 @@ Uses `rust_decimal` for base-10 arithmetic per spec S3.4.1 (minimum 18 significa
 - [`extensions`](#extensions) - FEL extension function registry with null propagation and conflict detection.
 - [`lexer`](#lexer) - FEL hand-rolled lexer — tokenization with spans and decimal numbers.
 - [`parser`](#parser) - FEL hand-rolled recursive descent parser with operator precedence.
-- [`prepare_host`](#prepare_host) - FEL source normalization before host evaluation (parity with TS `normalizeExpressionForWasmEvaluation`).
 - [`printer`](#printer) - FEL AST to string serializer for expression rewriting and debugging.
 - [`types`](#types) - FEL runtime value types with base-10 decimal arithmetic.
 
@@ -199,7 +194,6 @@ FEL evaluation environment with field resolution, repeats, MIP state, and instan
 Provides `FormspecEnvironment`, a concrete `Environment` impl backed by
 nested data dicts, repeat context, MIP states, named instances, and variables.
 
-Helpers such as `project_repeat_field` resolve repeat-group keys into projected field values.
 
 
 
@@ -294,14 +288,6 @@ Private `parse_*` / `current` / `advance` implement the precedence ladder listed
 
 `peek().clone()` clones token payloads when inspecting or taking ownership; unavoidable
 for heap-backed tokens until the lexer borrows source text directly.
-
-
-
-## Module: prepare_host
-
-FEL source normalization before host evaluation (parity with TS `normalizeExpressionForWasmEvaluation`).
-
-Rewrites bare `$`, qualified repeat group refs (`$group.field`), and repeat row aliases into wildcard paths.
 
 
 
@@ -1346,16 +1332,16 @@ Classifies a host context binding root.
 - `Object` - Object-like root; the evaluator owns dot-segment traversal.
 - `Function` - Callable context binding; the catalog materializes its return value.
 
-**Traits:** Copy, Eq
+**Traits:** Eq, Copy
 
 **Trait Implementations:**
 
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **PartialEq**
   - `fn eq(self: &Self, other: &ContextBindingKind) -> bool`
 - **Clone**
   - `fn clone(self: &Self) -> ContextBindingKind`
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 
 
 
@@ -1371,15 +1357,15 @@ No-op host context binding catalog.
 
 **Trait Implementations:**
 
+- **Clone**
+  - `fn clone(self: &Self) -> EmptyCatalog`
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **ContextBindingCatalog**
   - `fn binding_kind(self: &Self, _name: &str) -> Option<ContextBindingKind>`
   - `fn resolve(self: &Self, _name: &str, _arg: Option<&str>) -> Option<Value>`
 - **Default**
   - `fn default() -> EmptyCatalog`
-- **Clone**
-  - `fn clone(self: &Self) -> EmptyCatalog`
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 
 
 
@@ -1394,6 +1380,7 @@ Resolves `$` field paths, `@` context, MIP queries, repeat navigation, and clock
 - `resolve_field`: Resolve the whole authored field reference from the current site.
 - `precomputed`: Return a precomputed result for this function call, if available at the site.
 - `resolve_context`: Resolve `@name`, `@name('arg')`, `@name.tail`.
+- `resolve_context_path`: Resolve a typed context path directly when the host knows the collection.
 - `mip_valid`: `valid($path)` — default `true` when not overridden.
 - `mip_relevant`: `relevant($path)` — default `true`.
 - `mip_readonly`: `readonly($path)` — default `false`.
@@ -1401,6 +1388,7 @@ Resolves `$` field paths, `@` context, MIP queries, repeat navigation, and clock
 - `repeat_prev`: `prev()` in repeat scope — default null.
 - `repeat_next`: `next()` in repeat scope — default null.
 - `repeat_parent`: `parent()` in repeat scope — default null.
+- `resolve_repeat_path`: Read a postfix path from a navigation result without materializing the row.
 - `current_date`: Calendar date for `today()` per ADR 0069 D-6 — hosts MUST configure a
 - `current_datetime`: Date-time for `now()` per ADR 0069 D-6 — see [`Self::current_date`] for
 - `locale`: Active locale code for `locale()` — default none (returns null).
@@ -1422,10 +1410,10 @@ Result of evaluation: a value plus any accumulated diagnostics.
 
 **Trait Implementations:**
 
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Clone**
   - `fn clone(self: &Self) -> EvalResult`
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 
 
 
@@ -1668,10 +1656,6 @@ A validated JSON number, retaining its original decimal digits.
 
 **Trait Implementations:**
 
-- **Clone**
-  - `fn clone(self: &Self) -> Number`
-- **PartialEq**
-  - `fn eq(self: &Self, other: &Self) -> bool`
 - **Display**
   - `fn fmt(self: &Self, f: & mut fmt::Formatter) -> fmt::Result`
 - **Serialize**
@@ -1682,6 +1666,10 @@ A validated JSON number, retaining its original decimal digits.
   - `fn from_str(text: &str) -> Result<Self, <Self as >::Err>`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **Clone**
+  - `fn clone(self: &Self) -> Number`
+- **PartialEq**
+  - `fn eq(self: &Self, other: &Self) -> bool`
 
 
 
@@ -1727,10 +1715,6 @@ JSON's six value kinds; a number is never an ordinary object or string.
 
 **Trait Implementations:**
 
-- **Display**
-  - `fn fmt(self: &Self, f: & mut fmt::Formatter) -> fmt::Result`
-- **PartialEq**
-  - `fn eq(self: &Self, other: &&str) -> bool`
 - **Default**
   - `fn default() -> Value`
 - **From**
@@ -1763,6 +1747,10 @@ JSON's six value kinds; a number is never an ordinary object or string.
   - `fn as_array(self: &Self) -> Option<&Vec<Self>>`
   - `fn is_object(self: &Self) -> bool`
   - `fn members(self: &Self) -> impl Trait`
+- **Display**
+  - `fn fmt(self: &Self, f: & mut fmt::Formatter) -> fmt::Result`
+- **PartialEq**
+  - `fn eq(self: &Self, other: &&str) -> bool`
 
 
 
@@ -1974,12 +1962,12 @@ Result of [`ExtensionRegistry::call`].
 
 **Trait Implementations:**
 
-- **Clone**
-  - `fn clone(self: &Self) -> ExtensionCallOutcome`
 - **PartialEq**
   - `fn eq(self: &Self, other: &ExtensionCallOutcome) -> bool`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
+- **Clone**
+  - `fn clone(self: &Self) -> ExtensionCallOutcome`
 
 
 
@@ -2040,11 +2028,11 @@ Registry of extension functions backed by Rust closures.
 
 **Trait Implementations:**
 
+- **Default**
+  - `fn default() -> Self`
 - **ExtensionFunctions**
   - `fn arity(self: &Self, name: &str) -> Option<(usize, Option<usize>)>`
   - `fn invoke(self: &Self, name: &str, args: &[TypeValue]) -> Result<TypeValue, String>`
-- **Default**
-  - `fn default() -> Self`
 
 
 
@@ -2271,12 +2259,12 @@ FEL type identifier used in structured catalog entries.
 
 **Trait Implementations:**
 
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **PartialEq**
   - `fn eq(self: &Self, other: &FelType) -> bool`
 - **Clone**
   - `fn clone(self: &Self) -> FelType`
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 
 
 
@@ -2406,7 +2394,7 @@ Outcome of parsing an ISO 8601 duration for FEL.
 - `Invalid` - Empty input, missing `P`, unsupported shape, or a numeric component that does not fit `i128`.
 - `OutOfRange` - Total milliseconds do not fit in `i64`.
 
-**Traits:** Eq, Copy
+**Traits:** Copy, Eq
 
 **Trait Implementations:**
 
@@ -2506,12 +2494,12 @@ One lexeme from [`tokenize`] for host bindings and tooling (stable type names + 
 
 **Trait Implementations:**
 
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Clone**
   - `fn clone(self: &Self) -> PositionedToken`
 - **PartialEq**
   - `fn eq(self: &Self, other: &PositionedToken) -> bool`
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 
 
 
@@ -2546,10 +2534,10 @@ A [`Token`] with its [`Span`].
 
 **Trait Implementations:**
 
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Clone**
   - `fn clone(self: &Self) -> SpannedToken`
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 
 
 
@@ -2606,12 +2594,12 @@ Lexical token for FEL source (literals, keywords, operators, punctuation).
 
 **Trait Implementations:**
 
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Clone**
   - `fn clone(self: &Self) -> Token`
 - **PartialEq**
   - `fn eq(self: &Self, other: &Token) -> bool`
+- **Debug**
+  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 
 
 
@@ -2718,154 +2706,6 @@ fn parse(input: &str) -> Result<Expr, crate::error::Error>
 
 ---
 
-## Source: fel_core/prepare_host.md
-
-**fel_core > prepare_host**
-
-# Module: prepare_host
-
-## Contents
-
-**Structs**
-
-- [`PrepareHostInput`](#preparehostinput) - Inputs for [`prepare_for_host`], mirroring the engine WASM prepass.
-- [`PrepareHostOptions`](#preparehostoptions) - Owned inputs for [`prepare`] after JSON / host parsing.
-- [`RepeatAliases`](#repeataliases) - Repeat row aliases inferred from flat field paths: `rows[0].score` yields `rows.score`,
-
-**Functions**
-
-- [`host_options_from_json`](#host_options_from_json) - Parses prepare-FEL options from a JSON object (WASM / Python hosts).
-- [`prepare`](#prepare) - Normalizes using owned options (convenience after [`host_options_from_json`]).
-- [`prepare_for_host`](#prepare_for_host) - Applies the same normalization pass the TypeScript engine runs before WASM FEL evaluation.
-- [`prepare_with_aliases`](#prepare_with_aliases) - [`prepare_for_host`] with the repeat aliases already built from the field paths.
-
----
-
-## fel_core::prepare_host::PrepareHostInput
-
-*Struct*
-
-Inputs for [`prepare_for_host`], mirroring the engine WASM prepass.
-
-**Generic Parameters:**
-- 'a
-
-**Fields:**
-- `expression: &'a str` - Raw FEL expression.
-- `current_item_path: &'a str` - Dotted path of the item being evaluated (may include `[n]` indices).
-- `replace_self_ref: bool` - When true, bare `$` (not `$identifier`) becomes `$` + current field leaf name.
-- `repeat_counts: &'a std::collections::HashMap<String, u32>` - Repeat row counts keyed by group base path (e.g. `line_items` → 2).
-- `field_paths: &'a [String]` - Keys from the flat field snapshot (e.g. `rows[0].score`) used to infer repeat aliases.
-
-**Trait Implementations:**
-
-- **Clone**
-  - `fn clone(self: &Self) -> PrepareHostInput<'a>`
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
-
-
-
-## fel_core::prepare_host::PrepareHostOptions
-
-*Struct*
-
-Owned inputs for [`prepare`] after JSON / host parsing.
-
-**Fields:**
-- `expression: String` - Raw FEL expression.
-- `current_item_path: String` - Item path for repeat / self-ref normalization.
-- `replace_self_ref: bool` - When true, bare `$` becomes `$` + current field leaf name.
-- `repeat_counts: std::collections::HashMap<String, u32>` - Repeat row counts by group base path.
-- `field_paths: Vec<String>` - Flat field paths for repeat alias inference.
-
-**Trait Implementations:**
-
-- **Clone**
-  - `fn clone(self: &Self) -> PrepareHostOptions`
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
-
-
-
-## fel_core::prepare_host::RepeatAliases
-
-*Struct*
-
-Repeat row aliases inferred from flat field paths: `rows[0].score` yields `rows.score`,
-which [`prepare_with_aliases`] rewrites to the wildcard path `$rows[*].score`.
-
-Building the set is O(paths); a host that evaluates many expressions against one
-field set builds it once and reuses it, so each prepare costs O(aliases × expression).
-
-**Methods:**
-
-- `fn from_field_paths<'a, impl IntoIterator<Item = &'a str>>(paths: impl Trait) -> Self` - Aliases for every `<group>[<n>].<field>` path in `paths` (duplicates ignored).
-- `fn as_slice(self: &Self) -> &[String]` - The aliases, longest first.
-
-**Traits:** Eq
-
-**Trait Implementations:**
-
-- **Debug**
-  - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
-- **Default**
-  - `fn default() -> RepeatAliases`
-- **PartialEq**
-  - `fn eq(self: &Self, other: &RepeatAliases) -> bool`
-- **Clone**
-  - `fn clone(self: &Self) -> RepeatAliases`
-
-
-
-## fel_core::prepare_host::host_options_from_json
-
-*Function*
-
-Parses prepare-FEL options from a JSON object (WASM / Python hosts).
-
-```rust
-fn host_options_from_json(obj: &serde_json::Map<String, serde_json::Value>) -> Result<PrepareHostOptions, String>
-```
-
-
-
-## fel_core::prepare_host::prepare
-
-*Function*
-
-Normalizes using owned options (convenience after [`host_options_from_json`]).
-
-```rust
-fn prepare(opts: &PrepareHostOptions) -> String
-```
-
-
-
-## fel_core::prepare_host::prepare_for_host
-
-*Function*
-
-Applies the same normalization pass the TypeScript engine runs before WASM FEL evaluation.
-
-```rust
-fn prepare_for_host(input: PrepareHostInput) -> String
-```
-
-
-
-## fel_core::prepare_host::prepare_with_aliases
-
-*Function*
-
-[`prepare_for_host`] with the repeat aliases already built from the field paths.
-
-```rust
-fn prepare_with_aliases(expression: &str, current_item_path: &str, replace_self_ref: bool, repeat_counts: &std::collections::HashMap<String, u32>, aliases: &RepeatAliases) -> String
-```
-
----
-
 ## Source: fel_core/printer.md
 
 **fel_core > printer**
@@ -2962,12 +2802,12 @@ rather than emitting noise — correctness over completeness.
 
 **Trait Implementations:**
 
+- **Clone**
+  - `fn clone(self: &Self) -> TraceStep`
 - **Debug**
   - `fn fmt(self: &Self, f: & mut $crate::fmt::Formatter) -> $crate::fmt::Result`
 - **Serialize**
   - `fn serialize<__S>(self: &Self, __serializer: __S) -> _serde::__private229::Result<<__S as >::Ok, <__S as >::Error>`
-- **Clone**
-  - `fn clone(self: &Self) -> TraceStep`
 
 ---
 

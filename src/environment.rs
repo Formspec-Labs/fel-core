@@ -3,7 +3,6 @@
 //! Provides `FormspecEnvironment`, a concrete `Environment` impl backed by
 //! nested data dicts, repeat context, MIP states, named instances, and variables.
 //!
-//! Helpers such as `project_repeat_field` resolve repeat-group keys into projected field values.
 #![allow(clippy::missing_docs_in_private_items)]
 use rust_decimal::Decimal;
 use std::borrow::Cow;
@@ -241,73 +240,11 @@ pub(crate) fn resolve_legacy_field<'a>(
         }
     }
     let base = lookup(&segments);
-    // Map-backed callers can still supply indexed flat keys (fs-5n76).
-    if base.is_null()
-        && path[dots..]
-            .iter()
-            .any(|segment| matches!(segment, PathSegment::Index(_)))
-    {
-        for segment in &path[dots..] {
-            match segment {
-                PathSegment::Dot(key) => segments.push(key.clone()),
-                PathSegment::Index(index) => {
-                    segments.last_mut().unwrap().push_str(&format!("[{index}]"))
-                }
-                PathSegment::Wildcard => segments.last_mut().unwrap().push_str("[*]"),
-            }
-        }
-        return Ok(lookup(&segments).into_owned());
-    }
     let remaining = &path[dots..];
     if remaining.is_empty() {
         return Ok(base.into_owned());
     }
     resolve_value_segments(base.as_ref(), remaining)
-}
-
-fn project_repeat_field(
-    data: &HashMap<String, TypeValue>,
-    segments: &[String],
-) -> Option<TypeValue> {
-    if segments.len() < 2 {
-        return None;
-    }
-
-    // Try each possible split point: the repeat group name could span 1..N-1 segments.
-    // For ["publications", "pub_entries", "pub_title"], try:
-    //   split=1 → prefix "publications["       suffix ".pub_entries.pub_title"
-    //   split=2 → prefix "publications.pub_entries[" suffix ".pub_title"
-    for split in 1..segments.len() {
-        let group_path = segments[..split].join(".");
-        let prefix = format!("{group_path}[");
-        let suffix = format!(".{}", segments[split..].join("."));
-        let mut projected = Vec::new();
-
-        for (key, value) in data {
-            let Some(rest) = key.strip_prefix(&prefix) else {
-                continue;
-            };
-            let Some((idx, tail)) = rest.split_once(']') else {
-                continue;
-            };
-            if tail != suffix {
-                continue;
-            }
-            let Ok(index) = idx.parse::<usize>() else {
-                continue;
-            };
-            projected.push((index, value.clone()));
-        }
-
-        if !projected.is_empty() {
-            projected.sort_by_key(|(index, _)| *index);
-            return Some(TypeValue::Array(
-                projected.into_iter().map(|(_, value)| value).collect(),
-            ));
-        }
-    }
-
-    None
 }
 
 fn mip_path(path: &[String]) -> String {
@@ -337,9 +274,6 @@ impl FormspecEnvironment {
         // Check first segment then walk
         if let Some(val) = self.data.get(&segments[0]) {
             return lookup_value_path(val, &segments[1..]);
-        }
-        if let Some(projected) = project_repeat_field(&self.data, segments) {
-            return Cow::Owned(projected);
         }
         Cow::Borrowed(&TypeValue::Null)
     }
@@ -554,15 +488,25 @@ mod tests {
     }
 
     #[test]
-    fn test_repeat_field_projection_from_flat_rows() {
+    fn repeat_projection_uses_an_explicit_array() {
+        // A FEL collection is an array. Adjacent flat keys cannot invent rows.
         let mut env = FormspecEnvironment::new();
-        env.set_field("rows[0].score", num(80));
-        env.set_field("rows[1].score", num(30));
-        env.set_field("rows[2].score", num(50));
-
+        env.set_field("rows[0].score", num(99));
         assert_eq!(
             env.resolve_field(Some("rows"), &[PathSegment::Dot("score".into())])
                 .unwrap(),
+            TypeValue::Null,
+        );
+
+        let scores = [80, 30, 50]
+            .map(|score| TypeValue::Object(IndexMap::from([("score".to_owned(), num(score))])));
+        env.set_field("rows", TypeValue::Array(scores.into_iter().collect()));
+        assert_eq!(
+            env.resolve_field(
+                Some("rows"),
+                &[PathSegment::Wildcard, PathSegment::Dot("score".into())]
+            )
+            .unwrap(),
             TypeValue::Array(vec![num(80), num(30), num(50)]),
         );
     }
