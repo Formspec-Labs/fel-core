@@ -67,8 +67,8 @@ test-full:
 
 .PHONY: test-cel-bridge
 test-cel-bridge:
-	$(CARGO) test --features cel-bridge --test cel_bridge --test schema_round_trip
-	$(CARGO) test --doc --features cel-bridge cel::
+	$(CARGO) test --locked --features cel-bridge --test cel_bridge --test schema_round_trip
+	$(CARGO) test --locked --doc --features cel-bridge src/cel/
 	cd conformance/cel && go test -count=1 ./...
 
 lint:
@@ -76,7 +76,7 @@ lint:
 	$(CARGO) clippy --all-targets --all-features -- -D warnings
 
 deny:
-	$(CARGO) deny --all-features check
+	$(CARGO) deny --all-features --locked check
 
 test-differential: test-differential-python test-differential-wasm
 
@@ -101,7 +101,7 @@ docs:
 	npm run docs:fel-core
 
 package:
-	$(CARGO) package --allow-dirty --features cel-bridge
+	$(CARGO) package --allow-dirty --locked --features cel-bridge
 
 ci: lint deny ratify package
 

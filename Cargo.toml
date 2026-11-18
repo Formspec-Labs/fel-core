@@ -23,9 +23,6 @@ features = ["cel-bridge"]
 [dependencies]
 cel-syntax = { package = "cel", version = "=0.16.0", default-features = false, optional = true }
 stacker = { version = "0.1.25", optional = true }
-# stacker accepts this release of psm. Later releases add ar_archive_writer
-# to every build, whose license falls outside this project's dependency policy.
-psm = { version = "=0.1.27", optional = true }
 indexmap = { version = "2", features = ["serde"] }
 # Pinned to ~7.0 (i.e. >=7.0, <7.1) — plural rules are CLDR-derived;
 # minor CLDR data shifts can change plural categories for specific
@@ -69,7 +66,7 @@ insta = "1"
 toml = "0.8"
 
 [features]
-cel-bridge = ["dep:cel-syntax", "dep:stacker", "dep:psm"]
+cel-bridge = ["dep:cel-syntax", "dep:stacker"]
 proptest-strategies = ["proptest"]
 
 [[test]]

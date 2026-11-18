@@ -16,7 +16,7 @@ type binaries struct{ converter, catalog string }
 
 // Cargo reports the actual paths even with a custom target directory or profile.
 var buildTools = sync.OnceValues(func() (binaries, error) {
-	cmd := exec.Command("cargo", "build", "--features", "cel-bridge", "--bin", "fel-convert", "--bin", "emit-fel-schema", "--message-format=json")
+	cmd := exec.Command("cargo", "build", "--locked", "--features", "cel-bridge", "--bin", "fel-convert", "--bin", "emit-fel-schema", "--message-format=json")
 	cmd.Stderr = os.Stderr
 	out, err := cmd.Output()
 	if err != nil {

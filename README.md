@@ -42,10 +42,13 @@ from an argument or standard input and writes the converted source to standard
 output. Errors go to standard error with a failing exit status.
 
 ```sh
-cargo install --path . --features cel-bridge --bin fel-convert
+cargo install --locked --path . --features cel-bridge --bin fel-convert
 fel-convert to-cel "money(\$fee, 'USD')" | fel-convert to-fel
 # money($fee, 'USD')
 ```
+
+The command ships with a checked-in Cargo.lock. CI checks the locked
+dependencies against the project's license and advisory policies.
 
 The default preserves the parsed expression for round-trip editing. Keep the
 opening version comment. Shared syntax stays readable and named helper calls
