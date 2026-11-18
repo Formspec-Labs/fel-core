@@ -84,10 +84,7 @@ impl<'a> Evaluator<'a> {
             }
             return match decimal_pow_int(base, exp_u64) {
                 Some(result) => Value::Number(result),
-                None => {
-                    self.diag("power: overflow");
-                    Value::Null
-                }
+                None => self.overflow("power: overflow"),
             };
         }
         // Negative or fractional exponent: fall back to f64 and convert back (FEL-SMELL-C-003).
@@ -103,14 +100,10 @@ impl<'a> Evaluator<'a> {
         if result.is_finite() {
             match Decimal::from_f64(result) {
                 Some(d) => Value::Number(d),
-                None => {
-                    self.diag("power: overflow");
-                    Value::Null
-                }
+                None => self.overflow("power: overflow"),
             }
         } else {
-            self.diag("power: overflow");
-            Value::Null
+            self.overflow("power: overflow")
         }
     }
 }

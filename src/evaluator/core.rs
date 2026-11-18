@@ -517,6 +517,12 @@ impl<'a> Evaluator<'a> {
         self.diagnostics.push(Diagnostic::error_coded(code, msg));
     }
 
+    /// A decimal result outside the representable range is `null` with one coded diagnostic.
+    pub(super) fn overflow(&mut self, msg: impl Into<String>) -> Value {
+        self.diag_coded("FEL_ARITHMETIC_OVERFLOW", msg);
+        Value::Null
+    }
+
     pub(in crate::evaluator) fn make_string(&mut self, s: String) -> Value {
         self.track_alloc(s.len() as u64);
         if self.alloc_limit_breached() {
@@ -1287,10 +1293,7 @@ impl<'a> Evaluator<'a> {
                     } else {
                         match a.checked_div(*b) {
                             Some(q) => Value::Number(q),
-                            None => {
-                                self.diag("division overflow");
-                                Value::Null
-                            }
+                            None => self.overflow("division overflow"),
                         }
                     }
                 } else if let (Value::Money(m), Value::Number(n)) = (left, right) {
@@ -1303,10 +1306,7 @@ impl<'a> Evaluator<'a> {
                                 amount,
                                 currency: m.currency,
                             }),
-                            None => {
-                                self.diag("division overflow");
-                                Value::Null
-                            }
+                            None => self.overflow("division overflow"),
                         }
                     }
                 } else if let (Value::Money(a), Value::Money(b)) = (left, right) {
@@ -1322,10 +1322,7 @@ impl<'a> Evaluator<'a> {
                     } else {
                         match a.amount.checked_div(b.amount) {
                             Some(q) => Value::Number(q),
-                            None => {
-                                self.diag("division overflow");
-                                Value::Null
-                            }
+                            None => self.overflow("division overflow"),
                         }
                     }
                 } else {
@@ -1345,10 +1342,7 @@ impl<'a> Evaluator<'a> {
                     } else {
                         match a.checked_rem(*b) {
                             Some(r) => Value::Number(r),
-                            None => {
-                                self.diag("modulo overflow");
-                                Value::Null
-                            }
+                            None => self.overflow("modulo overflow"),
                         }
                     }
                 } else if let (Value::Money(m), Value::Number(n)) = (left, right) {
@@ -1361,10 +1355,7 @@ impl<'a> Evaluator<'a> {
                                 amount,
                                 currency: m.currency,
                             }),
-                            None => {
-                                self.diag("modulo overflow");
-                                Value::Null
-                            }
+                            None => self.overflow("modulo overflow"),
                         }
                     }
                 } else {
@@ -1411,10 +1402,7 @@ impl<'a> Evaluator<'a> {
         match (left, right) {
             (Value::Number(a), Value::Number(b)) => match combine(*a, *b) {
                 Some(v) => Value::Number(v),
-                None => {
-                    self.diag(format!("arithmetic overflow ({sym})"));
-                    Value::Null
-                }
+                None => self.overflow(format!("arithmetic overflow ({sym})")),
             },
             (Value::Money(a), Value::Money(b)) if sym == "+" || sym == "-" => {
                 if a.currency != b.currency {
@@ -1429,10 +1417,7 @@ impl<'a> Evaluator<'a> {
                             amount,
                             currency: a.currency,
                         }),
-                        None => {
-                            self.diag(format!("arithmetic overflow ({sym})"));
-                            Value::Null
-                        }
+                        None => self.overflow(format!("arithmetic overflow ({sym})")),
                     }
                 }
             }
@@ -1442,10 +1427,7 @@ impl<'a> Evaluator<'a> {
                         amount,
                         currency: m.currency,
                     }),
-                    None => {
-                        self.diag(format!("arithmetic overflow ({sym})"));
-                        Value::Null
-                    }
+                    None => self.overflow(format!("arithmetic overflow ({sym})")),
                 }
             }
             (Value::Money(m), Value::Number(n)) if sym == "*" => match m.amount.checked_mul(*n) {
@@ -1453,20 +1435,14 @@ impl<'a> Evaluator<'a> {
                     amount,
                     currency: m.currency,
                 }),
-                None => {
-                    self.diag("arithmetic overflow (*)");
-                    Value::Null
-                }
+                None => self.overflow("arithmetic overflow (*)"),
             },
             (Value::Number(n), Value::Money(m)) if sym == "*" => match n.checked_mul(m.amount) {
                 Some(amount) => Value::Money(Money {
                     amount,
                     currency: m.currency,
                 }),
-                None => {
-                    self.diag("arithmetic overflow (*)");
-                    Value::Null
-                }
+                None => self.overflow("arithmetic overflow (*)"),
             },
             _ => {
                 self.diag(format!(

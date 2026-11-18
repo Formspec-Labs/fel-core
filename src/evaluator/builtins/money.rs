@@ -37,10 +37,13 @@ impl<'a> Evaluator<'a> {
             self.diag("moneyAdd: currency mismatch");
             return Value::Null;
         }
-        Value::Money(Money {
-            amount: a.amount + b.amount,
-            currency: a.currency,
-        })
+        match a.amount.checked_add(b.amount) {
+            Some(amount) => Value::Money(Money {
+                amount,
+                currency: a.currency,
+            }),
+            None => self.overflow("moneyAdd: arithmetic overflow"),
+        }
     }
 
     pub(in crate::evaluator) fn fn_money_sum(&mut self, args: &[Expr]) -> Value {

@@ -32,11 +32,7 @@ impl<'a> Evaluator<'a> {
         let mut count = 0usize;
         for number in elements.iter().filter_map(Value::as_number) {
             let Some(next) = total.checked_add(number) else {
-                self.diag_coded(
-                    "FEL_ARITHMETIC_OVERFLOW",
-                    format!("{name}: arithmetic overflow"),
-                );
-                return Value::Null;
+                return self.overflow(format!("{name}: arithmetic overflow"));
             };
             total = next;
             count += 1;

@@ -2208,3 +2208,26 @@ fn overflowing_decimal_aggregates_return_diagnostics() {
         );
     }
 }
+
+#[test]
+fn every_decimal_overflow_shares_one_code() {
+    let max = "79228162514264337593543950335";
+    for expression in [
+        format!("{max} + 1"),
+        format!("-{max} - 1"),
+        format!("{max} * 2"),
+        format!("{max} / 0.1"),
+        format!("money({max}, 'USD') + money(1, 'USD')"),
+        format!("moneyAdd(money({max}, 'USD'), money(1, 'USD'))"),
+        "power(10, 40)".to_owned(),
+    ] {
+        let result = eval_result(&expression);
+        assert_eq!(result.value, Value::Null, "{expression}");
+        let codes: Vec<_> = result
+            .diagnostics
+            .iter()
+            .map(|d| d.code.as_deref())
+            .collect();
+        assert_eq!(codes, [Some("FEL_ARITHMETIC_OVERFLOW")], "{expression}");
+    }
+}

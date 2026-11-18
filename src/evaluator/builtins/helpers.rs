@@ -71,11 +71,7 @@ where
                         return Value::Null;
                     }
                     let Some(amount) = t.amount.checked_add(m.amount) else {
-                        eval.diag_coded(
-                            "FEL_ARITHMETIC_OVERFLOW",
-                            format!("{fn_label}: arithmetic overflow"),
-                        );
-                        return Value::Null;
+                        return eval.overflow(format!("{fn_label}: arithmetic overflow"));
                     };
                     total = Some(Money {
                         amount,
