@@ -2182,3 +2182,24 @@ fn test_where_functions_require_two_args() {
         );
     }
 }
+
+#[test]
+fn overflowing_decimal_aggregates_return_diagnostics() {
+    let max = "79228162514264337593543950335";
+    for expression in [
+        format!("sum([{max}, 1])"),
+        format!("avg([{max}, 1])"),
+        format!("sumWhere([{max}, 1], true)"),
+        format!("avgWhere([{max}, 1], true)"),
+        format!("moneySum([money({max}, 'USD'), money(1, 'USD')])"),
+        format!("moneySumWhere([money({max}, 'USD'), money(1, 'USD')], true)"),
+    ] {
+        let result = eval_result(&expression);
+        assert_eq!(result.value, Value::Null, "{expression}");
+        assert_eq!(result.diagnostics.len(), 1, "{expression}");
+        assert_eq!(
+            result.diagnostics[0].code.as_deref(),
+            Some("FEL_ARITHMETIC_OVERFLOW")
+        );
+    }
+}

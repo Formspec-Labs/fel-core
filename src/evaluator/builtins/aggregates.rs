@@ -11,33 +11,46 @@ use super::helpers::{fold_min_max_choice, fold_money_sum};
 impl<'a> Evaluator<'a> {
     // ── Aggregate helpers ───────────────────────────────────────
 
-    pub(in crate::evaluator) fn fn_aggregate(
-        &mut self,
-        args: &[Expr],
-        name: &str,
-        f: fn(&[Decimal]) -> Decimal,
-    ) -> Value {
+    pub(in crate::evaluator) fn fn_aggregate(&mut self, args: &[Expr], name: &str) -> Value {
         let val = self.eval_arg(args, 0);
         let arr = match self.get_array(&val, name) {
             Some(a) => a,
             None => return Value::Null,
         };
-        if name == "sum" {
-            let non_null: Vec<&Value> = arr.iter().filter(|v| !v.is_null()).collect();
-            if non_null.iter().any(|v| matches!(v, Value::Money(_))) {
-                self.diag_coded(
-                    "FEL_SUM_REJECTS_MONEY",
-                    "sum: money values are not supported; use moneySum() for currency-safe aggregation",
-                );
-                return Value::Null;
-            }
-        }
-        let nums: Vec<Decimal> = arr.iter().filter_map(|v| v.as_number()).collect();
-        if nums.is_empty() && name == "avg" {
-            self.diag(format!("{name}: no numeric elements"));
+        if name == "sum" && arr.iter().any(|v| matches!(v, Value::Money(_))) {
+            self.diag_coded(
+                "FEL_SUM_REJECTS_MONEY",
+                "sum: money values are not supported; use moneySum() for currency-safe aggregation",
+            );
             return Value::Null;
         }
-        Value::Number(f(&nums))
+        self.fold_numeric_aggregate(name, arr)
+    }
+
+    fn fold_numeric_aggregate(&mut self, name: &str, elements: &[Value]) -> Value {
+        let mut total = Decimal::ZERO;
+        let mut count = 0usize;
+        for number in elements.iter().filter_map(Value::as_number) {
+            let Some(next) = total.checked_add(number) else {
+                self.diag_coded(
+                    "FEL_ARITHMETIC_OVERFLOW",
+                    format!("{name}: arithmetic overflow"),
+                );
+                return Value::Null;
+            };
+            total = next;
+            count += 1;
+        }
+        if matches!(name, "avg" | "avgWhere") {
+            if count == 0 {
+                if name == "avg" {
+                    self.diag("avg: no numeric elements");
+                }
+                return Value::Null;
+            }
+            total /= Decimal::from(count);
+        }
+        Value::Number(total)
     }
 
     pub(in crate::evaluator) fn fn_count(&mut self, val: &Value) -> Value {
@@ -127,19 +140,14 @@ impl<'a> Evaluator<'a> {
         let Some(matched) = self.filter_where(args, "sumWhere") else {
             return Value::Null;
         };
-        let nums: Vec<Decimal> = matched.iter().filter_map(|v| v.as_number()).collect();
-        Value::Number(nums.iter().copied().sum())
+        self.fold_numeric_aggregate("sumWhere", &matched)
     }
 
     pub(in crate::evaluator) fn fn_avg_where(&mut self, args: &[Expr]) -> Value {
         let Some(matched) = self.filter_where(args, "avgWhere") else {
             return Value::Null;
         };
-        let nums: Vec<Decimal> = matched.iter().filter_map(|v| v.as_number()).collect();
-        if nums.is_empty() {
-            return Value::Null;
-        }
-        Value::Number(nums.iter().copied().sum::<Decimal>() / Decimal::from(nums.len() as i64))
+        self.fold_numeric_aggregate("avgWhere", &matched)
     }
 
     pub(in crate::evaluator) fn fn_min_where(&mut self, args: &[Expr]) -> Value {

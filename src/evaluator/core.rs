@@ -1584,18 +1584,11 @@ impl<'a> Evaluator<'a> {
         }
         match name {
             // Aggregates
-            "sum" => self.fn_aggregate(args, "sum", |nums| nums.iter().copied().sum()),
+            "sum" | "avg" => self.fn_aggregate(args, name),
             "count" => {
                 let v = self.eval_arg(args, 0);
                 self.fn_count(&v)
             }
-            "avg" => self.fn_aggregate(args, "avg", |nums| {
-                if nums.is_empty() {
-                    Decimal::ZERO
-                } else {
-                    nums.iter().copied().sum::<Decimal>() / Decimal::from(nums.len() as i64)
-                }
-            }),
             "min" => self.fn_min_max(args, true),
             "max" => self.fn_min_max(args, false),
             "countWhere" => self.fn_count_where(args),
