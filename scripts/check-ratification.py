@@ -173,12 +173,11 @@ def generate_corpus() -> bytes:
 
 
 def regenerate_corpus() -> None:
-    raw = generate_corpus()
+    (ROOT / "conformance" / "fel-conformance.jsonl").write_bytes(generate_corpus())
+    summary = validate_conformance_corpus()
     manifest_path = ROOT / "conformance" / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    corpus = manifest["corpus"]
-    corpus.update(lineCount=len(raw.splitlines()), sha256=sha256_bytes(raw))
-    (ROOT / corpus["path"]).write_bytes(raw)
+    manifest["corpus"].update(lineCount=summary["lineCount"], sha256=summary["sha256"])
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
 
