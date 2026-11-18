@@ -18,6 +18,8 @@ pub struct Dependencies {
     pub context_refs: HashSet<String>,
     /// Instance references from `@instance('name')`.
     pub instance_refs: HashSet<String>,
+    /// An instance lookup computes its source name at evaluation time.
+    pub has_dynamic_instance: bool,
     /// MIP dependencies: fields used in valid/relevant/readonly/required.
     pub mip_deps: HashSet<String>,
     /// Whether bare `$` (self-reference) appears.
@@ -132,6 +134,8 @@ fn walk(expr: &Expr, deps: &mut Dependencies, let_vars: &mut Vec<String>) {
                 "instance" => {
                     if let Some(Expr::String(name)) = args.first() {
                         deps.instance_refs.insert(name.clone());
+                    } else {
+                        deps.has_dynamic_instance = true;
                     }
                     for arg in args {
                         walk(arg, deps, let_vars);
@@ -385,6 +389,12 @@ mod tests {
     fn deps(input: &str) -> Dependencies {
         let expr = parser::parse(input).unwrap();
         extract_dependencies(&expr)
+    }
+
+    #[test]
+    fn distinguishes_literal_and_computed_instance_names() {
+        assert!(deps("instance($sourceName, 'value')").has_dynamic_instance);
+        assert!(!deps("instance('record', $field)").has_dynamic_instance);
     }
 
     #[test]
