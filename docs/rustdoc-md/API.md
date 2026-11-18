@@ -643,6 +643,7 @@ Dependencies extracted from a FEL expression.
 - `fields: std::collections::HashSet<String>` - Field paths referenced (e.g., `["firstName", "address.city"]`).
 - `context_refs: std::collections::HashSet<String>` - Context references (e.g., `["@current", "@index"]`).
 - `instance_refs: std::collections::HashSet<String>` - Instance references from `@instance('name')`.
+- `has_dynamic_instance: bool` - An instance lookup computes its source name at evaluation time.
 - `mip_deps: std::collections::HashSet<String>` - MIP dependencies: fields used in valid/relevant/readonly/required.
 - `has_self_ref: bool` - Whether bare `$` (self-reference) appears.
 - `has_wildcard: bool` - Whether any `[*]` wildcard appears.
