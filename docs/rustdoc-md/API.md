@@ -852,7 +852,7 @@ fn resolve_value_path(val: &crate::types::Value, segments: &[String]) -> crate::
 
 - [`Diagnostic`](#diagnostic) - A non-fatal diagnostic recorded during evaluation.
 - [`MissingTimezoneContextError`](#missingtimezonecontexterror) - Typed error returned by [`crate::evaluator::Environment::current_date`] and
-- [`ParseError`](#parseerror) - Lex or parse failure with optional source span (byte offsets into the expression).
+- [`ParseError`](#parseerror) - Lex or parse failure with optional source span (Unicode scalar indices into the expression).
 
 **Enums**
 
@@ -882,7 +882,7 @@ A non-fatal diagnostic recorded during evaluation.
 - `message: String` - Human-readable explanation.
 - `code: Option<String>` - Stable machine-readable code for lint/UI (e.g. `FEL_SUM_REJECTS_MONEY`).
 - `kind: Option<DiagnosticKind>` - Machine-readable category for robust downstream handling.
-- `span: Option<std::ops::Range<usize>>` - Byte range in the source expression, when known.
+- `span: Option<std::ops::Range<usize>>` - Unicode scalar (char) index range in the source expression, when known (same unit as [`ParseError::span`]).
 
 **Methods:**
 
@@ -894,7 +894,7 @@ A non-fatal diagnostic recorded during evaluation.
 - `fn extension_failed<impl Into<String>, impl Into<String>>(name: impl Trait, message: impl Trait) -> Self` - Build the error diagnostic for a failed host extension call (Core §3.12 totality).
 - `fn type_mismatch<impl Into<String>, impl Into<String>, impl Into<String>>(fn_name: impl Trait, expected: impl Trait, got_type: impl Trait) -> Self` - Build a structured type-mismatch diagnostic (same message shape as runtime type errors).
 - `fn missing_timezone_context<impl Into<String>>(fn_name: impl Trait, err: MissingTimezoneContextError) -> Self` - Build a structured missing-timezone-context diagnostic (ADR 0069 D-6).
-- `fn with_span(self: Self, span: Range<usize>) -> Self` - Attaches a source span (byte offsets into the FEL source string).
+- `fn with_span(self: Self, span: Range<usize>) -> Self` - Attaches a source span (Unicode scalar indices into the FEL source string).
 
 **Trait Implementations:**
 
@@ -1027,13 +1027,13 @@ timezone. Hosts surface their own variant from
 
 *Struct*
 
-Lex or parse failure with optional source span (byte offsets into the expression).
+Lex or parse failure with optional source span (Unicode scalar indices into the expression).
 
 [`Error`]'s [`std::fmt::Display`] output uses the `message` field.
 
 **Fields:**
 - `message: String` - Human-readable explanation.
-- `span: Option<std::ops::Range<usize>>` - Byte range in the source, when known.
+- `span: Option<std::ops::Range<usize>>` - Unicode scalar (char) index range in the source, when known; hosts count characters, not UTF-8 bytes.
 
 **Methods:**
 
@@ -2446,7 +2446,7 @@ fn parse_iso8601_duration_ms(input: &str) -> Option<i64>
 
 - [`Lexer`](#lexer) - Character-based lexer over a FEL expression string.
 - [`PositionedToken`](#positionedtoken) - One lexeme from [`tokenize`] for host bindings and tooling (stable type names + source span).
-- [`Span`](#span) - Byte/char span in the original source (Unicode scalar indices, inclusive start, exclusive end).
+- [`Span`](#span) - Span in the original source, in Unicode scalar (char) indices: inclusive start, exclusive end.
 - [`SpannedToken`](#spannedtoken) - A [`Token`] with its [`Span`].
 
 **Enums**
@@ -2508,7 +2508,7 @@ One lexeme from [`tokenize`] for host bindings and tooling (stable type names + 
 
 *Struct*
 
-Byte/char span in the original source (Unicode scalar indices, inclusive start, exclusive end).
+Span in the original source, in Unicode scalar (char) indices: inclusive start, exclusive end.
 
 **Fields:**
 - `start: usize` - Start offset.

@@ -110,7 +110,7 @@ pub enum Token {
     Eof,
 }
 
-/// Byte/char span in the original source (Unicode scalar indices, inclusive start, exclusive end).
+/// Span in the original source, in Unicode scalar (char) indices: inclusive start, exclusive end.
 #[derive(Debug, Clone)]
 pub struct Span {
     /// Start offset.

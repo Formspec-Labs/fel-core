@@ -2,14 +2,14 @@
 use std::fmt;
 use std::ops::Range;
 
-/// Lex or parse failure with optional source span (byte offsets into the expression).
+/// Lex or parse failure with optional source span (Unicode scalar indices into the expression).
 ///
 /// [`Error`]'s [`std::fmt::Display`] output uses the `message` field.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseError {
     /// Human-readable explanation.
     pub message: String,
-    /// Byte range in the source, when known.
+    /// Unicode scalar (char) index range in the source, when known; hosts count characters, not UTF-8 bytes.
     pub span: Option<Range<usize>>,
 }
 
@@ -67,7 +67,7 @@ pub struct Diagnostic {
     pub code: Option<String>,
     /// Machine-readable category for robust downstream handling.
     pub kind: Option<DiagnosticKind>,
-    /// Byte range in the source expression, when known.
+    /// Unicode scalar (char) index range in the source expression, when known (same unit as [`ParseError::span`]).
     pub span: Option<Range<usize>>,
 }
 
@@ -383,7 +383,7 @@ impl Diagnostic {
         }
     }
 
-    /// Attaches a source span (byte offsets into the FEL source string).
+    /// Attaches a source span (Unicode scalar indices into the FEL source string).
     #[must_use]
     pub fn with_span(mut self, span: Range<usize>) -> Self {
         self.span = Some(span);

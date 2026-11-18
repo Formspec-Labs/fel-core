@@ -1002,6 +1002,12 @@ mod tests {
     }
 
     #[test]
+    fn parse_error_spans_count_characters_not_bytes() {
+        let Error::Parse(err) = parse("'é' ]").unwrap_err();
+        assert_eq!(err.span, Some(4..5));
+    }
+
+    #[test]
     fn sites_name_each_reference_form() {
         let source = "@current.a.b + @instance('x') + @v + prev(\"m\") + $r[id = 1].n";
         let (_, sites) = parse_with_sites(source).unwrap();
