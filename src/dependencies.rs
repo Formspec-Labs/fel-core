@@ -132,10 +132,12 @@ fn walk(expr: &Expr, deps: &mut Dependencies, let_vars: &mut Vec<String>) {
                     deps.uses_prev_next = true;
                 }
                 "instance" => {
-                    if let Some(Expr::String(name)) = args.first() {
-                        deps.instance_refs.insert(name.clone());
-                    } else {
-                        deps.has_dynamic_instance = true;
+                    match args.first() {
+                        Some(Expr::String(name)) => {
+                            deps.instance_refs.insert(name.clone());
+                        }
+                        Some(_) => deps.has_dynamic_instance = true,
+                        None => {}
                     }
                     for arg in args {
                         walk(arg, deps, let_vars);
@@ -395,6 +397,8 @@ mod tests {
     fn distinguishes_literal_and_computed_instance_names() {
         assert!(deps("instance($sourceName, 'value')").has_dynamic_instance);
         assert!(!deps("instance('record', $field)").has_dynamic_instance);
+        assert!(!deps("@instance('record').value").has_dynamic_instance);
+        assert!(!deps("instance()").has_dynamic_instance);
     }
 
     #[test]
