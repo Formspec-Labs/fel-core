@@ -25,6 +25,7 @@ help:
 	@echo "  make build                       — cargo build"
 	@echo "  make test                        — cargo nextest run --all-features"
 	@echo "  make test-full                   — cargo test --all-features"
+	@echo "  make test-cel-bridge             — source round trips with the independent CEL checker"
 	@echo "  make test-all                    — run all test targets"
 	@echo "  make check-ratification          — validate spec/conformance ratification artifacts"
 	@echo "  make lint                        — rustfmt + clippy -D warnings"
@@ -64,12 +65,18 @@ test:
 test-full:
 	$(CARGO) test $(CARGO_FLAGS_ALL_FEATURES)
 
+.PHONY: test-cel-bridge
+test-cel-bridge:
+	$(CARGO) test --features cel-bridge --test cel_bridge --test schema_round_trip
+	$(CARGO) test --doc --features cel-bridge cel::
+	cd conformance/cel && go test -count=1 ./...
+
 lint:
 	$(CARGO) fmt --all -- --check
 	$(CARGO) clippy --all-targets --all-features -- -D warnings
 
 deny:
-	$(CARGO) deny check
+	$(CARGO) deny --all-features check
 
 test-differential: test-differential-python test-differential-wasm
 
@@ -94,7 +101,7 @@ docs:
 	npm run docs:fel-core
 
 package:
-	$(CARGO) package --allow-dirty
+	$(CARGO) package --allow-dirty --features cel-bridge
 
 ci: lint deny ratify package
 

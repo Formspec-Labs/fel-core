@@ -58,8 +58,10 @@ pub(super) const ENTRIES: &[BuiltinFunctionCatalogEntry] = &[
         }],
         returns: FelType::Number,
         return_description: None,
-        description: "Returns the number of elements in the array, including nulls.",
-        null_handling: Some("Null argument returns 0. Null elements ARE counted."),
+        description: "Counts non-null values in an array. Zero, false, and the empty string each count as one value.",
+        null_handling: Some(
+            "A null array returns null. An empty array or an array containing only nulls returns 0.",
+        ),
         deterministic: true,
         emit_deterministic_explicitly: false,
         short_circuit: false,
@@ -71,7 +73,7 @@ pub(super) const ENTRIES: &[BuiltinFunctionCatalogEntry] = &[
             },
             Example {
                 expression: "count([1, null, 3])",
-                result_json: "3",
+                result_json: "2",
                 note: None,
             },
         ],

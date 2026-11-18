@@ -33,6 +33,47 @@ assert_eq!(out.value, Value::Number(Decimal::from(3)));
 
 Full public API: [`docs/rustdoc-md/API.md`](docs/rustdoc-md/API.md) (rustdoc bundled to one file). Regenerate with `npm run docs:fel-core`.
 
+## Convert CEL and FEL source
+
+Use Rust 1.88 or later. Enable the optional `cel-bridge` feature to use
+`fel_core::cel` or install the
+`fel-convert` command from this checkout. Each conversion takes one expression
+from an argument or standard input and writes the converted source to standard
+output. Errors go to standard error with a failing exit status.
+
+```sh
+cargo install --path . --features cel-bridge --bin fel-convert
+fel-convert to-cel "money(\$fee, 'USD')" | fel-convert to-fel
+# money($fee, 'USD')
+```
+
+The default preserves the parsed expression for round-trip editing. Keep the
+opening version comment. Shared syntax stays readable and named helper calls
+represent features unique to either language. When the target grammar cannot
+express the full tree within its limits, a helper can hold the original source.
+Comments, spacing and equivalent literal spellings can change. Use `--literal`
+to treat an author's opening marker comment as ordinary text.
+
+Use `--native` for ordinary target expressions. Supply the same field mappings
+in both directions. Undeclared fields default to nullable strings. Explicit
+bindings replace those defaults. `--snapshot` selects fields from the FEL
+`celInputs` instance.
+
+```sh
+fel-convert to-cel --native --bind 'names:list=$medications[*].medDrugName' 'count($medications[*].medDrugName)'
+# names.filter(item, dyn(item) != null).size()
+fel-convert to-fel --native --bind 'names:list=$medications[*].medDrugName' 'size(names)'
+# length($medications[*].medDrugName)
+```
+
+FEL `count` counts non-null values. CEL `size` and fel-core `length` count all
+list positions. A native conversion requires compatible input types and a
+verified return trip. Both modes parse source without evaluating a rule.
+The converter accepts up to 256 KiB per expression, 64 nested delimiters and
+256 structural operations. FEL's own parser also limits nesting. Run
+`make test-cel-bridge` for the Rust API tests and the independent Go CEL checks.
+[Rust API and examples](src/cel/mod.rs) · [Function coverage](conformance/cel/README.md)
+
 ## Features
 
 - **Decimal arithmetic** via `rust_decimal` — no `NaN`, no precision drift on money-like values.

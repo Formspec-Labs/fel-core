@@ -11,6 +11,8 @@
 #![warn(clippy::missing_docs_in_private_items)]
 
 pub mod ast;
+#[cfg(feature = "cel-bridge")]
+pub mod cel;
 pub(crate) mod context_json;
 pub mod convert;
 pub mod dependencies;

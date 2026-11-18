@@ -10,6 +10,9 @@ conformance corpus.
 
 ### Added
 
+- The optional `cel-bridge` feature provides the `fel_core::cel` source
+  conversion API and the `fel-convert` command. It supports round-trip editing
+  between CEL and FEL and native rewrites for compatible expressions.
 - `subject(key)` reads a declared filing-unit key. Hosts supply the value through
   `Environment::subject_key`.
 - `parser::parse_with_sites` parses an expression and returns a `SourceSite` with
@@ -29,6 +32,11 @@ conformance corpus.
 
 ### Fixed
 
+- The built-in catalog and specification now describe `count` as counting
+  non-null elements, including zero, false and empty strings. An empty list
+  gives zero and a null list gives null.
+- The crate declares Rust 1.88 as its minimum toolchain, matching the parser's
+  use of stabilized let chains.
 - Reference sites cover grouped field access such as `($a).b`. Grouped keyed
   lookups retain their selector and expose the path inside the group separately
   from the editable postfix.

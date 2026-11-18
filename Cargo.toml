@@ -12,12 +12,20 @@ readme = "README.md"
 keywords = ["formspec", "expression-language", "parser", "evaluator"]
 categories = ["parser-implementations"]
 
+[package.metadata.docs.rs]
+features = ["cel-bridge"]
+
 # fel-core extracted from formspec/crates/fel-core/ to its own top-level repo
 # on 2026-05-04. Foundational substrate consumed cross-repo by formspec,
 # work-spec, and workspec-server via path = "../fel-core" sibling-coupling
 # under formspec-stack until hosted publication on crates.io.
 
 [dependencies]
+cel-syntax = { package = "cel", version = "=0.16.0", default-features = false, optional = true }
+stacker = { version = "0.1.25", optional = true }
+# stacker accepts this release of psm. Later releases add ar_archive_writer
+# to every build, whose license falls outside this project's dependency policy.
+psm = { version = "=0.1.27", optional = true }
 indexmap = { version = "2", features = ["serde"] }
 # Pinned to ~7.0 (i.e. >=7.0, <7.1) — plural rules are CLDR-derived;
 # minor CLDR data shifts can change plural categories for specific
@@ -36,6 +44,11 @@ serde_json = { version = "1", features = ["preserve_order", "raw_value"] }
 unic-langid = { version = "0.9", features = ["macros"] }
 
 [[bin]]
+name = "fel-convert"
+path = "src/bin/fel-convert.rs"
+required-features = ["cel-bridge"]
+
+[[bin]]
 name = "emit-fel-schema"
 path = "src/bin/emit-fel-schema.rs"
 
@@ -49,13 +62,14 @@ name = "emit-fuzz-regression-corpus"
 path = "src/bin/emit-fuzz-regression-corpus.rs"
 
 [dev-dependencies]
-chrono = "0.4"
+jiff = { version = "0.2", default-features = false }
 proptest = "1"
 serde_json = "1"
 insta = "1"
 toml = "0.8"
 
 [features]
+cel-bridge = ["dep:cel-syntax", "dep:stacker", "dep:psm"]
 proptest-strategies = ["proptest"]
 
 [[test]]

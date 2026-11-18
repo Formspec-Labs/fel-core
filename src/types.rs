@@ -674,14 +674,12 @@ mod tests {
 /// Property tests for the Hinnant civil-calendar primitives.
 ///
 /// Validates `days_from_civil` / `civil_from_days` / `days_in_month`
-/// against `chrono::NaiveDate` over the Gregorian range 1900–2200.
+/// against `jiff::civil::Date` over the Gregorian range 1900–2200.
 #[cfg(test)]
 mod proptest_civil_calendar {
     #![allow(clippy::missing_docs_in_private_items)]
     use super::*;
-    use chrono::Datelike;
-
-    const EPOCH_OFFSET: i32 = 719_163;
+    use jiff::civil::Date as CivilDate;
 
     proptest::proptest! {
         #![proptest_config(proptest::test_runner::Config {
@@ -690,7 +688,7 @@ mod proptest_civil_calendar {
         })]
 
         #[test]
-        fn days_from_civil_matches_chrono(
+        fn days_from_civil_matches_jiff(
             year in 1900_i32..=2200_i32,
             month in 1_u32..=12_u32,
             day in 1_u32..=31_u32,
@@ -699,10 +697,10 @@ mod proptest_civil_calendar {
             proptest::prop_assume!(day <= max_day);
 
             let fel_days = days_from_civil(year, month, day);
-            let chrono_date = chrono::NaiveDate::from_ymd_opt(year, month, day)
-                .expect("chrono rejected a date that days_in_month accepted");
-            let chrono_days = chrono_date.num_days_from_ce();
-            let expected = (chrono_days - EPOCH_OFFSET) as i64;
+            let date = CivilDate::new(year as i16, month as i8, day as i8)
+                .expect("valid Gregorian date");
+            let epoch = CivilDate::constant(1970, 1, 1);
+            let expected = i64::from(date.since(epoch).unwrap().get_days());
 
             proptest::prop_assert_eq!(fel_days, expected,
                 "days_from_civil({}, {}, {}) = {}, expected {}",
@@ -730,22 +728,17 @@ mod proptest_civil_calendar {
         }
 
         #[test]
-        fn days_in_month_matches_chrono(
+        fn days_in_month_matches_jiff(
             year in 1900_i32..=2200_i32,
             month in 1_u32..=12_u32,
         ) {
             let fel_dim = days_in_month(year, month);
 
-            let next_month = if month == 12 { 1 } else { month + 1 };
-            let next_year  = if month == 12 { year + 1 } else { year };
-            let first_of_next = chrono::NaiveDate::from_ymd_opt(next_year, next_month, 1)
-                .expect("valid next-month date");
-            let last_of_this = first_of_next.pred_opt().expect("valid predecessor");
-            let chrono_dim = last_of_this.day();
-
-            proptest::prop_assert_eq!(fel_dim, chrono_dim,
-                "days_in_month({}, {}) = {}, chrono says {}",
-                year, month, fel_dim, chrono_dim
+            let date = CivilDate::new(year as i16, month as i8, 1).unwrap();
+            let expected = date.days_in_month() as u32;
+            proptest::prop_assert_eq!(fel_dim, expected,
+                "days_in_month({}, {}) = {}, expected {}",
+                year, month, fel_dim, expected
             );
         }
     }

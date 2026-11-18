@@ -157,7 +157,8 @@ Null propagates through most operations. When an operand is null, the operation 
 
 Functions receive evaluated arguments including nulls. Each function's null handling is documented in the function catalog. General patterns:
 - Aggregate functions (`sum`, `avg`, `min`, `max`) skip null elements but return null if the array argument itself is null.
-- `count()` returns the count of non-null elements; null array returns null.
+- `count(array)` counts non-null elements. A null array returns null. For `[0, null, false, '']`, the count is 3 because zero, false, and an empty string are values.
+- `length(array)` counts every position, including nulls. The same array has length 4. `length(string)` counts Unicode code points, and `length(null)` returns 0.
 - `empty()`: null → `true`.
 - `present()`: null → `false` (logical inverse of `empty`).
 - Cast functions: `number(null)` → null, `string(null)` → `""`, `boolean(null)` → `false`, `date(null)` → null.

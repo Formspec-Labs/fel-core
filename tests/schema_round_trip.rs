@@ -47,3 +47,24 @@ fn emitted_schema_matches_canonical() {
         path.display()
     );
 }
+
+#[test]
+fn count_example_matches_conformance() {
+    let expression = "count([1, null, 3])";
+    let example = fel_core::builtin_function_catalog()
+        .iter()
+        .find(|entry| entry.name == "count")
+        .expect("count in catalog")
+        .examples
+        .iter()
+        .find(|example| example.expression == expression)
+        .expect("count example with a null slot");
+    let fixture = include_str!("../conformance/fel-conformance.jsonl")
+        .lines()
+        .map(|line| serde_json::from_str::<serde_json::Value>(line).expect("conformance fixture"))
+        .find(|fixture| fixture["expression"] == expression)
+        .expect("conformance case for the count example");
+    let documented: serde_json::Value =
+        serde_json::from_str(example.result_json).expect("catalog result");
+    assert_eq!(documented, fixture["expectedValue"], "{expression}");
+}
