@@ -35,8 +35,38 @@
 
 use fel_core::ast::{BinaryOp, Expr, PathSegment};
 use fel_core::testing::strategies::arb_expr;
-use fel_core::{builtin_function_catalog, extract_dependencies, parse};
+use fel_core::{ReadPath, ReadPathSegment, builtin_function_catalog, extract_dependencies, parse};
 use proptest::prelude::*;
+
+fn arb_read_segment() -> impl Strategy<Value = ReadPathSegment> {
+    prop_oneof![
+        ".{0,16}".prop_map(ReadPathSegment::Key),
+        (0usize..100).prop_map(ReadPathSegment::Index),
+        Just(ReadPathSegment::Wildcard),
+    ]
+}
+
+proptest! {
+    #![proptest_config(proptest::test_runner::Config {
+        cases: 256,
+        ..Default::default()
+    })]
+
+    /// Canonical ReadPath encoding is lossless and strictly injective across all typed paths.
+    #[test]
+    fn read_path_canonical_round_trip_and_injective(
+        a in proptest::collection::vec(arb_read_segment(), 0..6),
+        b in proptest::collection::vec(arb_read_segment(), 0..6),
+    ) {
+        let pa = ReadPath::new(a);
+        let pb = ReadPath::new(b);
+        let sa = pa.to_canonical_string();
+        let sb = pb.to_canonical_string();
+        prop_assert_eq!(ReadPath::parse_canonical(&sa), Ok(pa.clone()));
+        prop_assert_eq!(ReadPath::parse_canonical(&sb), Ok(pb.clone()));
+        prop_assert_eq!(sa == sb, pa == pb);
+    }
+}
 
 proptest! {
     #![proptest_config(proptest::test_runner::Config {

@@ -5,10 +5,285 @@
 //!
 //! The `walk` helper and related functions recurse the AST to populate [`Dependencies`].
 #![allow(clippy::missing_docs_in_private_items)]
+use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::fmt::{self, Write as _};
 use std::rc::Rc;
 
+use serde::{Serialize, Serializer};
+
 use crate::ast::{Expr, PathDotJoin, PathSegment};
+
+/// One typed step in a statically resolved dependency read path.
+///
+/// Keeps literal object keys (such as `instance('source', 'rows[1].code')`, which reads the
+/// literal property key `"rows[1]"` followed by `"code"`) distinct from 1-based FEL array
+/// subscripts (`@instance('source').rows[1].code`) and wildcard element projections (`[*]`).
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ReadPathSegment {
+    /// A literal object property key (never re-parsed as bracket syntax).
+    Key(String),
+    /// A 1-based FEL array subscript (`[1]`, `[2]`, ...).
+    Index(usize),
+    /// A wildcard element projection (`[*]`).
+    Wildcard,
+}
+
+/// A sequence of typed read path segments.
+///
+/// An empty segment list represents the whole root value (for example, a whole instance or
+/// an instance read whose path depends on runtime data).
+///
+/// Canonical serialization ([`ReadPath::to_canonical_string`]) is strictly injective and
+/// round-trips via [`ReadPath::parse_canonical`]:
+/// - Empty path → `""`
+/// - Bare [`ReadPathSegment::Key`] matching `[A-Za-z0-9_-]+` → `key` (or `.key` after a segment)
+/// - Any other [`ReadPathSegment::Key`] → `["<json-escaped-key>"]` (no leading `.`)
+/// - [`ReadPathSegment::Index`] → `[N]` (no leading `.`)
+/// - [`ReadPathSegment::Wildcard`] → `[*]` (no leading `.`)
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
+pub struct ReadPath {
+    segments: Vec<ReadPathSegment>,
+}
+
+impl ReadPath {
+    /// Construct a typed read path from segments.
+    pub fn new(segments: Vec<ReadPathSegment>) -> Self {
+        Self { segments }
+    }
+
+    /// Parse a two-argument `instance(name, path)` literal path string into typed literal keys.
+    ///
+    /// Matches FEL's runtime `instance()` evaluator: an empty string reads the whole instance,
+    /// and a non-empty string splits strictly on `.` where each component is a literal property
+    /// key (brackets such as `rows[1]` or `rows[*]` are never interpreted as array subscripts).
+    pub fn from_dotted_literal_keys(path: &str) -> Self {
+        if path.is_empty() {
+            Self::default()
+        } else {
+            Self {
+                segments: path
+                    .split('.')
+                    .map(|segment| ReadPathSegment::Key(segment.to_owned()))
+                    .collect(),
+            }
+        }
+    }
+
+    /// Borrow the typed segments in this read path.
+    pub fn segments(&self) -> &[ReadPathSegment] {
+        &self.segments
+    }
+
+    /// Consume this read path into its typed segments.
+    pub fn into_segments(self) -> Vec<ReadPathSegment> {
+        self.segments
+    }
+
+    /// Whether this path represents the whole root value (no child segments).
+    pub fn is_empty(&self) -> bool {
+        self.segments.is_empty()
+    }
+
+    /// Append a typed segment to this read path.
+    pub fn push(&mut self, segment: ReadPathSegment) {
+        self.segments.push(segment);
+    }
+
+    /// Append all segments from an iterator to this read path.
+    pub fn extend_segments(&mut self, segments: impl IntoIterator<Item = ReadPathSegment>) {
+        self.segments.extend(segments);
+    }
+
+    /// Serialize to the unambiguous, injective canonical path string.
+    pub fn to_canonical_string(&self) -> String {
+        let mut out = String::new();
+        for (idx, segment) in self.segments.iter().enumerate() {
+            match segment {
+                ReadPathSegment::Key(key) if is_bare_read_key(key) => {
+                    if idx > 0 {
+                        out.push('.');
+                    }
+                    out.push_str(key);
+                }
+                ReadPathSegment::Key(key) => {
+                    out.push('[');
+                    let quoted =
+                        serde_json::to_string(key).expect("string key serializes to JSON");
+                    out.push_str(&quoted);
+                    out.push(']');
+                }
+                ReadPathSegment::Index(i) => {
+                    let _ = write!(out, "[{i}]");
+                }
+                ReadPathSegment::Wildcard => out.push_str("[*]"),
+            }
+        }
+        out
+    }
+
+    /// Parse a canonical read path string back into typed segments.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error description if `input` is not a valid canonical encoding produced by
+    /// [`ReadPath::to_canonical_string`].
+    pub fn parse_canonical(input: &str) -> Result<Self, String> {
+        if input.is_empty() {
+            return Ok(Self::default());
+        }
+        let bytes = input.as_bytes();
+        let mut pos = 0;
+        let mut segments = Vec::new();
+        while pos < bytes.len() {
+            match bytes[pos] {
+                b'.' => {
+                    if segments.is_empty() {
+                        return Err("unexpected leading '.' in canonical read path".to_owned());
+                    }
+                    pos += 1;
+                    let key = parse_bare_key(input, &mut pos)?;
+                    segments.push(ReadPathSegment::Key(key));
+                }
+                b'[' => {
+                    segments.push(parse_bracket_segment(input, &mut pos)?);
+                }
+                _ if segments.is_empty() => {
+                    let key = parse_bare_key(input, &mut pos)?;
+                    segments.push(ReadPathSegment::Key(key));
+                }
+                ch => {
+                    return Err(format!(
+                        "unexpected character {:?} at byte {pos} in canonical read path",
+                        ch as char
+                    ));
+                }
+            }
+        }
+        Ok(Self { segments })
+    }
+}
+
+impl From<Vec<ReadPathSegment>> for ReadPath {
+    fn from(segments: Vec<ReadPathSegment>) -> Self {
+        Self { segments }
+    }
+}
+
+impl fmt::Display for ReadPath {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.to_canonical_string())
+    }
+}
+
+impl Ord for ReadPath {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.to_canonical_string().cmp(&other.to_canonical_string())
+    }
+}
+
+impl PartialOrd for ReadPath {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Serialize for ReadPath {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.to_canonical_string())
+    }
+}
+
+fn is_bare_read_key(key: &str) -> bool {
+    !key.is_empty()
+        && key
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+}
+
+fn parse_bare_key(input: &str, pos: &mut usize) -> Result<String, String> {
+    let start = *pos;
+    let bytes = input.as_bytes();
+    while *pos < bytes.len() {
+        let b = bytes[*pos];
+        if b.is_ascii_alphanumeric() || b == b'_' || b == b'-' {
+            *pos += 1;
+        } else {
+            break;
+        }
+    }
+    if *pos == start {
+        return Err(format!(
+            "expected key segment at byte {start} in canonical read path"
+        ));
+    }
+    Ok(input[start..*pos].to_owned())
+}
+
+fn parse_bracket_segment(input: &str, pos: &mut usize) -> Result<ReadPathSegment, String> {
+    let bytes = input.as_bytes();
+    debug_assert_eq!(bytes[*pos], b'[');
+    *pos += 1;
+    if *pos >= bytes.len() {
+        return Err("unterminated '[' in canonical read path".to_owned());
+    }
+    match bytes[*pos] {
+        b'"' => {
+            let str_start = *pos;
+            *pos += 1;
+            let mut escaped = false;
+            while *pos < bytes.len() {
+                let b = bytes[*pos];
+                if escaped {
+                    escaped = false;
+                } else if b == b'\\' {
+                    escaped = true;
+                } else if b == b'"' {
+                    *pos += 1;
+                    let key: String = serde_json::from_str(&input[str_start..*pos])
+                        .map_err(|e| format!("invalid JSON key in canonical read path: {e}"))?;
+                    if *pos >= bytes.len() || bytes[*pos] != b']' {
+                        return Err("expected ']' after quoted key in canonical read path".to_owned());
+                    }
+                    *pos += 1;
+                    return Ok(ReadPathSegment::Key(key));
+                }
+                *pos += 1;
+            }
+            Err("unterminated quoted key in canonical read path".to_owned())
+        }
+        b'*' => {
+            *pos += 1;
+            if *pos >= bytes.len() || bytes[*pos] != b']' {
+                return Err("expected ']' after '*' in canonical read path".to_owned());
+            }
+            *pos += 1;
+            Ok(ReadPathSegment::Wildcard)
+        }
+        b'0'..=b'9' => {
+            let start = *pos;
+            while *pos < bytes.len() && bytes[*pos].is_ascii_digit() {
+                *pos += 1;
+            }
+            let digits = &input[start..*pos];
+            if digits.len() > 1 && digits.starts_with('0') {
+                return Err(format!("non-canonical leading zero index [{digits}]"));
+            }
+            if *pos >= bytes.len() || bytes[*pos] != b']' {
+                return Err("expected ']' after numeric index in canonical read path".to_owned());
+            }
+            *pos += 1;
+            let index = digits
+                .parse::<usize>()
+                .map_err(|e| format!("invalid index [{digits}]: {e}"))?;
+            Ok(ReadPathSegment::Index(index))
+        }
+        ch => Err(format!(
+            "unexpected bracket content starting with {:?} in canonical read path",
+            ch as char
+        )),
+    }
+}
 
 /// Dependencies extracted from a FEL expression.
 #[derive(Debug, Clone, Default)]
@@ -17,15 +292,18 @@ pub struct Dependencies {
     pub fields: HashSet<String>,
     /// Context references (e.g., `["@current", "@index"]`).
     pub context_refs: HashSet<String>,
-    /// Paths read per statically named instance. An empty path covers the whole instance,
-    /// including a read whose path depends on runtime data. Computed names are unresolved.
-    pub instance_reads: BTreeMap<String, BTreeSet<String>>,
+    /// Typed paths read per statically named instance. An empty [`ReadPath`] covers the whole
+    /// instance, including a read whose path depends on runtime data. Computed names are unresolved.
+    pub instance_reads: BTreeMap<String, BTreeSet<ReadPath>>,
     /// Function calls in traversal order, including their argument counts.
     pub function_calls: Vec<(String, usize)>,
     /// An instance lookup computes its source name at evaluation time.
     pub has_dynamic_instance: bool,
-    /// Paths relative to the current field, excluding dollars rebound by predicates.
-    pub self_reads: BTreeSet<String>,
+    /// Typed paths relative to the current field, excluding dollars rebound by predicates.
+    pub self_reads: BTreeSet<ReadPath>,
+    /// Typed paths relative to `@current` (the enclosing repeat row), retaining postfix
+    /// subscripts, wildcards, aliases, and row-predicate column reads.
+    pub current_reads: BTreeSet<ReadPath>,
     /// MIP dependencies: fields used in valid/relevant/readonly/required.
     pub mip_deps: HashSet<String>,
     /// Whether bare `$` (self-reference) appears.
@@ -46,7 +324,7 @@ impl Dependencies {
     pub fn context_names(&self) -> impl Iterator<Item = &str> {
         self.context_refs
             .iter()
-            .filter_map(|reference| reference.strip_prefix('@')?.split(['.', '(']).next())
+            .filter_map(|reference| reference.strip_prefix('@')?.split(['.', '(', '[']).next())
     }
 }
 
@@ -62,6 +340,7 @@ enum Root {
     Field,
     Instance(String),
     CurrentField,
+    CurrentRow,
 }
 
 // Describe where a value came from only when syntax determines the answer.
@@ -69,7 +348,7 @@ enum Root {
 // has one set of possible element origins (e.g. rows[*].child).
 #[derive(Clone, PartialEq)]
 enum Origin {
-    Path(Root, String),
+    Path(Root, ReadPath),
     Object(Rc<BTreeMap<String, Origins>>),
     Array(Rc<Vec<Origins>>),
     Projection(Rc<Origins>),
@@ -88,10 +367,13 @@ fn record(origins: &Origins, deps: &mut Dependencies) {
                     .insert(path.clone());
             }
             Origin::Path(Root::Field, path) => {
-                deps.fields.insert(path.clone());
+                deps.fields.insert(path.to_canonical_string());
             }
             Origin::Path(Root::CurrentField, path) => {
                 deps.self_reads.insert(path.clone());
+            }
+            Origin::Path(Root::CurrentRow, path) => {
+                deps.current_reads.insert(path.clone());
             }
             Origin::Projection(rows) => record(rows, deps),
             // Each constructor member was visited when the value was built.
@@ -113,7 +395,7 @@ fn elements(origins: Origins) -> Origins {
     origins.into_iter().fold(Vec::new(), |rows, origin| {
         let values = match origin {
             Origin::Path(root, mut path) => {
-                path.push_str("[*]");
+                path.push(ReadPathSegment::Wildcard);
                 vec![Origin::Path(root, path)]
             }
             Origin::Array(values) => values.iter().cloned().fold(Vec::new(), union),
@@ -135,8 +417,16 @@ fn follow(mut origins: Origins, path: &[PathSegment]) -> Origins {
         }
         origins = origins.into_iter().fold(Vec::new(), |result, origin| {
             let values = match (origin, segment) {
-                (Origin::Path(root, mut base), segment) => {
-                    segment.append_to_path(&mut base, PathDotJoin::PrefixWhenNonempty);
+                (Origin::Path(root, mut base), PathSegment::Dot(key)) => {
+                    base.push(ReadPathSegment::Key(key.clone()));
+                    vec![Origin::Path(root, base)]
+                }
+                (Origin::Path(root, mut base), PathSegment::Index(i)) => {
+                    base.push(ReadPathSegment::Index(*i));
+                    vec![Origin::Path(root, base)]
+                }
+                (Origin::Path(root, mut base), PathSegment::Wildcard) => {
+                    base.push(ReadPathSegment::Wildcard);
                     vec![Origin::Path(root, base)]
                 }
                 (Origin::Object(entries), PathSegment::Dot(key)) => {
@@ -196,10 +486,22 @@ fn walk(expr: &Expr, deps: &mut Dependencies, bindings: &mut Bindings) -> Origin
             if name == "instance"
                 && let Some(instance) = arg
             {
-                return vec![Origin::Path(
-                    Root::Instance(instance.clone()),
-                    tail.join("."),
-                )];
+                let path = ReadPath::new(
+                    tail.iter()
+                        .cloned()
+                        .map(ReadPathSegment::Key)
+                        .collect(),
+                );
+                return vec![Origin::Path(Root::Instance(instance.clone()), path)];
+            }
+            if name == "current" && !*called && arg.is_none() {
+                let path = ReadPath::new(
+                    tail.iter()
+                        .cloned()
+                        .map(ReadPathSegment::Key)
+                        .collect(),
+                );
+                return vec![Origin::Path(Root::CurrentRow, path)];
             }
         }
         Expr::FunctionCall { name, args } => {
@@ -253,14 +555,14 @@ fn walk(expr: &Expr, deps: &mut Dependencies, bindings: &mut Bindings) -> Origin
                 && let Some(Expr::String(instance)) = args.first()
             {
                 let path = match args.get(1) {
-                    None => String::new(),
-                    Some(Expr::String(path)) => path.clone(),
+                    None => ReadPath::default(),
+                    Some(Expr::String(path)) => ReadPath::from_dotted_literal_keys(path),
                     // The instance is known but its path depends on runtime data.
                     Some(_) => {
                         deps.instance_reads
                             .entry(instance.clone())
                             .or_default()
-                            .insert(String::new());
+                            .insert(ReadPath::default());
                         return Vec::new();
                     }
                 };
@@ -313,7 +615,7 @@ fn walk(expr: &Expr, deps: &mut Dependencies, bindings: &mut Bindings) -> Origin
         } => {
             let source_origins = visit(source, deps, bindings);
             visit(key, deps, bindings);
-            let rows = field_path_from_root(expr, |_, name| {
+            let rows = field_read_path_from_root(expr, |_, name| {
                 !bindings.iter().any(|(bound, _)| bound == name)
             })
             .map_or_else(
@@ -386,10 +688,13 @@ fn reference(
     {
         paths.clone()
     } else if let Some(name) = name {
-        vec![Origin::Path(Root::Field, name.to_owned())]
+        vec![Origin::Path(
+            Root::Field,
+            ReadPath::new(vec![ReadPathSegment::Key(name.to_owned())]),
+        )]
     } else {
         deps.has_self_ref = true;
-        vec![Origin::Path(Root::CurrentField, String::new())]
+        vec![Origin::Path(Root::CurrentField, ReadPath::default())]
     };
     follow(roots, path)
 }
@@ -421,10 +726,23 @@ pub(crate) fn explicit_field_path(expr: &Expr, let_vars: &[String]) -> Option<St
     })
 }
 
+fn push_ast_segments(read_path: &mut ReadPath, segments: &[PathSegment]) {
+    for segment in segments {
+        match segment {
+            PathSegment::Dot(key) => read_path.push(ReadPathSegment::Key(key.clone())),
+            PathSegment::Index(i) => read_path.push(ReadPathSegment::Index(*i)),
+            PathSegment::Wildcard => read_path.push(ReadPathSegment::Wildcard),
+        }
+    }
+}
+
 /// Postfix chains are parsed iteratively. Walk back to their root without recursion.
-fn field_path_from_root(mut expr: &Expr, accept: impl Fn(&Expr, &str) -> bool) -> Option<String> {
+fn field_read_path_from_root(
+    mut expr: &Expr,
+    accept: impl Fn(&Expr, &str) -> bool,
+) -> Option<ReadPath> {
     let mut suffixes = Vec::new();
-    loop {
+    let mut read_path = loop {
         match expr {
             Expr::PostfixAccess { expr: base, path } => {
                 suffixes.push(path.as_slice());
@@ -435,23 +753,28 @@ fn field_path_from_root(mut expr: &Expr, accept: impl Fn(&Expr, &str) -> bool) -
                 expr = source;
             }
             Expr::FieldRef {
-                name: Some(name), ..
+                name: Some(name),
+                path,
             }
-            | Expr::VarRef { name, .. }
+            | Expr::VarRef { name, path }
                 if accept(expr, name) =>
             {
-                break;
+                let mut base = ReadPath::new(vec![ReadPathSegment::Key(name.clone())]);
+                push_ast_segments(&mut base, path);
+                break base;
             }
             _ => return None,
         }
-    }
-    let mut path = extract_field_path_str(expr);
+    };
     for suffix in suffixes.into_iter().rev() {
-        for segment in suffix {
-            segment.append_to_path(&mut path, PathDotJoin::AlwaysPrefix);
-        }
+        push_ast_segments(&mut read_path, suffix);
     }
-    Some(path)
+    Some(read_path)
+}
+
+/// Postfix chains are parsed iteratively. Walk back to their root without recursion.
+fn field_path_from_root(expr: &Expr, accept: impl Fn(&Expr, &str) -> bool) -> Option<String> {
+    field_read_path_from_root(expr, accept).map(|path| path.to_canonical_string())
 }
 
 use crate::wire_style::JsonWireStyle;

@@ -105,6 +105,16 @@ proptests = [
 notes = "Return type of extract_dependencies; every dependencies proptest asserts on its fields."
 
 [[entries]]
+symbol = "dependencies::ReadPath"
+proptests = ["tests/dependencies_proptest.rs::read_path_canonical_round_trip_and_injective"]
+notes = "Typed dependency read path; proptest verifies bijective canonical encoding and round-trip parsing."
+
+[[entries]]
+symbol = "dependencies::ReadPathSegment"
+proptests = ["tests/dependencies_proptest.rs::read_path_canonical_round_trip_and_injective"]
+notes = "Typed read path segment (Key, Index, Wildcard); proptest covers arbitrary segment combinations."
+
+[[entries]]
 symbol = "dependencies::dependencies_to_json_value"
 proptests = ["tests/json_exports_proptest.rs::dependencies_json_styled_parity"]
 notes = "Phase 3b closed: styled-parity proptest parameterized over JsonWireStyle closes both styled/unstyled (design §Gap item 10)."

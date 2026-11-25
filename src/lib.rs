@@ -43,8 +43,8 @@ pub use convert::{
     json_object_to_field_map, json_to_fel,
 };
 pub use dependencies::{
-    Dependencies, dependencies_to_json_value, dependencies_to_json_value_styled,
-    extract_dependencies,
+    Dependencies, ReadPath, ReadPathSegment, dependencies_to_json_value,
+    dependencies_to_json_value_styled, extract_dependencies,
 };
 pub use environment::{FormspecEnvironment, MipState, RepeatContext, resolve_value_path};
 pub use error::{
