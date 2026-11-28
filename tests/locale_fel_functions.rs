@@ -83,14 +83,14 @@ fn runtime_meta_null_propagation_on_null_key() {
 #[test]
 fn subject_returns_null_without_identity_or_a_matching_key() {
     let mut env = FormspecEnvironment::new();
-    env.set_field("uei", s("editable"));
-    env.set_meta("uei", s("metadata"));
-    let result = eval_with_env("subject('uei')", &env);
+    env.set_field("orgId", s("editable"));
+    env.set_meta("orgId", s("metadata"));
+    let result = eval_with_env("subject('orgId')", &env);
     assert_eq!(result.value, Value::Null);
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
 
-    env.subject_keys.insert("ffy".into(), num(2026));
-    let result = eval_with_env("subject('uei')", &env);
+    env.subject_keys.insert("period".into(), num(2026));
+    let result = eval_with_env("subject('orgId')", &env);
     assert_eq!(result.value, Value::Null);
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
 }
@@ -98,19 +98,19 @@ fn subject_returns_null_without_identity_or_a_matching_key() {
 #[test]
 fn subject_preserves_identity_values_and_matches_instance_rows() {
     let mut env = FormspecEnvironment::new();
-    env.subject_keys.insert("uei".into(), s("00123"));
-    env.subject_keys.insert("ffy".into(), num(2026));
-    env.set_field("uei", s("editable"));
-    env.set_meta("uei", s("metadata"));
-    let list = exact_json::native_json!({"agencies": [{"uei": "other"}, {"uei": "00123"}]});
-    env.set_instance("agencyList", exact_json::to_fel(&list).unwrap());
+    env.subject_keys.insert("orgId".into(), s("00123"));
+    env.subject_keys.insert("period".into(), num(2026));
+    env.set_field("orgId", s("editable"));
+    env.set_meta("orgId", s("metadata"));
+    let list = exact_json::native_json!({"organizations": [{"orgId": "other"}, {"orgId": "00123"}]});
+    env.set_instance("orgList", exact_json::to_fel(&list).unwrap());
 
-    assert_eq!(eval_value("subject('uei')", &env), s("00123"));
-    assert_eq!(eval_value("subject('ffy')", &env), num(2026));
-    assert_eq!(eval_value("runtimeMeta('uei')", &env), s("metadata"));
+    assert_eq!(eval_value("subject('orgId')", &env), s("00123"));
+    assert_eq!(eval_value("subject('period')", &env), num(2026));
+    assert_eq!(eval_value("runtimeMeta('orgId')", &env), s("metadata"));
     assert_eq!(
         eval_value(
-            "some(@instance('agencyList').agencies, $.uei = subject('uei'))",
+            "some(@instance('orgList').organizations, $.orgId = subject('orgId'))",
             &env
         ),
         Value::Boolean(true),

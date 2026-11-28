@@ -13,7 +13,7 @@ conformance corpus.
 - The optional `cel-bridge` feature provides the `fel_core::cel` source
   conversion API and the `fel-convert` command. It supports round-trip editing
   between CEL and FEL and native rewrites for compatible expressions.
-- `subject(key)` reads a declared filing-unit key. Hosts supply the value through
+- `subject(key)` reads a declared subject key. Hosts supply the value through
   `Environment::subject_key`.
 - `parser::parse_with_sites` parses an expression and returns a `SourceSite` with
   the UTF-8 byte range and `SiteKind` of each reference-bearing part: `$` field

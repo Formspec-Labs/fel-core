@@ -71,7 +71,7 @@ pub(super) const ENTRIES: &[BuiltinFunctionCatalogEntry] = &[
         emit_deterministic_explicitly: false,
         short_circuit: false,
         examples: &[Example {
-            expression: "subject('uei')",
+            expression: "subject('orgId')",
             result_json: "\"00123\"",
             note: None,
         }],
